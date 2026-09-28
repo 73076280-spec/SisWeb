@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
             HandleGuestSession::class,
         ]);
+
+        // Visitantes que acceden a una ruta protegida (p. ej. Mis Autoevaluaciones)
+        // vuelven al inicio, donde pueden crear o iniciar sesión en su cuenta.
+        $middleware->redirectGuestsTo(fn () => route('autoevaluacion.index'));
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

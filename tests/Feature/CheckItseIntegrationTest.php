@@ -43,13 +43,14 @@ test('flujo completo: autoevaluacion, simulacion de revision in situ, plan preve
     // -------------------------------------------------------------------------
     $autoevaluacion = Autoevaluacion::first();
     expect($autoevaluacion)->not->toBeNull()
-        ->and($autoevaluacion->tipo_tramite)->toBe('EX_POST')
+        ->and($autoevaluacion->tipo_tramite)->toBeNull()
+        ->and($autoevaluacion->nivel_riesgo)->toBeNull()
         ->and($autoevaluacion->porcentaje_cumplimiento)->toBe(80.0)
         ->and($autoevaluacion->semaforo)->toBe('AMBAR')
         ->and(strlen($autoevaluacion->hash_integridad))->toBe(64)
         ->and(strlen($autoevaluacion->uuid_trazabilidad))->toBe(36);
 
-    $responseAutoevaluacion->assertRedirect(route('autoevaluacion.resultado', ['uuid' => $autoevaluacion->uuid_trazabilidad]));
+    $responseAutoevaluacion->assertRedirect(route('autoevaluacion.checklist', ['uuid' => $autoevaluacion->uuid_trazabilidad]));
 
     // -------------------------------------------------------------------------
     // 3. Consulta de Resultado (Status 200)

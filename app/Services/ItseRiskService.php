@@ -143,7 +143,8 @@ class ItseRiskService
      * Catálogo técnico normativo de condiciones de seguridad ITSE.
      * Criterios de autoevaluación basados en normativa peruana de referencia
      * (RNE A.010/A.130, NTP, CNE-U, R.M. 175-2008-MEM). Debe mantenerse en
-     * sincronía con el checklist que presenta resources/js/pages/Evaluacion/Index.tsx.
+     * sincronía con el checklist que presenta resources/js/pages/Evaluacion/Nueva.tsx
+     * y con el catálogo de resources/js/data/checklistCatalogo.ts.
      * Requerido por EvaluacionController@index para pintar el formulario.
      */
     public function getCatalogoChecklist(): array
@@ -272,6 +273,7 @@ class ItseRiskService
                 'tipo' => $recurso?->tipo,
                 'base_legal' => $recurso?->base_legal,
                 'evidencia_sugerida' => $recurso?->evidencia_sugerida,
+                'descripcion' => $recurso?->descripcion_didactica,
             ];
         }, $items);
     }
@@ -282,9 +284,9 @@ class ItseRiskService
      */
     public function clasificarTramite(
         string $funcion = 'Comercio',
-        float $areaM2 = 0.0,
-        int $pisos = 1,
-        int $aforo = 10,
+        ?float $areaM2 = null,
+        ?int $pisos = null,
+        ?int $aforo = null,
         bool $usaGlp = false,
         float $galonesGlp = 0.0,
         bool $usaCaldero = false,
@@ -295,16 +297,16 @@ class ItseRiskService
 
         // 1. Escala Física por Función Comercial (R.J. 016-2018-CENEPRED/J Numeral 1.1.2)
         if ($funcion === 'Comercio') {
-            if ($pisos > 3) {
+            if ($pisos !== null && $pisos > 3) {
                 $esPrevia = true;
                 $motivos[] = "Supera los 3 pisos de altura ({$pisos} pisos registrados).";
             }
-            if ($areaM2 > 750.0) {
+            if ($areaM2 !== null && $areaM2 > 750.0) {
                 $esPrevia = true;
                 $motivos[] = "Supera los 750 m² de área techada ({$areaM2} m² registrados).";
             }
         } elseif (in_array($funcion, ['Salud', 'Educacion', 'Hospedaje', 'Industrial', 'Encuentro'])) {
-            if ($areaM2 > 500.0 || $pisos > 2 || $aforo > 100) {
+            if (($areaM2 !== null && $areaM2 > 500.0) || ($pisos !== null && $pisos > 2) || ($aforo !== null && $aforo > 100)) {
                 $esPrevia = true;
                 $motivos[] = "La función '{$funcion}' clasifica en Riesgo Alto por su escala/aforo.";
             }
@@ -347,7 +349,7 @@ class ItseRiskService
         $evaluables = array_filter($checklist, function ($item) {
             $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
 
-            return $estado !== 'NA';
+            return $estado !== 'NA' && $estado !== 'NO_APLICA';
         });
 
         $totalEvaluables = count($evaluables);
@@ -371,7 +373,7 @@ class ItseRiskService
             $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
             $esCritico = $item['es_critico'] ?? false;
 
-            if ($estado === 'CUMPLE') {
+            if ($estado === 'CUMPLE' || $estado === 'CUMPLE_DECLARADO') {
                 $cumplidos++;
             } elseif ($estado === 'POR_REVISAR') {
                 $porRevisar++;
@@ -401,8 +403,10 @@ class ItseRiskService
     }
 
     /**
-     * Motor 3: Generación del Plan de Acción Priorizado con Costos en Soles.
-     * Sustento: USM (2026).
+     * Motor 3 (Heredado / Aislado): Generación de plan referencial con costos y plazos.
+     *
+     * @deprecated Prototipo anterior. El sistema cívico preventivo definitivo no traslada
+     *             costos, presupuestos ni plazos oficiales. Se mantiene aislado para retrocompatibilidad de pruebas.
      */
     public function generarPlanDeAccion(array $checklist): array
     {
@@ -411,7 +415,7 @@ class ItseRiskService
 
         foreach ($checklist as $item) {
             $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
-            if ($estado === 'NO_CUMPLE') {
+            if ($estado === 'NO_CUMPLE' || $estado === 'PENDIENTE_ATENDER') {
                 $codigo = $item['codigo'] ?? '';
                 $catalogo = self::COSTOS_REFERENCIALES[$codigo] ?? [
                     'nombre' => $item['nombre'] ?? 'Subsanación técnica requerida',

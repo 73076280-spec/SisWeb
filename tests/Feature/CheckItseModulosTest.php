@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Autoevaluacion;
 use App\Models\SimulacionRevision;
 use App\Models\Subsanacion;
+use App\Services\ItseRiskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -108,13 +109,8 @@ class CheckItseModulosTest extends TestCase
         $response->assertSessionHasErrors([
             'nombre_comercio',
             'funcion_economica',
-            'ruc',
-            'sector',
-            'area_m2',
-            'pisos',
-            'aforo',
-            'checklist',
         ]);
+        $response->assertSessionDoesntHaveErrors(['sector', 'checklist']);
 
         $this->assertDatabaseCount('autoevaluaciones', 0);
     }
@@ -142,6 +138,41 @@ class CheckItseModulosTest extends TestCase
         }
     }
 
+    public function test_post_autoevaluacion_guarda_direccion_y_referencia_opcionales(): void
+    {
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase([
+            'direccion' => 'Jr. Teniente Peña 245, segundo piso',
+            'referencia' => 'Frente al mercado Modelo',
+        ]));
+
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('autoevaluaciones', [
+            'ruc' => '20123456789',
+            'direccion' => 'Jr. Teniente Peña 245, segundo piso',
+            'referencia' => 'Frente al mercado Modelo',
+        ]);
+    }
+
+    public function test_post_autoevaluacion_ubicacion_opcional_acepta_vacio(): void
+    {
+        $this->post(route('autoevaluacion.store'), $this->payloadBase())
+            ->assertSessionHasNoErrors();
+
+        $evaluacion = Autoevaluacion::firstOrFail();
+        $this->assertNull($evaluacion->direccion);
+        $this->assertNull($evaluacion->referencia);
+    }
+
+    public function test_post_autoevaluacion_error_ruc_en_espanol(): void
+    {
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase(['ruc' => '12345678901']));
+
+        $response->assertSessionHasErrors([
+            'ruc' => 'El RUC debe tener 11 dígitos y comenzar con 10 o 20.',
+        ]);
+    }
+
     public function test_post_autoevaluacion_crea_registro_uuid_hash_y_redireccion(): void
     {
         $response = $this->post(route('autoevaluacion.store'), $this->payloadBase());
@@ -151,29 +182,39 @@ class CheckItseModulosTest extends TestCase
         $this->assertDatabaseCount('autoevaluaciones', 1);
         $this->assertDatabaseHas('autoevaluaciones', [
             'ruc' => '20123456789',
-            'tipo_tramite' => 'EX_POST',
-            'nivel_riesgo' => 'BAJO_MEDIO',
+            'tipo_tramite' => null,
+            'nivel_riesgo' => null,
             'semaforo' => 'AMBAR',
         ]);
 
         $evaluacion = Autoevaluacion::firstOrFail();
         $this->assertSame(36, strlen($evaluacion->uuid_trazabilidad));
         $this->assertSame(64, strlen($evaluacion->hash_integridad));
-        $this->assertSame('EX_POST', $evaluacion->tipo_tramite);
-        $this->assertSame('BAJO_MEDIO', $evaluacion->nivel_riesgo);
+        $this->assertNull($evaluacion->tipo_tramite);
+        $this->assertNull($evaluacion->nivel_riesgo);
         $this->assertSame(80.0, $evaluacion->porcentaje_cumplimiento);
         $this->assertSame('AMBAR', $evaluacion->semaforo);
 
-        $response->assertRedirect(route('autoevaluacion.resultado', ['uuid' => $evaluacion->uuid_trazabilidad]));
+        $response->assertRedirect(route('autoevaluacion.checklist', ['uuid' => $evaluacion->uuid_trazabilidad]));
     }
 
-    public function test_post_autoevaluacion_clasifica_ex_ante_por_area_800(): void
+    public function test_post_autoevaluacion_no_genera_clasificacion_administrativa_por_escala_o_caracteristicas(): void
     {
-        $evaluacion = $this->crearAutoevaluacion(['area_m2' => '800.0']);
+        $evaluacion = $this->crearAutoevaluacion([
+            'area_m2' => '800.0',
+            'pisos' => 4,
+            'aforo' => 200,
+            'usa_glp' => true,
+            'galones_glp' => 250,
+        ]);
 
-        $this->assertSame('EX_ANTE', $evaluacion->tipo_tramite);
-        $this->assertSame('ALTO_MUY_ALTO', $evaluacion->nivel_riesgo);
-        $this->assertDatabaseHas('autoevaluaciones', ['ruc' => '20123456789', 'tipo_tramite' => 'EX_ANTE']);
+        $this->assertNull($evaluacion->tipo_tramite);
+        $this->assertNull($evaluacion->nivel_riesgo);
+        $this->assertDatabaseHas('autoevaluaciones', ['ruc' => '20123456789', 'tipo_tramite' => null, 'nivel_riesgo' => null]);
+
+        // Verifica que el método del servicio permanece aislado como lógica técnica sin ejecutarse en el flujo
+        $clasificacionAislada = (new ItseRiskService)->clasificarTramite('Comercio', 800.0, 4, 200, true, 250);
+        $this->assertSame('EX_ANTE', $clasificacionAislada['tipo_tramite']);
     }
 
     public function test_hash_integridad_es_sha256_consistente_64_hexadecimal(): void
@@ -395,13 +436,12 @@ class CheckItseModulosTest extends TestCase
     // Informe de autoevaluación preventiva
     // ---------------------------------------------------------------------
 
-    public function test_informe_rechaza_semaforo_no_verde(): void
+    public function test_informe_disponible_para_cualquier_semaforo(): void
     {
         $evaluacion = $this->crearAutoevaluacion();
 
         $this->get(route('autoevaluacion.informe', ['uuid' => $evaluacion->uuid_trazabilidad]))
-            ->assertRedirect(route('autoevaluacion.subsanacion', ['uuid' => $evaluacion->uuid_trazabilidad]))
-            ->assertSessionHasErrors('error');
+            ->assertOk();
     }
 
     public function test_informe_disponible_cuando_semaforo_es_verde(): void
@@ -411,5 +451,62 @@ class CheckItseModulosTest extends TestCase
         $this->assertSame('VERDE', $evaluacion->fresh()->semaforo);
 
         $this->get(route('autoevaluacion.informe', ['uuid' => $evaluacion->uuid_trazabilidad]))->assertOk();
+    }
+
+    // ---------------------------------------------------------------------
+    // Checklist: validación de estructura y valores de respuesta
+    // ---------------------------------------------------------------------
+
+    public function test_post_autoevaluacion_rechaza_estado_no_permitido(): void
+    {
+        $checklist = $this->checklistMixto();
+        $checklist[1]['estado'] = 'SUPERADO';
+
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase(['checklist' => $checklist]));
+
+        $response->assertSessionHasErrors(['checklist.1.estado']);
+        $this->assertDatabaseCount('autoevaluaciones', 0);
+    }
+
+    public function test_post_autoevaluacion_rechaza_condiciones_duplicadas(): void
+    {
+        $checklist = $this->checklistMixto();
+        $checklist[] = ['codigo' => 'EVACUACION', 'cumple' => true, 'estado' => 'CUMPLE', 'es_critico' => true];
+
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase(['checklist' => $checklist]));
+
+        $response->assertSessionHasErrors(['checklist.2.codigo']);
+        $this->assertDatabaseCount('autoevaluaciones', 0);
+    }
+
+    public function test_post_autoevaluacion_acepta_condiciones_sin_responder_por_revisar(): void
+    {
+        $checklist = array_map(static function (array $item): array {
+            $item['estado'] = 'POR_REVISAR';
+            $item['cumple'] = false;
+
+            return $item;
+        }, $this->checklistMixto());
+
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase(['checklist' => $checklist]));
+
+        $response->assertSessionHasNoErrors();
+        $evaluacion = Autoevaluacion::firstOrFail();
+        $this->assertSame(0.0, $evaluacion->porcentaje_cumplimiento);
+        $this->assertSame('ROJO', $evaluacion->semaforo);
+    }
+
+    public function test_post_autoevaluacion_normaliza_cumple_segun_estado(): void
+    {
+        $checklist = $this->checklistMixto();
+        $checklist[0]['cumple'] = false;
+
+        $response = $this->post(route('autoevaluacion.store'), $this->payloadBase(['checklist' => $checklist]));
+
+        $response->assertSessionHasNoErrors();
+        $evaluacion = Autoevaluacion::firstOrFail();
+        $detalle = collect($evaluacion->detalle_checklist)->firstWhere('codigo', 'EXTINTOR');
+        $this->assertSame('CUMPLE', $detalle['estado']);
+        $this->assertTrue($detalle['cumple']);
     }
 }

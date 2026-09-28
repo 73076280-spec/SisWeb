@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\CategoriaSubsanacion;
+use App\Models\CriterioNormativo;
 use App\Models\ProveedorRecurso;
 use App\Models\RecursoEducativo;
 use App\Models\User;
@@ -24,58 +25,67 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Test User', 'password' => Hash::make('password')]
         );
 
+        $this->call(NormativaCatalogSeeder::class);
         $this->seedRecursosEducativos();
         $this->seedCategoriasYProveedoresRecursos();
     }
 
     /**
-     * Recursos educativos de micro-learning vinculados al checklist de autoevaluación.
-     * Cada recurso se asocia a un codigo_normativo existente en ItseRiskService::getCatalogoChecklist().
+     * Catálogo educativo de micro-learning para la autoevaluación ciudadana.
+     * Vinculado con el catálogo normativo oficial (CRIT-01 a CRIT-13).
      */
     private function seedRecursosEducativos(): void
     {
+        $criterio01 = CriterioNormativo::where('codigo_criterio', 'CRIT-01')->first();
+        $criterio06 = CriterioNormativo::where('codigo_criterio', 'CRIT-06')->first();
+        $criterio08 = CriterioNormativo::where('codigo_criterio', 'CRIT-08')->first();
+
         $recursos = [
             [
-                'codigo_normativo' => 'EXTINTOR_PQS',
+                'criterio_normativo_id' => $criterio01?->id,
                 'titulo' => 'Extintor PQS: cómo verificar el manómetro y la operatividad',
-                'descripcion_didactica' => 'Video educativo que enseña a revisar la aguja del manómetro en la zona verde, el precinto, la tarjeta de mantenimiento y la vigencia de la carga del extintor PQS antes de una inspección.',
-                'tipo' => 'YOUTUBE',
+                'descripcion_corta' => 'Video educativo que enseña a revisar la aguja del manómetro en la zona verde, el precinto, la tarjeta de mantenimiento y la vigencia de la carga del extintor PQS antes de una inspección.',
+                'tipo' => RecursoEducativo::TIPO_VIDEO,
                 'url' => 'https://www.youtube.com/watch?v=HjS1NE54ap0',
-                'base_legal' => 'NTP 350.043-1 / RNE A.130 Art. 163',
-                'evidencia_sugerida' => 'Foto del manómetro con la aguja en zona verde y de la tarjeta de mantenimiento vigente.',
+                'fuente_autor' => 'CGBVP / Indeci',
+                'duracion_estimada' => '3 min',
+                'activo' => true,
             ],
             [
-                'codigo_normativo' => 'LUCES_EMERG',
+                'criterio_normativo_id' => $criterio08?->id,
                 'titulo' => 'Luz de emergencia: botón de test y autonomía de batería',
-                'descripcion_didactica' => 'Video que muestra cómo usar el botón de prueba de los luminarios de emergencia y verificar la autonomía mínima de la batería (90 minutos) para mantener operativa la vía de evacuación.',
-                'tipo' => 'YOUTUBE',
+                'descripcion_corta' => 'Video que muestra cómo usar el botón de prueba de los luminarios de emergencia y verificar la autonomía mínima de la batería (90 minutos) para mantener operativa la vía de evacuación.',
+                'tipo' => RecursoEducativo::TIPO_VIDEO,
                 'url' => 'https://www.youtube.com/watch?v=_frRgvwU8mA',
-                'base_legal' => 'CNE-U',
-                'evidencia_sugerida' => 'Foto o video corto del luminario con el test activado y la batería encendida sin red.',
+                'fuente_autor' => null,
+                'duracion_estimada' => null,
+                'activo' => true,
             ],
             [
-                'codigo_normativo' => 'TERMOMAGNETICO',
+                'criterio_normativo_id' => $criterio06?->id,
                 'titulo' => 'Diferencia entre llave termomagnética y diferencial de 30mA',
-                'descripcion_didactica' => 'Video que explica la diferencia entre el interruptor termomagnético (protege la instalación contra sobrecargas) y el interruptor diferencial de 30 mA (protege a las personas contra fugas a tierra).',
-                'tipo' => 'YOUTUBE',
+                'descripcion_corta' => 'Video que explica la diferencia entre el interruptor termomagnético (protege la instalación contra sobrecargas) y el interruptor diferencial de 30 mA (protege a las personas contra fugas a tierra).',
+                'tipo' => RecursoEducativo::TIPO_VIDEO,
                 'url' => 'https://www.youtube.com/watch?v=o4MOsqcJixA',
-                'base_legal' => 'CNE-U Regla 150-400 / R.M. 175-2008-MEM',
-                'evidencia_sugerida' => 'Foto del tablero con el diferencial de 30 mA instalado y su botón de test.',
+                'fuente_autor' => null,
+                'duracion_estimada' => null,
+                'activo' => true,
             ],
             [
-                'codigo_normativo' => 'EVACUACION',
+                'criterio_normativo_id' => null, // Permanece huérfano/inactivo por ambigüedad normativa entre señalización (CRIT-02B) y pasillos de evacuación (CRIT-03)
                 'titulo' => 'Rutas de evacuación: señalización y ancho mínimo de pasillo',
-                'descripcion_didactica' => 'Video educativo sobre diseño y revisión de medios de evacuación: señalización de salidas, pasillos despejados y ancho útil mínimo de 0.90 m - 1.20 m en vías de escape.',
-                'tipo' => 'YOUTUBE',
+                'descripcion_corta' => 'Video educativo sobre diseño y revisión de medios de evacuación: señalización de salidas, pasillos despejados y ancho útil mínimo de 0.90 m - 1.20 m en vías de escape.',
+                'tipo' => RecursoEducativo::TIPO_VIDEO,
                 'url' => 'https://www.youtube.com/watch?v=F0CjEP4zy7Q',
-                'base_legal' => 'RNE Norma A.010 Art. 25 y A.130 Art. 13',
-                'evidencia_sugerida' => 'Foto del pasillo medido con cinta métrica y de las señales de salida visibles.',
+                'fuente_autor' => null,
+                'duracion_estimada' => null,
+                'activo' => true,
             ],
         ];
 
         foreach ($recursos as $recurso) {
             RecursoEducativo::updateOrCreate(
-                ['codigo_normativo' => $recurso['codigo_normativo']],
+                ['url' => $recurso['url']],
                 $recurso
             );
         }

@@ -266,6 +266,42 @@ class ItseRiskServiceTest extends TestCase
         $this->assertFalse($resultado['tiene_falla_critica']);
     }
 
+    public function test_conformidad_todo_por_revisar_rojo_sin_fallas_criticas(): void
+    {
+        $checklist = [
+            $this->item('EXTINTOR', false, 'POR_REVISAR', true),
+            $this->item('TERMOMAGNETICO', false, 'POR_REVISAR', true),
+            $this->item('EVACUACION', false, 'POR_REVISAR', false),
+            $this->item('BOTIQUIN', false, 'POR_REVISAR', false),
+        ];
+
+        $resultado = $this->service->calcularConformidad($checklist);
+
+        $this->assertSame(0.0, $resultado['porcentaje']);
+        $this->assertSame('ROJO', $resultado['semaforo']);
+        $this->assertFalse($resultado['tiene_falla_critica']);
+        $this->assertSame(4, $resultado['total_por_revisar']);
+    }
+
+    public function test_conformidad_por_revisar_no_se_cuenta_como_cumplido(): void
+    {
+        $checklist = [
+            $this->item('EXTINTOR', true, 'CUMPLE', true),
+            $this->item('TERMOMAGNETICO', true, 'CUMPLE', true),
+            $this->item('EVACUACION', true, 'CUMPLE', true),
+            $this->item('LUCES_EMERG', false, 'POR_REVISAR', false),
+            $this->item('BOTIQUIN', false, 'POR_REVISAR', false),
+        ];
+
+        $resultado = $this->service->calcularConformidad($checklist);
+
+        $this->assertSame(60.0, $resultado['porcentaje']);
+        $this->assertSame('AMBAR', $resultado['semaforo']);
+        $this->assertSame(3, $resultado['total_cumple']);
+        $this->assertSame(2, $resultado['total_por_revisar']);
+        $this->assertFalse($resultado['tiene_falla_critica']);
+    }
+
     public function test_conformidad_checklist_vacio_verde(): void
     {
         $resultado = $this->service->calcularConformidad([]);
@@ -359,6 +395,50 @@ class ItseRiskServiceTest extends TestCase
         $this->assertSame(50.0, $plan['tareas'][0]['costo_soles']);
         $this->assertSame('Alta', $plan['tareas'][0]['prioridad']);
         $this->assertSame(2, $plan['tareas'][0]['dias_plazo']);
+    }
+
+    public function test_plan_excluye_items_por_revisar(): void
+    {
+        $checklist = [
+            $this->item('EXTINTOR', false, 'NO_CUMPLE', true),
+            $this->item('EVACUACION', false, 'POR_REVISAR', true),
+            $this->item('LUCES_EMERG', false, 'POR_REVISAR', false),
+            $this->item('BOTIQUIN', true, 'CUMPLE', false),
+        ];
+
+        $plan = $this->service->generarPlanDeAccion($checklist);
+
+        $this->assertSame(['EXTINTOR'], array_column($plan['tareas'], 'codigo'));
+        $this->assertSame(1, $plan['total_items']);
+    }
+
+    public function test_plan_excluye_items_cumple_y_na(): void
+    {
+        $checklist = [
+            $this->item('EXTINTOR', true, 'CUMPLE', true),
+            $this->item('EVACUACION', false, 'NA', true),
+            $this->item('LUCES_EMERG', false, 'POR_REVISAR', false),
+        ];
+
+        $plan = $this->service->generarPlanDeAccion($checklist);
+
+        $this->assertSame([], $plan['tareas']);
+        $this->assertSame(0, $plan['total_items']);
+        $this->assertSame(0.0, $plan['costo_total']);
+    }
+
+    public function test_plan_total_cero_cuando_solo_hay_por_revisar(): void
+    {
+        $checklist = [
+            $this->item('EXTINTOR', false, 'POR_REVISAR', true),
+            $this->item('TERMOMAGNETICO', false, 'POR_REVISAR', true),
+            $this->item('EVACUACION', false, 'POR_REVISAR', false),
+        ];
+
+        $plan = $this->service->generarPlanDeAccion($checklist);
+
+        $this->assertSame(0, $plan['total_items']);
+        $this->assertSame(0.0, $plan['costo_total']);
     }
 
     // ---------------------------------------------------------------------

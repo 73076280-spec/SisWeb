@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('subsanaciones', function (Blueprint $table) {
-            if (!Schema::hasColumn('subsanaciones', 'fecha_subsanacion')) {
+            if (! Schema::hasColumn('subsanaciones', 'fecha_subsanacion')) {
                 $table->timestamp('fecha_subsanacion')->nullable()->after('estado');
             }
-            if (!Schema::hasColumn('subsanaciones', 'notas_ciudadano')) {
+            if (! Schema::hasColumn('subsanaciones', 'notas_ciudadano')) {
                 $table->text('notas_ciudadano')->nullable()->after('fecha_subsanacion');
             }
         });

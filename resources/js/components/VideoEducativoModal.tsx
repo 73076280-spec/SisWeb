@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, BookOpen, PlayCircle, FileCheck, Scale, ExternalLink } from 'lucide-react';
+import { X, BookOpen, PlayCircle, FileCheck, Scale, ExternalLink, Info } from 'lucide-react';
 
 export interface RecursoEducativoData {
   titulo: string;
@@ -7,6 +7,7 @@ export interface RecursoEducativoData {
   tipo?: string | null;
   base_legal?: string | null;
   evidencia_sugerida?: string | null;
+  descripcion?: string | null;
 }
 
 interface Props {
@@ -112,8 +113,28 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
               <ExternalLink className="w-4 h-4" />
               <span>Abrir recurso educativo en una nueva pestaña</span>
             </a>
+          ) : recurso.descripcion ? (
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-sm text-neutral-700 leading-relaxed">
+              <strong className="text-xs uppercase tracking-wider text-neutral-500 block mb-1">
+                Recurso sin video
+              </strong>
+              <p>{recurso.descripcion}</p>
+            </div>
           ) : null}
         </div>
+
+        {/* Descripción educativa (alternativa textual al video) */}
+        {recurso.descripcion && (recurso.video_url ? (
+          <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200 mb-3 flex items-start gap-2.5 text-xs text-neutral-700 leading-relaxed">
+            <BookOpen className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
+            <div>
+              <strong className="text-[10px] uppercase tracking-wider text-neutral-500 block mb-0.5">
+                Sobre este recurso
+              </strong>
+              <span>{recurso.descripcion}</span>
+            </div>
+          </div>
+        ) : null)}
 
         {/* Base Legal */}
         <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-100 mb-3 flex items-start gap-2.5 text-xs text-neutral-700 leading-relaxed">
@@ -136,6 +157,13 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
             <span>{recurso.evidencia_sugerida || '—'}</span>
           </div>
         </div>
+
+        <p className="text-[11px] text-neutral-500 leading-relaxed mb-4 flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-neutral-400" />
+          <span>
+            Información educativa y de orientación. No reemplaza la verificación que realiza la autoridad competente.
+          </span>
+        </p>
 
         <div className="flex items-center gap-3">
           {recurso.video_url && embedUrl && (

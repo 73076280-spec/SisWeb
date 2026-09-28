@@ -19,11 +19,15 @@ class AuthController extends Controller
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+        ], [
+            'email.required' => 'Escribe tu correo electrónico.',
+            'email.email' => 'Ingresa un correo electrónico válido.',
+            'password.required' => 'Escribe tu contraseña.',
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             throw ValidationException::withMessages([
-                'email' => __('auth.failed'),
+                'email' => 'El correo o la contraseña no son correctos. Revisa e inténtalo nuevamente.',
             ]);
         }
 
@@ -39,6 +43,14 @@ class AuthController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', Password::defaults()],
             'telefono' => ['nullable', 'string', 'max:20'],
+        ], [
+            'name.required' => 'Escribe tu nombre y apellido.',
+            'email.required' => 'Escribe tu correo electrónico.',
+            'email.email' => 'Ingresa un correo electrónico válido.',
+            'email.unique' => 'Ya existe una cuenta con este correo. Inicia sesión para continuar.',
+            'password.required' => 'Crea una contraseña.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
+            'telefono.max' => 'El teléfono no debe superar los 20 caracteres.',
         ]);
 
         $user = User::create([

@@ -11,15 +11,15 @@ return new class extends Migration
         Schema::create('subsanaciones_observaciones', function (Blueprint $table) {
             $table->id();
             $table->foreignId('auditoria_inspector_id')
-                  ->constrained('auditorias_inspector')
-                  ->cascadeOnDelete();
+                ->constrained('auditorias_inspector')
+                ->cascadeOnDelete();
             $table->string('codigo_item');
             $table->text('descripcion'); // Sustento del comerciante
             $table->string('evidencia_url')->nullable();
             $table->enum('estado', [
                 'SUBSANADO_CONFORME',
                 'PERSISTE_OBSERVACION',
-                'NUEVA_OBSERVACION'
+                'NUEVA_OBSERVACION',
             ])->default('SUBSANADO_CONFORME');
             $table->text('observacion_inspector')->nullable();
             $table->timestamp('fecha_subsanacion')->nullable();

@@ -34,7 +34,7 @@ return new class extends Migration
 
         // Asegurar campos geográficos opcionales en autoevaluaciones si no existían
         Schema::table('autoevaluaciones', function (Blueprint $table) {
-            if (!Schema::hasColumn('autoevaluaciones', 'latitud')) {
+            if (! Schema::hasColumn('autoevaluaciones', 'latitud')) {
                 $table->decimal('latitud', 10, 8)->nullable()->after('session_token');
                 $table->decimal('longitud', 11, 8)->nullable()->after('latitud');
                 $table->string('distrito', 100)->nullable()->default('Huancayo')->after('longitud');

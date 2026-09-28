@@ -1,16 +1,11 @@
 import React, { useState } from 'react';
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
-  ShieldCheck,
-  AlertTriangle,
   CheckCircle2,
   XCircle,
   ArrowLeft,
   FileText,
   Activity,
-  Layers,
-  Hash,
-  ExternalLink,
   Info,
 } from 'lucide-react';
 
@@ -46,8 +41,8 @@ interface AutoevaluacionData {
   pisos: number;
   aforo: number;
   usa_glp: boolean;
-  tipo_tramite: string;
-  nivel_riesgo: string;
+  tipo_tramite?: string | null;
+  nivel_riesgo?: string | null;
   porcentaje_cumplimiento: number;
   semaforo: string;
   detalle_checklist: ChecklistItem[];
@@ -67,11 +62,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
   }, {} as Record<string, boolean>);
 
   const [verificaciones, setVerificaciones] = useState<Record<string, boolean>>(estadoInicial);
-
-  const { post, processing, errors } = useForm({
-    verificaciones: estadoInicial,
-    discrepancias: 0,
-  });
+  const [processing, setProcessing] = useState<boolean>(false);
 
   const itemsEvaluables = autoevaluacion.detalle_checklist.filter(i => i.estado !== 'NA');
   let totalObservaciones = 0;
@@ -105,43 +96,43 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
 
   const handleGuardarRevision = (e: React.FormEvent) => {
     e.preventDefault();
-    router.post(`/autoevaluacion/revision/${autoevaluacion.uuid_trazabilidad}`, {
-      verificaciones,
-      discrepancias: totalObservaciones,
-    });
+    router.post(
+      `/autoevaluacion/revision/${autoevaluacion.uuid_trazabilidad}`,
+      {
+        verificaciones,
+        discrepancias: totalObservaciones,
+      },
+      {
+        onStart: () => setProcessing(true),
+        onFinish: () => setProcessing(false),
+      }
+    );
   };
 
-  const ultimaSimulacion = autoevaluacion.simulaciones && autoevaluacion.simulaciones.length > 0
-    ? autoevaluacion.simulaciones[autoevaluacion.simulaciones.length - 1]
-    : null;
-
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 font-sans antialiased flex flex-col justify-between">
+    <>
       <Head title={`Simulación de Revisión In Situ - ${autoevaluacion.nombre_comercio}`} />
 
-      {/* Barra Superior */}
-      <header className="bg-neutral-900 text-white border-b border-neutral-800 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="p-2 bg-[#7f1d1d] text-white rounded-xl">
-              <ShieldCheck className="w-5 h-5" />
-            </span>
-            <div className="text-left">
-              <span className="text-xs font-bold tracking-tight block">Simulación de Revisión In Situ</span>
-              <span className="text-[10px] text-neutral-400 font-mono">Autoevaluación preventiva · Método de contraste GAP (PUCP)</span>
-            </div>
-          </div>
-
-          <Link
-            href={`/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`}
-            className="text-xs text-neutral-300 hover:text-white flex items-center gap-1 font-semibold"
-          >
-            <ArrowLeft className="w-4 h-4" /> Volver al Resultado
-          </Link>
+      {/* Barra de navegación contextual */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="text-left">
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-primary-50 text-primary-700 px-2.5 py-0.5 rounded-full border border-primary-100">
+            Simulación de Revisión In Situ
+          </span>
+          <p className="text-[11px] text-neutral-500 mt-1">
+            Autoevaluación preventiva · Método de contraste GAP (PUCP)
+          </p>
         </div>
-      </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8 w-full flex-1 space-y-6 text-left">
+        <Link
+          href={`/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 bg-white border border-neutral-200 px-3.5 py-2 rounded-xl hover:bg-neutral-50 shadow-xs transition self-start sm:self-auto"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> Volver al Resultado
+        </Link>
+      </div>
+
+      <div className="max-w-5xl mx-auto space-y-6 text-left">
 
         {/* Cabecera del Establecimiento */}
         <div className="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -163,12 +154,14 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
           </div>
 
           <div className="flex items-center gap-3 self-start md:self-auto">
-            <div className="p-3.5 bg-neutral-50 border border-neutral-100 rounded-2xl text-center">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase block">Trámite</span>
-              <span className="text-xs font-extrabold text-neutral-900">
-                {autoevaluacion.tipo_tramite}
-              </span>
-            </div>
+            {autoevaluacion.tipo_tramite && (
+              <div className="p-3.5 bg-neutral-50 border border-neutral-100 rounded-2xl text-center">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase block">Trámite</span>
+                <span className="text-xs font-extrabold text-neutral-900">
+                  {autoevaluacion.tipo_tramite}
+                </span>
+              </div>
+            )}
             <div className="p-3.5 bg-neutral-50 border border-neutral-100 rounded-2xl text-center">
               <span className="text-[10px] font-bold text-neutral-400 uppercase block">Escala</span>
               <span className="text-xs font-extrabold text-neutral-900">
@@ -367,11 +360,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
           </div>
         )}
 
-      </main>
-
-      <footer className="border-t border-neutral-100 py-6 text-center text-[11px] text-neutral-400">
-        CheckITSE Huancayo · Simulación de Revisión In Situ para tu preparación preventiva
-      </footer>
-    </div>
+      </div>
+    </>
   );
 }

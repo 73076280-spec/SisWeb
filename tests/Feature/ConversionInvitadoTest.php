@@ -176,9 +176,9 @@ test('un usuario autenticado lista solo sus autoevaluaciones con sus relaciones'
             ->where('autoevaluaciones.0.resumen_subsanaciones.total', 1));
 });
 
-test('un invitado no autenticado es redirigido al acceder a mis autoevaluaciones', function () {
+test('un invitado no autenticado es redirigido a mis autoevaluaciones', function () {
     get(route('mis-autoevaluaciones'))
-        ->assertRedirect(route('login'));
+        ->assertRedirect(route('autoevaluacion.index'));
 
     assertGuest();
 });

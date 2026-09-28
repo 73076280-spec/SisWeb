@@ -1,87 +1,97 @@
 import { GuiaModal } from '@/components/GuiaModal';
 import { Navbar } from '@/components/Navbar';
+import { CATEGORIA_LABELS, CHECKLIST_CATALOGO_OFICIAL, type CategoriaChecklist } from '@/data/checklistCatalogo';
 import { Head, Link } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import {
+    AlertCircle,
     AlertTriangle,
     ArrowLeft,
     Building2,
     CalendarClock,
     CheckCircle2,
+    ClipboardList,
     ExternalLink,
     FileCheck,
     FileText,
     Fingerprint,
     Gauge,
     Hash,
+    Info,
     Layers,
     MapPin,
+    MinusCircle,
     Printer,
     QrCode,
     Ruler,
     Scale,
     ShieldCheck,
-    Stamp,
     Users,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { etiquetaEstado } from '@/components/EstadoBadge';
+import type {
+    CondicionChecklist,
+    ConteoEstados,
+    InformePreventivoProps,
+} from '@/types/contrato';
 
-interface AutoevaluacionProps {
-    uuid_trazabilidad: string;
-    hash_integridad: string;
-    nombre_comercio: string;
-    funcion_economica: string;
-    ruc: string;
-    sector_huancayo: string;
-    area_m2: number;
-    pisos: number;
-    aforo: number;
-    tipo_tramite: string;
-    nivel_riesgo: string;
-    semaforo: string;
-    porcentaje_cumplimiento: number;
+
+function getCategoriaNombre(categoria?: string): string {
+    if (!categoria) {
+        return 'Seguridad General';
+    }
+    if (categoria in CATEGORIA_LABELS) {
+        return CATEGORIA_LABELS[categoria as CategoriaChecklist];
+    }
+    return categoria;
 }
 
-interface FilaMatriz {
-    codigo_item: string;
-    nombre_condicion: string;
-    deficiencia_inicial: string;
-    accion_realizada: string;
-    estado: string;
-    evidencia_url: string | null;
-    fecha_subsanacion: string | null;
-}
-
-interface ResumenProps {
-    total_condiciones: number;
-    conformes_iniciales: number;
-    subsanadas_declaradas: number;
-    en_proceso: number;
-    pendientes: number;
-    gap_final: number;
-    porcentaje_subsanado: number;
-}
-
-interface Props {
-    autoevaluacion: AutoevaluacionProps;
-    codigoInforme: string;
-    fechaEmision: string;
-    resumen: ResumenProps;
-    matrizSubsanaciones: FilaMatriz[];
-    hashFinal: string;
-    hashIntegridad: string;
+function getEstadoBadge(estado: string) {
+    const estadoNormalizado = estado?.toUpperCase() ?? 'NA';
+    switch (estadoNormalizado) {
+        case 'CUMPLE':
+            return {
+                label: 'CUMPLE',
+                bg: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+                icon: CheckCircle2,
+            };
+        case 'NO_CUMPLE':
+            return {
+                label: 'NO CUMPLE',
+                bg: 'bg-rose-50 text-rose-800 border-rose-200',
+                icon: AlertCircle,
+            };
+        case 'POR_REVISAR':
+            return {
+                label: 'POR REVISAR',
+                bg: 'bg-amber-50 text-amber-800 border-amber-200',
+                icon: AlertTriangle,
+            };
+        case 'NA':
+        default:
+            return {
+                label: 'NO APLICA',
+                bg: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+                icon: MinusCircle,
+            };
+    }
 }
 
 export default function InformePreventivo({
     autoevaluacion,
+    esReevaluacion = false,
+    evaluacionOrigen = null,
     codigoInforme,
     fechaEmision,
     resumen,
+    detalleChecklist,
+    conteoEstados,
     matrizSubsanaciones,
     hashFinal,
     hashIntegridad,
-}: Props) {
+}: InformePreventivoProps) {
     const [showGuia, setShowGuia] = useState<boolean>(false);
 
     const urlSeguimiento =
@@ -90,10 +100,82 @@ export default function InformePreventivo({
             : `/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`;
 
     const esExAnte = autoevaluacion.tipo_tramite === 'EX_ANTE';
-    const nivelRiesgoLegible = autoevaluacion.nivel_riesgo.split('_').join(' ');
+    const nivelRiesgoLegible = autoevaluacion.nivel_riesgo
+        ? autoevaluacion.nivel_riesgo.split('_').join(' ')
+        : 'Preventivo';
     const gapFinal = `${resumen.gap_final.toFixed(1)}%`;
 
-    const esImagenEvidencia = (url: string) => /\.(png|jpe?g)$/i.test(url);
+    const esImagenEvidencia = (archivo?: string | null) => !!archivo && /\.(png|jpe?g|webp)$/i.test(archivo);
+
+    // Matriz completa enriquecida de condiciones evaluadas
+    const listaCondiciones = useMemo<CondicionChecklist[]>(() => {
+        if (detalleChecklist && detalleChecklist.length > 0) {
+            return detalleChecklist;
+        }
+
+        const raw = autoevaluacion.detalle_checklist || [];
+        return raw.map((item) => {
+            const catalogo = CHECKLIST_CATALOGO_OFICIAL.find((c) => c.codigo === item.codigo);
+            const estado = item.estado ?? (item.cumple ? 'CUMPLE' : 'NO_CUMPLE');
+
+            return {
+                codigo: item.codigo,
+                nombre: item.nombre || catalogo?.nombre || item.codigo,
+                categoria: item.categoria || (catalogo?.categoria ? CATEGORIA_LABELS[catalogo.categoria] : 'Seguridad General'),
+                estado,
+                cumple: estado === 'CUMPLE',
+                es_critico: Boolean(item.es_critico ?? catalogo?.es_critico ?? false),
+                norma: item.norma || catalogo?.norma || 'Normativa ITSE / CENEPRED',
+            };
+        });
+    }, [detalleChecklist, autoevaluacion.detalle_checklist]);
+
+    // Resumen cuantitativo por estado de las condiciones
+    const conteo = useMemo<ConteoEstados>(() => {
+        if (conteoEstados) {
+            return conteoEstados;
+        }
+
+        return {
+            total: listaCondiciones.length,
+            cumple: listaCondiciones.filter((c) => c.estado === 'CUMPLE').length,
+            no_cumple: listaCondiciones.filter((c) => c.estado === 'NO_CUMPLE').length,
+            por_revisar: listaCondiciones.filter((c) => c.estado === 'POR_REVISAR').length,
+            na: listaCondiciones.filter((c) => c.estado === 'NA').length,
+        };
+    }, [conteoEstados, listaCondiciones]);
+
+    // Información descriptiva y preventiva del semáforo
+    const semaforoInfo = useMemo(() => {
+        const sem = autoevaluacion.semaforo?.toUpperCase() ?? 'VERDE';
+        if (sem === 'VERDE') {
+            return {
+                dotColor: 'bg-emerald-600',
+                textColor: 'text-emerald-900',
+                label: 'VERDE — Sin incumplimientos declarados',
+                desc: 'Según las respuestas registradas en esta autoevaluación, no se consignaron observaciones técnicas pendientes.',
+            };
+        }
+        if (sem === 'AMBAR' || sem === 'ÁMBAR') {
+            return {
+                dotColor: 'bg-amber-500',
+                textColor: 'text-amber-900',
+                label: 'ÁMBAR — Presenta aspectos por revisar',
+                desc: 'Presenta condiciones técnicas observadas o pendientes de verificación previa a una inspección oficial.',
+            };
+        }
+        return {
+            dotColor: 'bg-rose-600',
+            textColor: 'text-rose-900',
+            label: 'ROJO — Requiere atención prioritaria',
+            desc: 'Se identificaron condiciones de seguridad críticas declaradas como no conformes que requieren subsanación urgente.',
+        };
+    }, [autoevaluacion.semaforo]);
+
+    const es100Cumplimiento =
+        autoevaluacion.porcentaje_cumplimiento >= 100 &&
+        conteo.no_cumple === 0 &&
+        conteo.por_revisar === 0;
 
     const datosGenerales: Array<{ icon: LucideIcon; label: string; value: string; sub?: string }> = [
         {
@@ -105,13 +187,13 @@ export default function InformePreventivo({
         {
             icon: Fingerprint,
             label: 'RUC',
-            value: autoevaluacion.ruc,
+            value: autoevaluacion.ruc ?? 'No declarado',
             sub: 'Contribuyente declarante',
         },
         {
             icon: MapPin,
             label: 'Ubicación en Huancayo',
-            value: autoevaluacion.sector_huancayo,
+            value: autoevaluacion.sector_huancayo ?? 'No declarado',
             sub: 'Referencia territorial declarada',
         },
         {
@@ -126,12 +208,12 @@ export default function InformePreventivo({
             value: `${autoevaluacion.aforo} pers.`,
             sub: 'Capacidad declarada',
         },
-        {
+        ...(autoevaluacion.nivel_riesgo || autoevaluacion.tipo_tramite ? [{
             icon: Scale,
             label: 'Riesgo Declarado',
             value: nivelRiesgoLegible,
-            sub: esExAnte ? 'ITSE Previa (Ex-Ante)' : 'ITSE Posterior (Ex-Post)',
-        },
+            sub: autoevaluacion.tipo_tramite ? (esExAnte ? 'ITSE Previa (Ex-Ante)' : 'ITSE Posterior (Ex-Post)') : 'Evaluación preventiva',
+        }] : []),
     ];
 
     const metricas: Array<{ icon: LucideIcon; label: string; value: string; sub: string }> = [
@@ -161,9 +243,15 @@ export default function InformePreventivo({
         },
     ];
 
+    const tieneSubsanaciones = matrizSubsanaciones.length > 0;
+
     return (
         <div className="flex min-h-screen flex-col justify-between bg-[#F4F4F5] font-sans text-neutral-900 antialiased print:bg-white print:py-0">
-            <Head title={`Informe de Autoevaluación Preventiva ITSE - ${autoevaluacion.nombre_comercio}`} />
+            <Head
+                title={`${
+                    esReevaluacion ? 'Informe Preventivo Reevaluación' : 'Informe de Autoevaluación Preventiva ITSE'
+                } - ${autoevaluacion.nombre_comercio}`}
+            />
 
             {/* Barra de navegación y modal de base legal — ocultos al imprimir */}
             <div className="print:hidden">
@@ -175,10 +263,10 @@ export default function InformePreventivo({
                 {/* Acciones de pantalla — ocultas al imprimir */}
                 <div className="mb-6 flex items-center justify-between print:hidden">
                     <Link
-                        href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}`}
+                        href={`/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`}
                         className="flex items-center gap-1 text-xs font-bold text-neutral-600 hover:text-neutral-900"
                     >
-                        <ArrowLeft className="h-4 w-4" /> Volver al Panel
+                        <ArrowLeft className="h-4 w-4" /> Volver al Resultado
                     </Link>
 
                     <button
@@ -201,7 +289,7 @@ export default function InformePreventivo({
 
                     {/* Contenido de la hoja */}
                     <div className="relative space-y-5 p-6 sm:p-10 md:p-12 print:space-y-4 print:p-8">
-                        {/* 1. Encabezado + descargo legal */}
+                        {/* 1. Encabezado + aviso legal */}
                         <header className="border-b-2 border-double border-emerald-900/80 pb-5 print:pb-4">
                             <div className="mb-3 flex justify-center">
                                 <span className="rounded-xl bg-emerald-900 p-2.5 text-white">
@@ -213,8 +301,34 @@ export default function InformePreventivo({
                             </span>
 
                             <h1 className="mt-2 text-center text-lg leading-snug font-black tracking-tight text-neutral-900 uppercase sm:text-2xl">
-                                Informe de Autoevaluación Preventiva ITSE
+                                {esReevaluacion
+                                    ? 'Informe Preventivo — Reevaluación'
+                                    : 'Informe de Autoevaluación Preventiva ITSE'}
                             </h1>
+
+                            {/* Nota contextual si es reevaluación */}
+                            {esReevaluacion && (
+                                <div className="mt-3 rounded-xl border border-sky-300 bg-sky-50/80 p-3 text-left print:break-inside-avoid">
+                                    <div className="flex items-start gap-2">
+                                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
+                                        <div className="text-[11px] leading-relaxed text-sky-950">
+                                            <strong className="font-bold">Nota contextual de reevaluación: </strong>
+                                            Este informe corresponde a una <strong>reevaluación preventiva</strong> del
+                                            establecimiento.
+                                            {evaluacionOrigen?.uuid_trazabilidad && (
+                                                <span>
+                                                    {' '}
+                                                    Evaluación original de referencia: UUID{' '}
+                                                    <span className="font-mono font-semibold">
+                                                        {evaluacionOrigen.uuid_trazabilidad}
+                                                    </span>
+                                                    {evaluacionOrigen.fecha && ` (${evaluacionOrigen.fecha})`}.
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Referencia al marco legal */}
                             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
@@ -232,24 +346,41 @@ export default function InformePreventivo({
                             {/* Código de informe y fecha */}
                             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:break-inside-avoid">
                                 <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-800/60 bg-emerald-50/70 px-3 py-1.5">
-                                    <Stamp className="h-3.5 w-3.5 text-emerald-900" />
-                                    <span className="text-[10px] font-bold text-emerald-950 uppercase">N° de Informe:</span>
-                                    <span className="font-mono text-xs font-black text-emerald-950">{codigoInforme}</span>
+                                    <FileText className="h-3.5 w-3.5 text-emerald-900" />
+                                    <span className="text-[10px] font-bold text-emerald-950 uppercase">
+                                        N° de Informe:
+                                    </span>
+                                    <span className="font-mono text-xs font-black text-emerald-950">
+                                        {codigoInforme}
+                                    </span>
                                 </div>
                                 <div className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5">
                                     <CalendarClock className="h-3.5 w-3.5 text-neutral-500" />
                                     <span className="text-[10px] font-bold text-neutral-600 uppercase">Fecha:</span>
-                                    <span className="font-mono text-[11px] font-bold text-neutral-800">{fechaEmision}</span>
+                                    <span className="font-mono text-[11px] font-bold text-neutral-800">
+                                        {fechaEmision}
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Descargo legal de no-oficialidad */}
-                            <div className="mt-4 rounded-xl border border-neutral-300 bg-neutral-100 p-3 text-left print:break-inside-avoid">
-                                <p className="text-[10px] leading-relaxed text-neutral-700">
-                                    <strong>Aviso legal:</strong> Este documento es de carácter informativo, educativo y preventivo. Ha sido
-                                    generado a partir de las declaraciones del ciudadano y no constituye certificación, aprobación municipal ni
-                                    autorización de funcionamiento.
-                                </p>
+                            {/* Descargo legal de no-oficialidad prominente */}
+                            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 text-left print:break-inside-avoid">
+                                <div className="flex items-start gap-2">
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                                    <div className="text-[10px] leading-relaxed text-amber-950">
+                                        <strong className="block font-bold uppercase tracking-wider text-amber-900">
+                                            Aviso Preventivo Importante — No Oficial
+                                        </strong>
+                                        Este documento es de carácter estrictamente informativo, educativo y preventivo.
+                                        Ha sido generado de forma automatizada a partir de las declaraciones voluntarias
+                                        del responsable del establecimiento.{' '}
+                                        <strong>
+                                            No constituye certificado de ITSE, no otorga aprobación ni autorización
+                                            municipal, y no convalida condiciones de seguridad ante ninguna autoridad u
+                                            órgano ejecutante.
+                                        </strong>
+                                    </div>
+                                </div>
                             </div>
                         </header>
 
@@ -264,12 +395,19 @@ export default function InformePreventivo({
 
                             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
                                 {datosGenerales.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-3">
+                                    <div
+                                        key={item.label}
+                                        className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-3"
+                                    >
                                         <div className="mb-1 flex items-center gap-1.5">
                                             <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-900" />
-                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">{item.label}</span>
+                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                                {item.label}
+                                            </span>
                                         </div>
-                                        <p className="text-xs leading-snug font-bold break-words text-neutral-900">{item.value}</p>
+                                        <p className="text-xs leading-snug font-bold break-words text-neutral-900">
+                                            {item.value}
+                                        </p>
                                         <p className="mt-0.5 text-[9px] text-neutral-400">{item.sub}</p>
                                     </div>
                                 ))}
@@ -287,36 +425,64 @@ export default function InformePreventivo({
 
                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                    <div className="flex items-center gap-2.5 rounded-xl bg-white p-3 border border-emerald-100">
-                                        <span className="h-3 w-3 shrink-0 rounded-full bg-emerald-600" aria-hidden="true" />
+                                    <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-white p-3">
+                                        <span
+                                            className={`h-3 w-3 shrink-0 rounded-full ${semaforoInfo.dotColor}`}
+                                            aria-hidden="true"
+                                        />
                                         <div>
                                             <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
                                                 Semáforo Preventivo
                                             </span>
-                                            <span className="text-sm font-black text-emerald-900">{autoevaluacion.semaforo}</span>
+                                            <span className={`text-sm font-black ${semaforoInfo.textColor}`}>
+                                                {autoevaluacion.semaforo}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="rounded-xl bg-white p-3 border border-emerald-100">
+                                    <div className="rounded-xl border border-emerald-100 bg-white p-3">
                                         <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
                                             GAP Final de Preparación
                                         </span>
                                         <span className="text-sm font-black text-emerald-900">{gapFinal}</span>
                                     </div>
-                                    <div className="rounded-xl bg-white p-3 border border-emerald-100">
+                                    <div className="rounded-xl border border-emerald-100 bg-white p-3">
                                         <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
-                                            Ciclo Subsanado
+                                            Subsanación Declarada
                                         </span>
-                                        <span className="text-sm font-black text-emerald-900">{resumen.porcentaje_subsanado}%</span>
+                                        <span className="text-sm font-black text-emerald-900">
+                                            {resumen.porcentaje_subsanado}%
+                                        </span>
                                     </div>
+                                </div>
+
+                                <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-3 text-left">
+                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                        Diagnóstico Declarado
+                                    </span>
+                                    <p className="mt-0.5 text-xs font-bold text-neutral-800">{semaforoInfo.label}</p>
+                                    <p className="mt-0.5 text-[10px] text-neutral-600">{semaforoInfo.desc}</p>
+                                    {es100Cumplimiento && (
+                                        <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2 text-[10px] text-emerald-900">
+                                            <strong>Nota de conformidad declarada:</strong> Según las respuestas
+                                            declaradas en esta autoevaluación, no se identificaron incumplimientos
+                                            declarados en las condiciones evaluadas. Este informe tiene carácter
+                                            preventivo y no sustituye la inspección oficial ITSE.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="mt-2.5 grid grid-cols-2 gap-2.5 md:grid-cols-4">
                                 {metricas.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-neutral-200 bg-white p-3">
+                                    <div
+                                        key={item.label}
+                                        className="rounded-xl border border-neutral-200 bg-white p-3"
+                                    >
                                         <div className="mb-1 flex items-center gap-1.5">
                                             <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-900" />
-                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">{item.label}</span>
+                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                                {item.label}
+                                            </span>
                                         </div>
                                         <p className="text-sm leading-snug font-black text-neutral-900">{item.value}</p>
                                         <p className="mt-0.5 text-[9px] text-neutral-400">{item.sub}</p>
@@ -325,19 +491,128 @@ export default function InformePreventivo({
                             </div>
                         </section>
 
-                        {/* 4. Matriz de trazabilidad de subsanaciones */}
+                        {/* 4. Matriz Completa de Condiciones Evaluadas (Checklist Integral) */}
+                        <section className="print:break-inside-avoid">
+                            <div className="mb-2.5 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ClipboardList className="h-4 w-4 text-emerald-900" />
+                                    <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                        Matriz Completa de Condiciones Evaluadas ({conteo.total})
+                                    </h2>
+                                </div>
+                                <span className="text-[10px] font-semibold text-neutral-500 print:hidden">
+                                    Diagnóstico Integral por Condición
+                                </span>
+                            </div>
+
+                            {/* Resumen cuantitativo por estado */}
+                            <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center">
+                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                        Total
+                                    </span>
+                                    <span className="text-sm font-black text-neutral-900">{conteo.total}</span>
+                                </div>
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-center">
+                                    <span className="block text-[9px] font-bold tracking-wider text-emerald-700 uppercase">
+                                        Cumple
+                                    </span>
+                                    <span className="text-sm font-black text-emerald-800">{conteo.cumple}</span>
+                                </div>
+                                <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-2.5 text-center">
+                                    <span className="block text-[9px] font-bold tracking-wider text-rose-700 uppercase">
+                                        No Cumple
+                                    </span>
+                                    <span className="text-sm font-black text-rose-800">{conteo.no_cumple}</span>
+                                </div>
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-center">
+                                    <span className="block text-[9px] font-bold tracking-wider text-amber-700 uppercase">
+                                        Por Revisar
+                                    </span>
+                                    <span className="text-sm font-black text-amber-800">{conteo.por_revisar}</span>
+                                </div>
+                                <div className="col-span-2 rounded-xl border border-neutral-200 bg-neutral-100/70 p-2.5 text-center sm:col-span-1">
+                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-600 uppercase">
+                                        No Aplica
+                                    </span>
+                                    <span className="text-sm font-black text-neutral-700">{conteo.na}</span>
+                                </div>
+                            </div>
+
+                            {/* Lista de todas las condiciones de la autoevaluación */}
+                            <div className="space-y-2">
+                                {listaCondiciones.map((item, idx) => {
+                                    const badge = getEstadoBadge(item.estado);
+                                    const BadgeIcon = badge.icon;
+                                    const catNombre = getCategoriaNombre(item.categoria);
+
+                                    return (
+                                        <div
+                                            key={`${item.codigo}-${idx}`}
+                                            className="rounded-xl border border-neutral-200 bg-white p-3 print:break-inside-avoid"
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="font-mono text-xs font-black text-neutral-800">
+                                                        {item.codigo}
+                                                    </span>
+                                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold text-neutral-600">
+                                                        {catNombre}
+                                                    </span>
+                                                    {item.es_critico && (
+                                                        <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-800">
+                                                            Crítico
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div
+                                                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold ${badge.bg}`}
+                                                >
+                                                    <BadgeIcon className="h-3 w-3" />
+                                                    <span>{badge.label}</span>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2">
+                                                <p className="text-xs leading-snug font-semibold text-neutral-900">
+                                                    {item.nombre}
+                                                </p>
+                                                {item.norma && (
+                                                    <p className="mt-1 font-mono text-[9px] text-neutral-400">
+                                                        Ref: {item.norma}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+
+                        {/* 5. Matriz de trazabilidad de subsanaciones */}
                         <section className="print:break-inside-avoid">
                             <div className="mb-2.5 flex items-center gap-2">
                                 <Layers className="h-4 w-4 text-emerald-900" />
                                 <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
-                                    Matriz de Trazabilidad de Subsanaciones
+                                    Matriz de Trazabilidad de Subsanaciones y Adecuaciones
                                 </h2>
                             </div>
 
-                            {matrizSubsanaciones.length === 0 ? (
+                            <div
+                                role="note"
+                                aria-label="Naturaleza preventiva de las evidencias declaradas"
+                                className="mb-2.5 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] leading-relaxed text-sky-900 print:hidden"
+                            >
+                                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                                <p>
+                                    Evidencias <strong>declaradas por el ciudadano</strong>, no verificadas
+                                    oficialmente por la autoridad competente. Su trazabilidad es preventiva.
+                                </p>
+                            </div>
+
+                            {!tieneSubsanaciones ? (
                                 <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center">
                                     <span className="text-[11px] text-neutral-500">
-                                        Sin adecuaciones declaradas que consignar en esta autoevaluación.
+                                        Sin adecuaciones ni subsanaciones declaradas registradas en esta autoevaluación.
                                     </span>
                                 </div>
                             ) : (
@@ -345,12 +620,15 @@ export default function InformePreventivo({
                                     {matrizSubsanaciones.map((fila) => (
                                         <div
                                             key={fila.codigo_item}
-                                            className="rounded-2xl border border-neutral-200 overflow-hidden print:break-inside-avoid"
+                                            className="overflow-hidden rounded-2xl border border-neutral-200 print:break-inside-avoid"
                                         >
                                             <div className="flex items-center gap-2 bg-neutral-50 px-3 py-2">
-                                                <span className="font-mono text-xs font-black text-[#7f1d1d]">{fila.codigo_item}</span>
+                                                <span className="font-mono text-xs font-black text-[#7f1d1d]">
+                                                    {fila.codigo_item}
+                                                </span>
                                                 <span className="text-[10px] text-neutral-400">
-                                                    {fila.estado} · {fila.fecha_subsanacion ?? 'Sin fecha'}
+                                                    {etiquetaEstado(fila.estado)} ·{' '}
+                                                    {fila.fecha_subsanacion ?? 'Sin fecha'}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-[1fr_1.4fr_1fr] print:grid-cols-[1fr_1.4fr_1fr]">
@@ -366,14 +644,16 @@ export default function InformePreventivo({
                                                     <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
                                                         Acción Realizada
                                                     </span>
-                                                    <p className="mt-0.5 text-[11px] leading-snug text-neutral-700">{fila.accion_realizada}</p>
+                                                    <p className="mt-0.5 text-[11px] leading-snug text-neutral-700">
+                                                        {fila.accion_realizada}
+                                                    </p>
                                                 </div>
                                                 <div>
                                                     <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
                                                         Evidencia Adjunta
                                                     </span>
                                                     {fila.evidencia_url ? (
-                                                        esImagenEvidencia(fila.evidencia_url) ? (
+                                                        esImagenEvidencia(fila.evidencia_archivo) ? (
                                                             <a
                                                                 href={fila.evidencia_url}
                                                                 target="_blank"
@@ -382,7 +662,7 @@ export default function InformePreventivo({
                                                             >
                                                                 <img
                                                                     src={fila.evidencia_url}
-                                                                    alt={`Evidencia de ${fila.codigo_item}`}
+                                                                    alt={`Evidencia declarada de ${fila.codigo_item}`}
                                                                     className="max-h-20 w-full rounded-md border border-neutral-200 object-contain break-inside-avoid"
                                                                 />
                                                             </a>
@@ -398,7 +678,9 @@ export default function InformePreventivo({
                                                             </a>
                                                         )
                                                     ) : (
-                                                        <span className="mt-1 block text-[10px] text-neutral-400">Sin evidencia declarada</span>
+                                                        <span className="mt-1 block text-[10px] text-neutral-400">
+                                                            Sin evidencia declarada
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -411,32 +693,45 @@ export default function InformePreventivo({
                         {/* Cuerpo del informe */}
                         <div className="space-y-3 text-justify text-xs leading-relaxed text-neutral-700 sm:text-sm print:space-y-2">
                             <p>
-                                El titular del establecimiento <strong>"{autoevaluacion.nombre_comercio}"</strong>, identificado con{' '}
-                                <strong>RUC N° {autoevaluacion.ruc}</strong>, ubicado en el sector territorial{' '}
-                                <strong>{autoevaluacion.sector_huancayo}</strong> de la provincia de Huancayo, con un área techada de{' '}
-                                <strong>{autoevaluacion.area_m2} m²</strong>, <strong>{autoevaluacion.pisos} piso(s)</strong> y aforo estimado
-                                para <strong>{autoevaluacion.aforo} personas</strong>, ha completado voluntariamente el ciclo de autoevaluación
-                                preventiva: revisión de condiciones técnicas, simulación de revisión in situ y plan de adecuaciones declaradas,
-                                con un GAP final de preparación del <strong>{gapFinal}</strong>.
+                                El titular del establecimiento <strong>"{autoevaluacion.nombre_comercio}"</strong>,
+                                identificado con <strong>RUC N° {autoevaluacion.ruc}</strong>, ubicado en el sector
+                                territorial <strong>{autoevaluacion.sector_huancayo}</strong> de la provincia de
+                                Huancayo, con un área techada de <strong>{autoevaluacion.area_m2} m²</strong>,{' '}
+                                <strong>{autoevaluacion.pisos} piso(s)</strong> y aforo estimado para{' '}
+                                <strong>{autoevaluacion.aforo} personas</strong>, ha completado voluntariamente el ciclo
+                                de autoevaluación preventiva: revisión de condiciones técnicas, simulación de revisión
+                                in situ y plan de adecuaciones declaradas, con un GAP final de preparación del{' '}
+                                <strong>{gapFinal}</strong>.
                             </p>
                             <p>
-                                Las condiciones técnicas fueron revisadas por el propio titular usando como referencia la{' '}
-                                <strong>R.J. N° 016-2018-CENEPRED</strong>, el <strong>D.S. N° 002-2018-PCM</strong>, el Reglamento Nacional de
-                                Edificaciones (Normas <strong>A.010</strong> y <strong>A.130</strong>) y el Código Nacional de Electricidad (
-                                <strong>CNE-U</strong>). Por tratarse de una declaración personal, este informe <strong>no garantiza ni anticipa</strong>{' '}
-                                el resultado de la inspección oficial, cuya evaluación corresponde a la autoridad municipal competente.
+                                Las condiciones técnicas fueron revisadas por el propio titular usando como referencia
+                                la <strong>R.J. N° 016-2018-CENEPRED</strong>, el <strong>D.S. N° 002-2018-PCM</strong>, el
+                                Reglamento Nacional de Edificaciones (Normas <strong>A.010</strong> y{' '}
+                                <strong>A.130</strong>) y el Código Nacional de Electricidad (<strong>CNE-U</strong>).
+                                Por tratarse de una declaración personal, este informe{' '}
+                                <strong>no garantiza ni anticipa</strong> el resultado de la inspección oficial, cuya
+                                evaluación corresponde a la autoridad municipal competente.
                             </p>
                         </div>
 
-                        {/* Declaración del titular */}
-                        <div className="flex items-end justify-center pt-6 text-center print:break-inside-avoid print:pt-4">
-                            <div className="w-56 border-t border-neutral-400 pt-2">
-                                <span className="block text-[10px] font-bold text-neutral-700 uppercase">Firma del Titular / Declarante</span>
-                                <span className="text-[9px] text-neutral-400">Declaración voluntaria de autoevaluación</span>
+                        {/* Declaración del responsable del establecimiento */}
+                        <div className="flex flex-col items-center justify-center pt-6 text-center print:break-inside-avoid print:pt-4">
+                            <div className="w-72 border-t border-neutral-400 pt-2">
+                                <span className="block text-[10px] font-bold text-neutral-800 uppercase">
+                                    Declaración del responsable del establecimiento
+                                </span>
+                                <span className="text-[9px] text-neutral-500">
+                                    {autoevaluacion.nombre_comercio} · RUC {autoevaluacion.ruc}
+                                </span>
                             </div>
+                            <p className="mt-2 max-w-md text-[9px] leading-relaxed text-neutral-500">
+                                La presente declaración es de carácter personal y preventivo. No sustituye la inspección
+                                técnica de seguridad en edificaciones (ITSE) realizada por el órgano ejecutante
+                                competente ni convalida el cumplimiento normativo ante la municipalidad.
+                            </p>
                         </div>
 
-                        {/* 5. Pie de página pericial preventivo: QR + huella criptográfica */}
+                        {/* 6. Pie de página pericial preventivo: QR + huella criptográfica */}
                         <section className="rounded-2xl border border-neutral-200 p-4 print:break-inside-avoid">
                             <div className="mb-3 flex items-center gap-2">
                                 <Hash className="h-4 w-4 text-emerald-900" />
@@ -448,7 +743,7 @@ export default function InformePreventivo({
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2 text-[11px] text-neutral-600">
                                     <div className="flex items-start gap-2">
-                                        <Stamp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                                        <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
                                         <div>
                                             <span className="block text-[9px] font-bold tracking-wider text-neutral-700 uppercase">
                                                 UUID de Trazabilidad
@@ -471,9 +766,11 @@ export default function InformePreventivo({
                                         <FileCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-800" />
                                         <div>
                                             <span className="block text-[9px] font-bold tracking-wider text-emerald-900 uppercase">
-                                                Estado del Ciclo
+                                                Estado del Registro
                                             </span>
-                                            <span className="text-xs font-black text-emerald-900">PREPARACIÓN DECLARADA COMPLETA</span>
+                                            <span className="text-xs font-black text-emerald-900">
+                                                Autoevaluación registrada según las respuestas declaradas
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -487,7 +784,9 @@ export default function InformePreventivo({
                                             <QrCode className="h-3 w-3" /> Seguimiento Preventivo
                                         </span>
                                         <p className="leading-tight">
-                                            Escanea para verificar la trazabilidad del registro, revisar tu plan y mantener al día tus condiciones.
+                                            El código QR y la huella criptográfica permiten verificar la integridad y
+                                            trazabilidad del registro de autoevaluación en la plataforma CheckITSE
+                                            Huancayo. No acreditan inspección municipal.
                                         </p>
                                         <a
                                             href={urlSeguimiento}
@@ -528,9 +827,9 @@ export default function InformePreventivo({
                         <div className="flex items-start gap-2 border-t border-neutral-200 pt-3 text-center">
                             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-neutral-400" />
                             <p className="text-[9px] text-neutral-500">
-                                Informe cívico de autoevaluación generado por el asistente CheckITSE Huancayo. Su verificación queda respaldada
-                                por el bloque de trazabilidad criptográfica. Este documento es de carácter preventivo e informativo y no
-                                constituye un documento oficial.
+                                Informe cívico de autoevaluación generado por el asistente CheckITSE Huancayo. Su
+                                verificación queda respaldada por el bloque de trazabilidad criptográfica. Este
+                                documento es de carácter preventivo e informativo y no constituye un documento oficial.
                             </p>
                         </div>
                     </div>

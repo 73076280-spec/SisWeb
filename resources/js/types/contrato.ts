@@ -1,0 +1,414 @@
+/**
+ * Contrato único entre los controladores Laravel y las páginas Inertia.
+ *
+ * Antes de este archivo cada página declaraba sus propias interfaces locales y
+ * varias declaraban nombres idénticos (`AutoevaluacionInfo` existía en
+ * `Checklist.tsx` y en `Resumen.tsx`) con contenidos distintos. Eso hacía que un
+ * cambio de contrato apareciera como un error de TypeScript en un archivo ajeno
+ * al que realmente cambió.
+ *
+ * Reglas de este módulo:
+ * - Un tipo por contrato de página, con el nombre que usa el `Inertia::render()`
+ *   del backend correspondiente.
+ * - La nulabilidad refleja la columna real. Las columnas nullable se tipan
+ *   `| null` y no se asumen presentes: el informe legal se emite también sobre
+ *   autoevaluaciones de invitados, que llegan con `ruc`, `sector_huancayo`,
+ *   `area_m2`, `pisos` y `aforo` en `null`.
+ * - Las credenciales de control de acceso (`session_token`, `token_seguridad`,
+ *   `user_id`) no aparecen en ningún contrato. Están en `$hidden` del modelo y,
+ *   en el informe, ni siquiera entran en `Autoevaluacion::paraInforme()`.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Vocabulario compartido                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Semáforo de riesgo. `GRIS` cubre evaluaciones aún no clasificadas. */
+export type SemaforoRiesgo = 'VERDE' | 'AMBAR' | 'ROJO' | 'GRIS';
+
+/** Estados del ciclo de vida de la autoevaluación. */
+export type EstadoAutoevaluacion = 'INICIADA' | 'REGISTRADA' | 'ANULADA';
+
+/** Estado de una condición dentro del `detalle_checklist`. */
+export type EstadoCondicion = 'CUMPLE' | 'NO_CUMPLE' | 'POR_REVISAR' | 'NA';
+
+/**
+ * Estados de una subsanación.
+ *
+ * `SUBSANADO_DECLARADO` es el valor que emite el backend
+ * (`EvaluacionController::informe()` filtra por `estado === 'SUBSANADO_DECLARADO'`),
+ * no `SUBSANADO`. La etiqueta humana vive en `EstadoBadge`.
+ */
+export type EstadoSubsanacion = 'PENDIENTE' | 'EN_PROCESO' | 'SUBSANADO_DECLARADO';
+
+/**
+ * Recurso educativo serializado por `EvaluacionController::formatearRecursoEducativo()`.
+ *
+ * Estructuralmente compatible con `RecursoEducativoData` de
+ * `components/RecursoEducativoModal`, que es el componente que lo consume.
+ */
+export interface RecursoEducativoContrato {
+    id: number;
+    criterio_normativo_id?: number | null;
+    titulo: string;
+    descripcion_corta: string;
+    tipo: 'VIDEO' | 'GUIA_DIGITAL' | 'ENLACE_EXTERNO' | string;
+    url: string;
+    fuente_autor?: string | null;
+    duracion_estimada?: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Checklist (Checklist.tsx)                                                   */
+/* -------------------------------------------------------------------------- */
+
+export interface CriterioEvaluable {
+    codigo: string;
+    criterio_id: number;
+    titulo: string;
+    descripcion?: string | null;
+    categoria?: string | null;
+    pregunta_ciudadana: string;
+    que_observar?: string | null;
+    accion_mejora_orientativa?: string | null;
+    tipo_criterio?: string | null;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    orden?: number;
+    aplicable: boolean;
+    requiere_informacion: boolean;
+    estado?: string | null;
+    notas?: string | null;
+    opciones_respuesta: string[];
+    recursos_educativos?: RecursoEducativoContrato[];
+}
+
+export interface CriterioNoAplica {
+    codigo: string;
+    criterio_id: number;
+    titulo: string;
+    categoria?: string | null;
+    tipo_criterio?: string | null;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    orden?: number;
+    aplicable: false;
+    requiere_informacion: false;
+    estado: string;
+    motivo: string;
+}
+
+export interface CriterioInformacionPendiente {
+    codigo: string;
+    criterio_id: number;
+    titulo: string;
+    categoria?: string | null;
+    tipo_criterio?: string | null;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    orden?: number;
+    aplicable: null;
+    requiere_informacion: true;
+    variable_faltante?: string | null;
+    mensaje?: string | null;
+    estado?: string | null;
+    motivo?: string | null;
+}
+
+export interface ChecklistResumen {
+    total_criterios_catalogo: number;
+    total_activos: number;
+    total_suspendidos: number;
+    criterios_aplicables: number;
+    criterios_no_aplican: number;
+    criterios_requieren_informacion: number;
+}
+
+export interface ChecklistPayload {
+    autoevaluacion_id: number;
+    uuid: string;
+    criterios: CriterioEvaluable[];
+    no_aplican: CriterioNoAplica[];
+    informacion_pendiente: CriterioInformacionPendiente[];
+    resumen: ChecklistResumen;
+}
+
+/** Cabecera mínima que `Checklist` recibe del backend. */
+export interface ChecklistAutoevaluacion {
+    id: number;
+    uuid: string;
+    nombre_comercio: string;
+    direccion?: string | null;
+    estado?: EstadoAutoevaluacion | string;
+    registrada_at?: string | null;
+    hash_integridad?: string | null;
+}
+
+/** Props de `Inertia::render('Evaluacion/Checklist')`. */
+export interface ChecklistProps {
+    autoevaluacion: ChecklistAutoevaluacion;
+    checklist: ChecklistPayload;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Resumen (Resumen.tsx)                                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface ResumenConteos {
+    total_criterios_aplicables: number;
+    total_cumple_declarado: number;
+    total_pendiente_atender: number;
+    total_por_revisar: number;
+    total_no_aplica: number;
+}
+
+/** Bloque de condiciones aplicables aún sin declarar. */
+export interface CriterioPendienteResumen {
+    codigo: string;
+    titulo: string;
+    pregunta_ciudadana?: string | null;
+    que_observar: string;
+    accion_mejora_orientativa: string;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    recursos_educativos?: RecursoEducativoContrato[];
+    notas?: string | null;
+}
+
+export interface CriterioPorRevisarResumen {
+    codigo: string;
+    titulo: string;
+    que_observar: string;
+    orientacion: string;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    recursos_educativos?: RecursoEducativoContrato[];
+    notas?: string | null;
+}
+
+export interface CriterioCumpleResumen {
+    codigo: string;
+    titulo: string;
+    declaracion: string;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+    recursos_educativos?: RecursoEducativoContrato[];
+    notas?: string | null;
+}
+
+export interface CriterioNoAplicaResumen {
+    codigo: string;
+    titulo: string;
+    motivo: string;
+    norma_base?: string | null;
+    articulo_referencia?: string | null;
+}
+
+/** Cabecera que `Resumen` recibe del backend. */
+export interface ResumenAutoevaluacion {
+    id?: number;
+    uuid: string;
+    nombre_comercio: string;
+    funcion_economica?: string | null;
+    ruc?: string | null;
+    direccion?: string | null;
+    codigo_acceso?: string | null;
+    caracteristicas_declaradas?: Record<string, unknown> | null;
+    estado?: EstadoAutoevaluacion | string;
+    registrada_at?: string | null;
+    hash_integridad?: string | null;
+}
+
+/** Props de `Inertia::render('Evaluacion/Resumen')`. */
+export interface ResumenProps {
+    autoevaluacion: ResumenAutoevaluacion;
+    resumen: ResumenConteos;
+    pendiente_atender?: CriterioPendienteResumen[];
+    por_revisar?: CriterioPorRevisarResumen[];
+    cumple_declarado?: CriterioCumpleResumen[];
+    no_aplica?: CriterioNoAplicaResumen[];
+}
+
+/**
+ * Condición reportada por el 422 de `POST /autoevaluacion/{uuid}/finalizar`.
+ *
+ * `motivo` solo lo emite el backend para `informacion_pendiente`; en los criterios
+ * aplicables sin declarar llega ausente.
+ */
+export interface FinalizarPendiente {
+    codigo: string;
+    titulo: string;
+    motivo?: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Informe preventivo (InformePreventivo.tsx)                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Cabecera pública de la autoevaluación tal como la arma
+ * `Autoevaluacion::paraInforme()`.
+ *
+ * La lista blanca no puede filtrar columnas nuevas por descuido, a diferencia de
+ * serializar el modelo completo. `detalle_checklist` conserva su forma original
+ * con claves inhomogéneas: las filas del wizard de invitados solo traen `codigo`,
+ * mientras que las del flujo normativo incluyen nombre, estado, cumple y es_critico.
+ */
+export interface InformeAutoevaluacion {
+    uuid_trazabilidad: string;
+    nombre_comercio: string;
+    funcion_economica: string;
+    ruc: string | null;
+    sector_huancayo: string | null;
+    direccion: string | null;
+    referencia: string | null;
+    area_m2: number | null;
+    pisos: number | null;
+    aforo: number | null;
+    tipo_tramite: string | null;
+    nivel_riesgo: string | null;
+    semaforo: SemaforoRiesgo | string;
+    porcentaje_cumplimiento: number;
+    evaluacion_origen_id: number | null;
+    hash_integridad: string | null;
+    detalle_checklist: InformeDetalleItem[];
+}
+
+/** Fila del `detalle_checklist`. Solo `codigo` está garantizado. */
+export interface InformeDetalleItem {
+    codigo: string;
+    nombre?: string | null;
+    categoria?: string | null;
+    estado?: string | null;
+    cumple?: boolean | null;
+    es_critico?: boolean | null;
+    norma?: string | null;
+    titulo?: string | null;
+    que_observar?: string | null;
+    descripcion?: string | null;
+}
+
+/** Fila enriquecida que el backend arma en `informe()` a partir de `detalle_checklist`. */
+export interface CondicionChecklist {
+    codigo: string;
+    nombre: string;
+    categoria: string;
+    estado: string;
+    cumple: boolean;
+    es_critico: boolean;
+    norma: string;
+}
+
+/** Conteo absoluto por estado, calculado sobre `detalle_checklist`. */
+export interface ConteoEstados {
+    total: number;
+    cumple: number;
+    no_cumple: number;
+    por_revisar: number;
+    na: number;
+}
+
+/** Fila de la matriz de subsanaciones del informe. */
+export interface FilaMatriz {
+    codigo_item: string;
+    nombre_condicion: string;
+    deficiencia_inicial: string;
+    accion_realizada: string;
+    estado: EstadoSubsanacion | string;
+    evidencia_url: string | null;
+    evidencia_archivo: string | null;
+    fecha_subsanacion: string | null;
+}
+
+/** Resumen cuantitativo del ciclo de subsanación. */
+export interface InformeResumen {
+    total_condiciones: number;
+    conformes_iniciales: number;
+    subsanadas_declaradas: number;
+    en_proceso: number;
+    pendientes: number;
+    gap_final: number;
+    porcentaje_subsanado: number;
+}
+
+/** Evaluación previa cuando el informe corresponde a una reevaluación. */
+export interface InformeEvaluacionOrigen {
+    uuid_trazabilidad: string;
+    fecha: string | null;
+    semaforo: SemaforoRiesgo | string;
+    porcentaje_cumplimiento: number;
+}
+
+/** Props de `Inertia::render('Evaluacion/InformePreventivo')`. */
+export interface InformePreventivoProps {
+    autoevaluacion: InformeAutoevaluacion;
+    esReevaluacion: boolean;
+    evaluacionOrigen: InformeEvaluacionOrigen | null;
+    codigoInforme: string;
+    fechaEmision: string;
+    resumen: InformeResumen;
+    detalleChecklist: CondicionChecklist[];
+    conteoEstados: ConteoEstados;
+    matrizSubsanaciones: FilaMatriz[];
+    hashFinal: string;
+    hashIntegridad: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Listado (MisAutoevaluaciones.tsx)                                           */
+/* -------------------------------------------------------------------------- */
+
+export interface ConteosNormativos {
+    total_criterios_aplicables: number;
+    cumple_declarado: number;
+    pendiente_atender: number;
+    por_revisar: number;
+    no_aplica: number;
+}
+
+export interface ResumenSubsanaciones {
+    total: number;
+    subsanadas: number;
+    en_proceso: number;
+    pendientes: number;
+}
+
+export interface ConteoCondiciones {
+    total: number;
+    cumple: number;
+    no_cumple: number;
+    por_revisar: number;
+    na: number;
+}
+
+export interface AutoevaluacionItem {
+    id: number;
+    uuid_trazabilidad: string;
+    codigo_acceso?: string | null;
+    evaluacion_origen_id?: number | null;
+    evaluacion_origen_uuid?: string | null;
+    nombre_comercio: string;
+    funcion_economica: string;
+    ruc?: string | null;
+    direccion?: string | null;
+    area_m2?: number | null;
+    pisos?: number | null;
+    aforo?: number | null;
+    estado?: EstadoAutoevaluacion | string;
+    registrada_at?: string | null;
+    es_flujo_nuevo?: boolean;
+    conteos_normativos?: ConteosNormativos | null;
+    semaforo: SemaforoRiesgo | string;
+    porcentaje_cumplimiento: number;
+    fecha: string;
+    fecha_corta?: string;
+    created_at?: string;
+    hash_integridad?: string | null;
+    conteo_condiciones?: ConteoCondiciones;
+    resumen_subsanaciones: ResumenSubsanaciones;
+}
+
+/** Props de `Inertia::render('Evaluacion/MisAutoevaluaciones')`. */
+export interface MisAutoevaluacionesProps {
+    autoevaluaciones: AutoevaluacionItem[];
+}

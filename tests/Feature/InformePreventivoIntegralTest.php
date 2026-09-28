@@ -73,7 +73,7 @@ function subsanarInformePreventivo(
     )->assertSessionHasNoErrors();
 }
 
-test('el informe se restringe cuando el semaforo no es verde o quedan deficiencias pendientes', function () {
+test('el informe esta disponible y responde 200 aunque el semaforo no sea verde o queden deficiencias pendientes', function () {
     $evaluacion = crearAutoevaluacionInformePreventivo();
 
     registrarSimulacionInformePreventivo($evaluacion);
@@ -81,18 +81,22 @@ test('el informe se restringe cuando el semaforo no es verde o quedan deficienci
     expect($evaluacion->fresh()->semaforo)->toBe('AMBAR');
 
     get(route('autoevaluacion.informe', ['uuid' => $evaluacion->uuid_trazabilidad]))
-        ->assertRedirect(route('autoevaluacion.subsanacion', ['uuid' => $evaluacion->uuid_trazabilidad]))
-        ->assertSessionHasErrors('error');
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Evaluacion/InformePreventivo')
+            ->where('autoevaluacion.semaforo', 'AMBAR'));
 
-    $evaluacion->fresh()->update(['semaforo' => 'VERDE']);
+    $evaluacion->fresh()->update(['semaforo' => 'ROJO']);
 
     get(route('autoevaluacion.informe', ['uuid' => $evaluacion->uuid_trazabilidad]))
-        ->assertRedirect(route('autoevaluacion.subsanacion', ['uuid' => $evaluacion->uuid_trazabilidad]))
-        ->assertSessionHasErrors('error');
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Evaluacion/InformePreventivo')
+            ->where('autoevaluacion.semaforo', 'ROJO'));
 });
 
 test('el informe con semaforo verde y subsanaciones completas retorna 200 y carga la vista Inertia', function () {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $evaluacion = crearAutoevaluacionInformePreventivo();
     registrarSimulacionInformePreventivo($evaluacion);
@@ -127,7 +131,7 @@ test('el informe con semaforo verde y subsanaciones completas retorna 200 y carg
             ->has('matrizSubsanaciones', 1)
             ->where('matrizSubsanaciones.0.codigo_item', 'LUCES_EMERG')
             ->where('matrizSubsanaciones.0.estado', 'SUBSANADO_DECLARADO')
-            ->where('matrizSubsanaciones.0.evidencia_url', fn (string $url) => str_contains($url, '/storage/'))
+            ->where('matrizSubsanaciones.0.evidencia_url', fn (string $url) => str_contains($url, '/autoevaluacion/subsanacion/') && str_contains($url, '/evidencia/'))
             ->where('hashIntegridad', $evaluacion->hash_integridad)
             ->where('hashIntegridad', fn (string $hash) => strlen($hash) === 64)
             ->where('hashFinal', fn (string $hash) => preg_match('/^[a-f0-9]{64}$/i', $hash) === 1));
@@ -144,7 +148,7 @@ test('el informe consolida la estructura de hash SHA-256 y los datos del estable
             ->component('Evaluacion/InformePreventivo')
             ->where('autoevaluacion.uuid_trazabilidad', $evaluacion->uuid_trazabilidad)
             ->where('autoevaluacion.funcion_economica', 'Comercio')
-            ->where('autoevaluacion.sector_huancayo', 'Huancayo Centro')
+            ->where('autoevaluacion.sector_huancayo', null)
             ->where('autoevaluacion.area_m2', 120.5)
             ->where('autoevaluacion.aforo', 25)
             ->where('autoevaluacion.pisos', 1)

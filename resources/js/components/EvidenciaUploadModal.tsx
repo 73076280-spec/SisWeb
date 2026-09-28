@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useForm } from '@inertiajs/react';
-import { X, FileText, ImagePlus, Upload, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, FileText, ImagePlus, Upload, Loader2, CheckCircle2, Info } from 'lucide-react';
 
 export type EstadoSubsanacionModal = 'PENDIENTE' | 'EN_PROCESO' | 'SUBSANADO_DECLARADO';
 
@@ -15,7 +15,7 @@ interface Props {
 }
 
 const MAX_EVIDENCIA_MB = 5;
-const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'application/pdf'];
+const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 const ESTADOS: Array<{
   valor: EstadoSubsanacionModal;
@@ -50,6 +50,7 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
 }) => {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const elementoPrevioRef = useRef<HTMLElement | null>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [progreso, setProgreso] = useState<number>(0);
@@ -64,6 +65,11 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+
+    // Conserva el foco del control que abrió el modal para restaurarlo al cerrar.
+    if (elementoPrevioRef.current === null) {
+      elementoPrevioRef.current = document.activeElement as HTMLElement | null;
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -81,6 +87,17 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (isOpen) return;
+
+    const elementoPrevio = elementoPrevioRef.current;
+    elementoPrevioRef.current = null;
+
+    if (elementoPrevio?.isConnected) {
+      elementoPrevio.focus();
+    }
+  }, [isOpen]);
+
   const seleccionarArchivo = (file: File | null) => {
     setErrorCliente(null);
 
@@ -97,7 +114,7 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
     }
 
     if (!TIPOS_PERMITIDOS.includes(file.type)) {
-      setErrorCliente('Solo se permiten imágenes JPG/PNG o documentos PDF.');
+      setErrorCliente('Solo se permiten imágenes JPG/PNG/WEBP o documentos PDF.');
       inputFileRef.current?.focus();
 
       return;
@@ -230,7 +247,7 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
           {/* Selección de archivo */}
           <div>
             <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1">
-              Evidencia (JPG, PNG o PDF · máximo {MAX_EVIDENCIA_MB} MB)
+              Evidencia (JPG, PNG, WEBP o PDF · máximo {MAX_EVIDENCIA_MB} MB)
             </label>
             <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:border-[#7f1d1d]/40 transition cursor-pointer text-center">
               <Upload className="w-6 h-6" />
@@ -244,11 +261,24 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
               <input
                 ref={inputFileRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                aria-describedby="evidencia-nota-declaracion"
                 className="hidden"
                 onChange={event => seleccionarArchivo(event.target.files?.[0] || null)}
               />
             </label>
+
+            <p
+              id="evidencia-nota-declaracion"
+              className="mt-2 flex items-start gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-2 text-[10px] leading-relaxed text-sky-900"
+            >
+              <Info className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                La evidencia es <strong>declarada por el ciudadano</strong> y respalda tu adecuación con fines
+                preventivos; no es verificada oficialmente por la autoridad competente y se conserva de forma
+                privada, accesible solo para ti.
+              </span>
+            </p>
 
             {/* Previsualización */}
             {esImagen && preview && (
@@ -269,11 +299,14 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
             {form.errors.evidencia && (
               <p className="mt-1 text-[11px] font-medium text-[#7f1d1d]">{form.errors.evidencia}</p>
             )}
+            <div aria-live="polite" className="sr-only">
+              {errorCliente || form.errors.evidencia || ''}
+            </div>
           </div>
 
           {/* Barra de progreso */}
           {form.processing && (
-            <div>
+            <div aria-live="polite">
               <div className="h-2 w-full rounded-full bg-neutral-100 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-emerald-500 transition-all duration-200"

@@ -36,7 +36,7 @@ class GeoLocationService
      * Si no hay resultados dentro del radio solicitado, retorna los proveedores
      * de la categoría ordenados por distancia ascendente (radio extendido).
      *
-     * @return array{codigo: string, categoria: string, radio_km: float, radio_extendido: bool, proveedores: array<int, array<string, mixed>>}
+     * @return array{codigo: string, categoria: string, nombre_categoria: string, radio_km: float, radio_extendido: bool, proveedores: array<int, array<string, mixed>>}
      */
     public function buscarProveedoresPorDeficiencia(string $codigoNormativo, float $latUser, float $lonUser, float $radioKm = 5.0): array
     {
@@ -50,6 +50,7 @@ class GeoLocationService
             return [
                 'codigo' => $codigoNormativo,
                 'categoria' => $categoriaCodigo,
+                'nombre_categoria' => $categoriaCodigo,
                 'radio_km' => $radioKm,
                 'radio_extendido' => false,
                 'proveedores' => [],
@@ -74,6 +75,7 @@ class GeoLocationService
         return [
             'codigo' => $codigoNormativo,
             'categoria' => $categoriaCodigo,
+            'nombre_categoria' => $categoria->nombre,
             'radio_km' => $radioKm,
             'radio_extendido' => $radioExtendido,
             'proveedores' => $proveedores->all(),

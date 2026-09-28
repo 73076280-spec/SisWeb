@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, BookOpen, ShieldCheck, Scale, AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -7,11 +7,41 @@ interface Props {
 }
 
 export const GuiaModal: React.FC<Props> = ({ isOpen, onClose }) => {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-3xl p-6 sm:p-7 shadow-2xl border border-neutral-100 text-left">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guia-modal-titulo"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-3xl p-6 sm:p-7 shadow-2xl border border-neutral-100 text-left"
+        onClick={event => event.stopPropagation()}
+      >
         
         {/* Cabecera del Modal */}
         <div className="flex items-center justify-between pb-4 border-b border-neutral-100 mb-4 sticky top-0 bg-white z-10">
@@ -20,7 +50,7 @@ export const GuiaModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-neutral-900">
+              <h3 id="guia-modal-titulo" className="text-sm font-bold text-neutral-900">
                 Compendio Normativo ITSE y Base Legal
               </h3>
               <span className="text-[10px] text-neutral-400 font-mono">
@@ -29,8 +59,10 @@ export const GuiaModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           </div>
           <button 
+            ref={closeButtonRef}
             type="button"
             onClick={onClose} 
+            aria-label="Cerrar guía normativa"
             className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 flex items-center justify-center text-xs font-bold transition cursor-pointer"
           >
             <X className="w-4 h-4" />

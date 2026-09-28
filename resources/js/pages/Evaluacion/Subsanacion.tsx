@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Navbar } from '@/components/Navbar';
 import { GuiaModal } from '@/components/GuiaModal';
 import { ModalGuardarProgreso } from '@/components/ModalGuardarProgreso';
 import { ProveedoresCercanosModal } from '@/components/ProveedoresCercanosModal';
 import { EvidenciaUploadModal } from '@/components/EvidenciaUploadModal';
+import { ModalConfirmarReevaluacion } from '@/components/ModalConfirmarReevaluacion';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Clock,
   Camera,
+  Info,
 } from 'lucide-react';
 
 type EstadoSubsanacion = 'PENDIENTE' | 'EN_PROCESO' | 'SUBSANADO_DECLARADO';
@@ -52,7 +53,7 @@ interface AutoevaluacionData {
   nombre_comercio: string;
   ruc: string;
   sector_huancayo: string;
-  tipo_tramite: string;
+  tipo_tramite?: string | null;
   semaforo?: string;
   detalle_checklist: ChecklistItem[];
 }
@@ -91,6 +92,7 @@ const OPCIONES_ESTADO: Array<{
 export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
   const [showGuia, setShowGuia] = useState<boolean>(false);
   const [showGuardarProgreso, setShowGuardarProgreso] = useState<boolean>(false);
+  const [showModalReevaluacion, setShowModalReevaluacion] = useState<boolean>(false);
   const [codigoProveedores, setCodigoProveedores] = useState<string | null>(null);
   const [itemActivoNombre, setItemActivoNombre] = useState<string | null>(null);
   const [codigoEvidencia, setCodigoEvidencia] = useState<string | null>(null);
@@ -157,9 +159,8 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-neutral-900 font-sans antialiased flex flex-col justify-between">
+    <>
       <Head title={`Plan de Subsanación Preventiva - ${autoevaluacion.nombre_comercio}`} />
-      <Navbar />
       <GuiaModal isOpen={showGuia} onClose={() => setShowGuia(false)} />
       <ModalGuardarProgreso
         isOpen={showGuardarProgreso}
@@ -172,6 +173,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
         onClose={() => setCodigoProveedores(null)}
         codigo={codigoProveedores}
         nombreItem={itemActivoNombre}
+        sectorRef={autoevaluacion.sector_huancayo}
       />
       {codigoEvidencia && (
         <EvidenciaUploadModal
@@ -185,8 +187,14 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
           accionInicial={subEvidencia?.descripcion ?? ''}
         />
       )}
+      <ModalConfirmarReevaluacion
+        isOpen={showModalReevaluacion}
+        onClose={() => setShowModalReevaluacion(false)}
+        uuid={autoevaluacion.uuid_trazabilidad}
+        nombreComercio={autoevaluacion.nombre_comercio}
+      />
 
-      <main className="max-w-4xl mx-auto px-6 py-10 w-full flex-1 space-y-6 text-left">
+      <div className="max-w-4xl mx-auto space-y-6 text-left">
 
         {/* Cabecera */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -209,7 +217,15 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowModalReevaluacion(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-700 bg-primary-50/70 hover:bg-primary-50 border border-primary-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer self-start sm:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Volver a evaluar
+            </button>
+
             <Link
               href={`/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 bg-white border border-neutral-200 px-3.5 py-2 rounded-xl hover:bg-neutral-50 shadow-xs transition self-start sm:self-auto"
@@ -221,13 +237,28 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
               <button
                 type="button"
                 onClick={() => setShowGuardarProgreso(true)}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7f1d1d] hover:text-[#991b1b] bg-rose-50/60 hover:bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer self-start sm:self-auto"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer self-start sm:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
                 <Save className="w-3.5 h-3.5" /> Guardar mi progreso para continuar después
               </button>
             )}
           </div>
         </div>
+
+        {ultimaRevision && (
+          <div
+            role="note"
+            aria-label="Naturaleza preventiva de las evidencias declaradas"
+            className="mb-5 flex items-start gap-2.5 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-[11px] leading-relaxed text-sky-900"
+          >
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p>
+              Las evidencias que adjuntes son <strong>declaradas por el ciudadano</strong> y respaldan tu
+              adecuación con fines preventivos: no han sido verificadas oficialmente por la autoridad competente
+              y se conservan en almacenamiento privado, accesible solo para ti.
+            </p>
+          </div>
+        )}
 
         {!ultimaRevision ? (
           <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 text-center">
@@ -250,12 +281,21 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
             <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
               Tu última simulación de revisión no registró observaciones. Mantén tus condiciones al día para conservar un buen nivel de preparación.
             </p>
-            <a
-              href={`/autoevaluacion/informe/${autoevaluacion.uuid_trazabilidad}`}
-              className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 rounded-xl shadow-xs"
-            >
-              <FileCheck className="w-4 h-4" /> Generar Informe de Autoevaluación
-            </a>
+            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowModalReevaluacion(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 hover:bg-emerald-50 px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Volver a evaluar establecimiento
+              </button>
+              <a
+                href={`/autoevaluacion/informe/${autoevaluacion.uuid_trazabilidad}`}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 rounded-xl shadow-xs"
+              >
+                <FileCheck className="w-4 h-4" /> Generar Informe de Autoevaluación
+              </a>
+            </div>
           </div>
         ) : (
           <>
@@ -281,7 +321,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
 
                     {sub?.evidencia_url && (
                       <a
-                        href={`/storage/${sub.evidencia_url}`}
+                        href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#7f1d1d] hover:underline"
@@ -334,7 +374,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
                           setCodigoProveedores(item.codigo);
                           setItemActivoNombre(item.nombre);
                         }}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-[#7f1d1d] hover:text-[#991b1b] bg-rose-50/60 hover:bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                       >
                         <MapPin className="w-3.5 h-3.5" /> Buscar recursos cercanos en Huancayo
                       </button>
@@ -362,7 +402,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
                         )}
                         {sub.evidencia_url && (
                           <a
-                            href={`/storage/${sub.evidencia_url}`}
+                            href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
                             target="_blank"
                             rel="noreferrer"
                             className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-[#7f1d1d] hover:underline"
@@ -382,11 +422,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
           </>
         )}
 
-      </main>
-
-      <footer className="border-t border-neutral-100 py-6 text-center text-[11px] text-neutral-400">
-        CheckITSE Huancayo · Plan de Subsanación Preventiva · R.J. N° 016-2018-CENEPRED
-      </footer>
-    </div>
+      </div>
+    </>
   );
 }

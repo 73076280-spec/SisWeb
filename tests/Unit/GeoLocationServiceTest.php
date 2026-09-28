@@ -70,6 +70,7 @@ it('busca proveedores por deficiencia, los ordena por proximidad y excluye inact
     $resultado = $servicio->buscarProveedoresPorDeficiencia('LUCES_EMERG', -12.0680, -75.2100);
 
     expect($resultado['categoria'])->toBe('ELECTRICO')
+        ->and($resultado['nombre_categoria'])->toBe('Materiales e instalaciones eléctricas')
         ->and($resultado['proveedores'])->toHaveCount(2)
         ->and(array_column($resultado['proveedores'], 'razon_social'))
         ->toBe([$cercano->razon_social, $lejano->razon_social])

@@ -3,10 +3,14 @@
 use App\Models\Autoevaluacion;
 use App\Models\HistorialSubsanacion;
 use App\Models\Subsanacion;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 
+use function Pest\Laravel\actingAs;
 use function Pest\Laravel\assertDatabaseCount;
+use function Pest\Laravel\get;
 use function Pest\Laravel\post;
 
 function payloadBaseEvidencias(array $overrides = []): array
@@ -38,7 +42,7 @@ function crearAutoevaluacionEvidencias(array $overrides = []): Autoevaluacion
     post(route('autoevaluacion.store'), payloadBaseEvidencias($overrides))
         ->assertSessionHasNoErrors();
 
-    return Autoevaluacion::firstOrFail();
+    return Autoevaluacion::latest('id')->firstOrFail();
 }
 
 function verificacionesEvidencias(): array
@@ -60,8 +64,28 @@ function registrarSimulacionEvidencias(Autoevaluacion $evaluacion, array $verifi
     )->assertSessionHasNoErrors();
 }
 
-it('persiste una evidencia de imagen válida en storage público y actualiza evidencia_url', function () {
-    Storage::fake('public');
+function registrarSubsanacionConEvidenciaEvidencias(Autoevaluacion $evaluacion, array $overrides = []): Subsanacion
+{
+    post(
+        route('autoevaluacion.subsanacion.store', ['uuid' => $evaluacion->uuid_trazabilidad]),
+        array_merge([
+            'codigo_item' => 'LUCES_EMERG',
+            'descripcion_subsanacion' => 'Instalada lámpara autónoma LED con batería de 90 minutos.',
+            'estado' => 'SUBSANADO_DECLARADO',
+            'evidencia' => UploadedFile::fake()->createWithContent(
+                'evidencia.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+            ),
+        ], $overrides)
+    )->assertSessionHasNoErrors();
+
+    return Subsanacion::where('simulacion_revision_id', $evaluacion->simulacionRevision->id)
+        ->where('codigo_item', $overrides['codigo_item'] ?? 'LUCES_EMERG')
+        ->firstOrFail();
+}
+
+it('persiste una evidencia de imagen válida en storage privado y actualiza evidencia_url', function () {
+    Storage::fake('local');
 
     $evaluacion = crearAutoevaluacionEvidencias();
     registrarSimulacionEvidencias($evaluacion);
@@ -85,10 +109,37 @@ it('persiste una evidencia de imagen válida en storage público y actualiza evi
 
     expect($subsanacion->evidencia_url)->toStartWith('evidencias/subsanaciones/');
 
-    Storage::disk('public')->assertExists($subsanacion->evidencia_url);
+    Storage::disk('local')->assertExists($subsanacion->evidencia_url);
+    Storage::disk('public')->assertMissing($subsanacion->evidencia_url);
 });
 
-it('rechaza archivos de evidencia no permitidos sin persistir subsanación', function (UploadedFile $archivo) {
+it('acepta una imagen WEBP como evidencia declarada', function () {
+    Storage::fake('local');
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    registrarSimulacionEvidencias($evaluacion);
+
+    $response = post(
+        route('autoevaluacion.subsanacion.store', ['uuid' => $evaluacion->uuid_trazabilidad]),
+        [
+            'codigo_item' => 'LUCES_EMERG',
+            'descripcion_subsanacion' => 'Instalada lámpara autónoma LED con batería de 90 minutos.',
+            'estado' => 'SUBSANADO_DECLARADO',
+            'evidencia' => UploadedFile::fake()->createWithContent(
+                'evidencia.webp',
+                "RIFF\0\0\0\0WEBP"
+            ),
+        ]
+    );
+
+    $response->assertSessionHasNoErrors();
+
+    $subsanacion = Subsanacion::where('codigo_item', 'LUCES_EMERG')->firstOrFail();
+
+    Storage::disk('local')->assertExists($subsanacion->evidencia_url);
+});
+
+it('rechaza archivos de evidencia no permitidos sin persistir subsanación', function (UploadedFile $archivo, string $mensajeEsperado) {
     $evaluacion = crearAutoevaluacionEvidencias();
     registrarSimulacionEvidencias($evaluacion);
 
@@ -104,14 +155,22 @@ it('rechaza archivos de evidencia no permitidos sin persistir subsanación', fun
 
     $response->assertSessionHasErrors('evidencia');
 
+    expect(session('errors')->first('evidencia'))->toContain($mensajeEsperado);
+
     assertDatabaseCount('subsanaciones', 0);
 })->with([
-    'ejecutable' => fn (): UploadedFile => UploadedFile::fake()->create('instalador.exe', 10),
-    'imagen mayor a 5 MB' => fn (): UploadedFile => UploadedFile::fake()->createWithContent(
-        'evidencia-grande.png',
-        base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
-            .str_repeat("\0", 6 * 1024 * 1024)
-    ),
+    'ejecutable' => [
+        fn (): UploadedFile => UploadedFile::fake()->create('instalador.exe', 10),
+        'Este formato de archivo no está permitido',
+    ],
+    'imagen mayor a 5 MB' => [
+        fn (): UploadedFile => UploadedFile::fake()->createWithContent(
+            'evidencia-grande.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+                .str_repeat("\0", 6 * 1024 * 1024)
+        ),
+        'El archivo supera el tamaño máximo permitido',
+    ],
 ]);
 
 it('registra la trazabilidad histórica al cambiar el estado de una subsanación', function () {
@@ -189,4 +248,149 @@ it('pasa a semáforo VERDE cuando todas las observaciones están declaradas como
         ->and($evaluacion->fresh()->porcentaje_cumplimiento)->toBe(100.0)
 
         ->and($evaluacion->simulaciones()->first()->fresh()->metrica_gap)->toBe(0.0);
+});
+
+it('solo el titular registrado puede descargar su evidencia declarada', function () {
+    Storage::fake('local');
+
+    $titular = User::factory()->create();
+    $tercero = User::factory()->create();
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    $evaluacion->update(['user_id' => $titular->id]);
+    registrarSimulacionEvidencias($evaluacion);
+
+    $subsanacion = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
+
+    $url = route('autoevaluacion.evidencia', [
+        'uuid' => $evaluacion->uuid_trazabilidad,
+        'subsanacion' => $subsanacion->id,
+    ]);
+
+    actingAs($tercero)->get($url)->assertForbidden();
+    actingAs($titular)->get($url)->assertOk();
+});
+
+it('exige el guest_session_token original para descargar evidencias de invitados', function () {
+    Storage::fake('local');
+
+    $tokenOriginal = 'guest-token-seguro-1234567890';
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    $evaluacion->update(['session_token' => $tokenOriginal]);
+    registrarSimulacionEvidencias($evaluacion);
+
+    $subsanacion = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
+
+    $url = route('autoevaluacion.evidencia', [
+        'uuid' => $evaluacion->uuid_trazabilidad,
+        'subsanacion' => $subsanacion->id,
+    ]);
+
+    get($url)->assertForbidden();
+    $this->withCookie('guest_session_token', 'token-incorrecto')->get($url)->assertForbidden();
+    $this->withCookie('guest_session_token', $tokenOriginal)->get($url)->assertOk();
+});
+
+it('rechaza aplicar una evidencia desconocida sobre una autoevaluación ajena', function () {
+    Storage::fake('local');
+
+    $evaluacionA = crearAutoevaluacionEvidencias();
+    registrarSimulacionEvidencias($evaluacionA);
+    registrarSubsanacionConEvidenciaEvidencias($evaluacionA);
+
+    $evaluacionB = crearAutoevaluacionEvidencias(['nombre_comercio' => 'Otro Comercio Andino']);
+    registrarSimulacionEvidencias($evaluacionB);
+    $subsanacionB = registrarSubsanacionConEvidenciaEvidencias($evaluacionB);
+
+    $url = route('autoevaluacion.evidencia', [
+        'uuid' => $evaluacionA->uuid_trazabilidad,
+        'subsanacion' => $subsanacionB->id,
+    ]);
+
+    get($url)->assertNotFound();
+});
+
+it('conserva la evidencia declarada ante recargas y consultas posteriores', function () {
+    Storage::fake('local');
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    registrarSimulacionEvidencias($evaluacion);
+    $subsanacion = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
+
+    // Simula una recarga: el registro y el archivo persisten en el almacenamiento.
+    $registroRecargado = Subsanacion::findOrFail($subsanacion->id);
+
+    expect($registroRecargado->evidencia_url)->toStartWith('evidencias/subsanaciones/');
+
+    Storage::disk('local')->assertExists($registroRecargado->evidencia_url);
+
+    // La consulta posterior del panel conserva la evidencia asociada a su subsanación.
+    get(route('autoevaluacion.subsanacion', ['uuid' => $evaluacion->uuid_trazabilidad]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Evaluacion/Subsanacion')
+            ->where('ultimaRevision.subsanaciones.0.codigo_item', 'LUCES_EMERG')
+            ->where('ultimaRevision.subsanaciones.0.estado', 'SUBSANADO_DECLARADO')
+            ->where('ultimaRevision.subsanaciones.0.evidencia_url', $registroRecargado->evidencia_url));
+});
+
+it('mantiene separadas las evidencias entre revisiones de una reevaluación', function () {
+    Storage::fake('local');
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    registrarSimulacionEvidencias($evaluacion);
+    $primera = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
+
+    // Reevaluación: el ciudadano genera una nueva simulación de revisión in situ.
+    registrarSimulacionEvidencias($evaluacion);
+
+    expect($evaluacion->simulaciones()->count())->toBe(2);
+
+    // La evidencia de la primera revisión se conserva asociada a su subsanación.
+    expect($primera->fresh()->evidencia_url)->toStartWith('evidencias/subsanaciones/');
+
+    // La nueva revisión no hereda evidencias ni subsanaciones previas.
+    $nuevaRevision = $evaluacion->simulaciones()->orderBy('id', 'desc')->firstOrFail();
+
+    expect(Subsanacion::where('simulacion_revision_id', $nuevaRevision->id)->count())->toBe(0);
+
+    assertDatabaseCount('subsanaciones', 1);
+
+    // La evidencia de la revisión anterior queda fuera del flujo vigente (404).
+    get(route('autoevaluacion.evidencia', [
+        'uuid' => $evaluacion->uuid_trazabilidad,
+        'subsanacion' => $primera->id,
+    ]))->assertNotFound();
+});
+
+it('retira del almacenamiento privado la evidencia anterior al reemplazarla', function () {
+    Storage::fake('local');
+
+    $evaluacion = crearAutoevaluacionEvidencias();
+    registrarSimulacionEvidencias($evaluacion);
+
+    $subsanacion = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
+    $rutaAnterior = $subsanacion->evidencia_url;
+
+    post(
+        route('autoevaluacion.subsanacion.store', ['uuid' => $evaluacion->uuid_trazabilidad]),
+        [
+            'codigo_item' => 'LUCES_EMERG',
+            'descripcion_subsanacion' => 'Reemplazada con una fotografía más reciente del sistema de luces.',
+            'estado' => 'SUBSANADO_DECLARADO',
+            'evidencia' => UploadedFile::fake()->createWithContent(
+                'evidencia-v2.png',
+                base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+            ),
+        ]
+    )->assertSessionHasNoErrors();
+
+    $actualizada = $subsanacion->fresh();
+
+    expect($actualizada->evidencia_url)->not->toBe($rutaAnterior)
+        ->and($actualizada->evidencia_url)->toStartWith('evidencias/subsanaciones/');
+
+    Storage::disk('local')->assertMissing($rutaAnterior);
+    Storage::disk('local')->assertExists($actualizada->evidencia_url);
 });
