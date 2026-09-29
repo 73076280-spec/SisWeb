@@ -1,4 +1,3 @@
-import { GuiaModal } from '@/components/GuiaModal';
 import { Navbar } from '@/components/Navbar';
 import { CATEGORIA_LABELS, CHECKLIST_CATALOGO_OFICIAL, type CategoriaChecklist } from '@/data/checklistCatalogo';
 import { Head, Link } from '@inertiajs/react';
@@ -22,14 +21,12 @@ import {
     MapPin,
     MinusCircle,
     Printer,
-    QrCode,
     Ruler,
     Scale,
     ShieldCheck,
     Users,
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { etiquetaEstado } from '@/components/EstadoBadge';
 import type {
     CondicionChecklist,
@@ -73,7 +70,7 @@ function getEstadoBadge(estado: string) {
         default:
             return {
                 label: 'NO APLICA',
-                bg: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+                bg: 'bg-slate-100 text-slate-600 border-slate-200',
                 icon: MinusCircle,
             };
     }
@@ -92,12 +89,7 @@ export default function InformePreventivo({
     hashFinal,
     hashIntegridad,
 }: InformePreventivoProps) {
-    const [showGuia, setShowGuia] = useState<boolean>(false);
-
-    const urlSeguimiento =
-        typeof window !== 'undefined'
-            ? `${window.location.origin}/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`
-            : `/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`;
+    const urlSeguimiento = `/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`;
 
     const esExAnte = autoevaluacion.tipo_tramite === 'EX_ANTE';
     const nivelRiesgoLegible = autoevaluacion.nivel_riesgo
@@ -151,7 +143,7 @@ export default function InformePreventivo({
         if (sem === 'VERDE') {
             return {
                 dotColor: 'bg-emerald-600',
-                textColor: 'text-emerald-900',
+                textColor: 'text-emerald-600',
                 label: 'VERDE — Sin incumplimientos declarados',
                 desc: 'Según las respuestas registradas en esta autoevaluación, no se consignaron observaciones técnicas pendientes.',
             };
@@ -159,14 +151,14 @@ export default function InformePreventivo({
         if (sem === 'AMBAR' || sem === 'ÁMBAR') {
             return {
                 dotColor: 'bg-amber-500',
-                textColor: 'text-amber-900',
+                textColor: 'text-amber-600',
                 label: 'ÁMBAR — Presenta aspectos por revisar',
                 desc: 'Presenta condiciones técnicas observadas o pendientes de verificación previa a una inspección oficial.',
             };
         }
         return {
             dotColor: 'bg-rose-600',
-            textColor: 'text-rose-900',
+            textColor: 'text-rose-600',
             label: 'ROJO — Requiere atención prioritaria',
             desc: 'Se identificaron condiciones de seguridad críticas declaradas como no conformes que requieren subsanación urgente.',
         };
@@ -246,61 +238,72 @@ export default function InformePreventivo({
     const tieneSubsanaciones = matrizSubsanaciones.length > 0;
 
     return (
-        <div className="flex min-h-screen flex-col justify-between bg-[#F4F4F5] font-sans text-neutral-900 antialiased print:bg-white print:py-0">
+        <div className="flex min-h-screen flex-col justify-between bg-slate-100 font-sans text-slate-900 antialiased print:bg-white print:py-0">
             <Head
                 title={`${
                     esReevaluacion ? 'Informe Preventivo Reevaluación' : 'Informe de Autoevaluación Preventiva ITSE'
                 } - ${autoevaluacion.nombre_comercio}`}
             />
 
-            {/* Barra de navegación y modal de base legal — ocultos al imprimir */}
+            {/* Barra de navegación — oculta al imprimir */}
             <div className="print:hidden">
                 <Navbar />
-                <GuiaModal isOpen={showGuia} onClose={() => setShowGuia(false)} />
             </div>
 
             <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-10 print:max-w-none print:p-0">
                 {/* Acciones de pantalla — ocultas al imprimir */}
-                <div className="mb-6 flex items-center justify-between print:hidden">
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
                     <Link
-                        href={`/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`}
-                        className="flex items-center gap-1 text-xs font-bold text-neutral-600 hover:text-neutral-900"
+                        href={urlSeguimiento}
+                        className="flex items-center gap-1 text-xs font-bold text-slate-600 transition-colors hover:text-slate-900"
                     >
                         <ArrowLeft className="h-4 w-4" /> Volver al Resultado
                     </Link>
 
-                    <button
-                        onClick={() => window.print()}
-                        className="flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-800"
-                    >
-                        <Printer className="h-4 w-4" /> Imprimir / Guardar como PDF
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <a
+                            href={urlSeguimiento}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
+                        >
+                            <span>Gestionar subsanaciones en la plataforma</span>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+
+                        <button
+                            onClick={() => window.print()}
+                            className="flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700"
+                        >
+                            <Printer className="h-4 w-4" /> Imprimir / Guardar como PDF
+                        </button>
+                    </div>
                 </div>
 
                 {/* Hoja del informe (formato A4) */}
-                <div className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-lg print:rounded-none print:border-none print:p-0 print:shadow-none">
+                <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg print:rounded-none print:border-none print:p-0 print:shadow-none">
                     {/* Marca de agua */}
                     <div
                         className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] select-none"
                         aria-hidden="true"
                     >
-                        <ShieldCheck className="h-[460px] w-[460px] text-emerald-950" />
+                        <ShieldCheck className="h-[460px] w-[460px] text-emerald-600" />
                     </div>
 
                     {/* Contenido de la hoja */}
                     <div className="relative space-y-5 p-6 sm:p-10 md:p-12 print:space-y-4 print:p-8">
                         {/* 1. Encabezado + aviso legal */}
-                        <header className="border-b-2 border-double border-emerald-900/80 pb-5 print:pb-4">
+                        <header className="border-b-2 border-double border-emerald-600/80 pb-5 print:pb-4">
                             <div className="mb-3 flex justify-center">
-                                <span className="rounded-xl bg-emerald-900 p-2.5 text-white">
+                                <span className="rounded-xl bg-emerald-600 p-2.5 text-white">
                                     <ShieldCheck className="h-7 w-7" />
                                 </span>
                             </div>
-                            <span className="block text-center text-[10px] font-bold tracking-[0.22em] text-emerald-900 uppercase">
+                            <span className="block text-center text-[10px] font-bold tracking-[0.22em] text-emerald-600 uppercase">
                                 Asistente Cívico CheckITSE Huancayo
                             </span>
 
-                            <h1 className="mt-2 text-center text-lg leading-snug font-black tracking-tight text-neutral-900 uppercase sm:text-2xl">
+                            <h1 className="mt-2 text-center text-lg leading-snug font-black tracking-tight text-slate-900 uppercase sm:text-2xl">
                                 {esReevaluacion
                                     ? 'Informe Preventivo — Reevaluación'
                                     : 'Informe de Autoevaluación Preventiva ITSE'}
@@ -310,8 +313,8 @@ export default function InformePreventivo({
                             {esReevaluacion && (
                                 <div className="mt-3 rounded-xl border border-sky-300 bg-sky-50/80 p-3 text-left print:break-inside-avoid">
                                     <div className="flex items-start gap-2">
-                                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-700" />
-                                        <div className="text-[11px] leading-relaxed text-sky-950">
+                                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                                        <div className="text-[11px] leading-relaxed text-sky-900">
                                             <strong className="font-bold">Nota contextual de reevaluación: </strong>
                                             Este informe corresponde a una <strong>reevaluación preventiva</strong> del
                                             establecimiento.
@@ -332,32 +335,32 @@ export default function InformePreventivo({
 
                             {/* Referencia al marco legal */}
                             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-                                <span className="rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-neutral-600">
+                                <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
                                     D.S. N° 002-2018-PCM
                                 </span>
-                                <span className="rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-neutral-600">
+                                <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
                                     R.J. N° 016-2018-CENEPRED/J
                                 </span>
-                                <span className="rounded-md border border-neutral-200 bg-neutral-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-neutral-600">
+                                <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">
                                     RNE A.010 / A.130 · CNE-U
                                 </span>
                             </div>
 
                             {/* Código de informe y fecha */}
                             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:break-inside-avoid">
-                                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-800/60 bg-emerald-50/70 px-3 py-1.5">
-                                    <FileText className="h-3.5 w-3.5 text-emerald-900" />
-                                    <span className="text-[10px] font-bold text-emerald-950 uppercase">
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-50/70 px-3 py-1.5">
+                                    <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span className="text-[10px] font-bold text-emerald-600 uppercase">
                                         N° de Informe:
                                     </span>
-                                    <span className="font-mono text-xs font-black text-emerald-950">
+                                    <span className="font-mono text-xs font-black text-emerald-600">
                                         {codigoInforme}
                                     </span>
                                 </div>
-                                <div className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5">
-                                    <CalendarClock className="h-3.5 w-3.5 text-neutral-500" />
-                                    <span className="text-[10px] font-bold text-neutral-600 uppercase">Fecha:</span>
-                                    <span className="font-mono text-[11px] font-bold text-neutral-800">
+                                <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5">
+                                    <CalendarClock className="h-3.5 w-3.5 text-slate-500" />
+                                    <span className="text-[10px] font-bold text-slate-600 uppercase">Fecha:</span>
+                                    <span className="font-mono text-[11px] font-bold text-slate-800">
                                         {fechaEmision}
                                     </span>
                                 </div>
@@ -366,7 +369,7 @@ export default function InformePreventivo({
                             {/* Descargo legal de no-oficialidad prominente */}
                             <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 text-left print:break-inside-avoid">
                                 <div className="flex items-start gap-2">
-                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                                     <div className="text-[10px] leading-relaxed text-amber-950">
                                         <strong className="block font-bold uppercase tracking-wider text-amber-900">
                                             Aviso Preventivo Importante — No Oficial
@@ -387,8 +390,8 @@ export default function InformePreventivo({
                         {/* 2. Datos generales declarados del establecimiento */}
                         <section className="print:break-inside-avoid">
                             <div className="mb-2.5 flex items-center gap-2">
-                                <FileCheck className="h-4 w-4 text-emerald-900" />
-                                <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                <FileCheck className="h-4 w-4 text-emerald-600" />
+                                <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
                                     Datos Generales Declarados del Establecimiento
                                 </h2>
                             </div>
@@ -397,18 +400,18 @@ export default function InformePreventivo({
                                 {datosGenerales.map((item) => (
                                     <div
                                         key={item.label}
-                                        className="rounded-xl border border-neutral-200 bg-neutral-50/60 p-3"
+                                        className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
                                     >
                                         <div className="mb-1 flex items-center gap-1.5">
-                                            <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-900" />
-                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                            <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                            <span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                 {item.label}
                                             </span>
                                         </div>
-                                        <p className="text-xs leading-snug font-bold break-words text-neutral-900">
+                                        <p className="text-xs leading-snug font-bold break-words text-slate-900">
                                             {item.value}
                                         </p>
-                                        <p className="mt-0.5 text-[9px] text-neutral-400">{item.sub}</p>
+                                        <p className="mt-0.5 text-[9px] text-slate-400">{item.sub}</p>
                                     </div>
                                 ))}
                             </div>
@@ -417,21 +420,21 @@ export default function InformePreventivo({
                         {/* 3. Resumen de diagnóstico */}
                         <section className="print:break-inside-avoid">
                             <div className="mb-2.5 flex items-center gap-2">
-                                <Gauge className="h-4 w-4 text-emerald-900" />
-                                <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                <Gauge className="h-4 w-4 text-emerald-600" />
+                                <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
                                     Resumen de Diagnóstico Preventivo
                                 </h2>
                             </div>
 
                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                    <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-white p-3">
+                                    <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-3">
                                         <span
                                             className={`h-3 w-3 shrink-0 rounded-full ${semaforoInfo.dotColor}`}
                                             aria-hidden="true"
                                         />
                                         <div>
-                                            <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                            <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                 Semáforo Preventivo
                                             </span>
                                             <span className={`text-sm font-black ${semaforoInfo.textColor}`}>
@@ -439,30 +442,30 @@ export default function InformePreventivo({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="rounded-xl border border-emerald-100 bg-white p-3">
-                                        <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                             GAP Final de Preparación
                                         </span>
-                                        <span className="text-sm font-black text-emerald-900">{gapFinal}</span>
+                                        <span className="text-sm font-black text-emerald-600">{gapFinal}</span>
                                     </div>
-                                    <div className="rounded-xl border border-emerald-100 bg-white p-3">
-                                        <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                    <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                             Subsanación Declarada
                                         </span>
-                                        <span className="text-sm font-black text-emerald-900">
+                                        <span className="text-sm font-black text-emerald-600">
                                             {resumen.porcentaje_subsanado}%
                                         </span>
                                     </div>
                                 </div>
 
-                                <div className="mt-3 rounded-xl border border-neutral-200 bg-white p-3 text-left">
-                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-left">
+                                    <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                         Diagnóstico Declarado
                                     </span>
-                                    <p className="mt-0.5 text-xs font-bold text-neutral-800">{semaforoInfo.label}</p>
-                                    <p className="mt-0.5 text-[10px] text-neutral-600">{semaforoInfo.desc}</p>
+                                    <p className="mt-0.5 text-xs font-bold text-slate-800">{semaforoInfo.label}</p>
+                                    <p className="mt-0.5 text-[10px] text-slate-600">{semaforoInfo.desc}</p>
                                     {es100Cumplimiento && (
-                                        <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2 text-[10px] text-emerald-900">
+                                        <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-2 text-[10px] text-emerald-600">
                                             <strong>Nota de conformidad declarada:</strong> Según las respuestas
                                             declaradas en esta autoevaluación, no se identificaron incumplimientos
                                             declarados en las condiciones evaluadas. Este informe tiene carácter
@@ -476,16 +479,16 @@ export default function InformePreventivo({
                                 {metricas.map((item) => (
                                     <div
                                         key={item.label}
-                                        className="rounded-xl border border-neutral-200 bg-white p-3"
+                                        className="rounded-xl border border-slate-200 bg-white p-3"
                                     >
                                         <div className="mb-1 flex items-center gap-1.5">
-                                            <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-900" />
-                                            <span className="text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                            <item.icon className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                            <span className="text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                 {item.label}
                                             </span>
                                         </div>
-                                        <p className="text-sm leading-snug font-black text-neutral-900">{item.value}</p>
-                                        <p className="mt-0.5 text-[9px] text-neutral-400">{item.sub}</p>
+                                        <p className="text-sm leading-snug font-black text-slate-900">{item.value}</p>
+                                        <p className="mt-0.5 text-[9px] text-slate-400">{item.sub}</p>
                                     </div>
                                 ))}
                             </div>
@@ -495,47 +498,47 @@ export default function InformePreventivo({
                         <section className="print:break-inside-avoid">
                             <div className="mb-2.5 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <ClipboardList className="h-4 w-4 text-emerald-900" />
-                                    <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                    <ClipboardList className="h-4 w-4 text-emerald-600" />
+                                    <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
                                         Matriz Completa de Condiciones Evaluadas ({conteo.total})
                                     </h2>
                                 </div>
-                                <span className="text-[10px] font-semibold text-neutral-500 print:hidden">
+                                <span className="text-[10px] font-semibold text-slate-500 print:hidden">
                                     Diagnóstico Integral por Condición
                                 </span>
                             </div>
 
                             {/* Resumen cuantitativo por estado */}
                             <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                                <div className="rounded-xl border border-neutral-200 bg-white p-2.5 text-center">
-                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
+                                    <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                         Total
                                     </span>
-                                    <span className="text-sm font-black text-neutral-900">{conteo.total}</span>
+                                    <span className="text-sm font-black text-slate-900">{conteo.total}</span>
                                 </div>
                                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-2.5 text-center">
-                                    <span className="block text-[9px] font-bold tracking-wider text-emerald-700 uppercase">
+                                    <span className="block text-[9px] font-bold tracking-wider text-emerald-600 uppercase">
                                         Cumple
                                     </span>
-                                    <span className="text-sm font-black text-emerald-800">{conteo.cumple}</span>
+                                    <span className="text-sm font-black text-emerald-600">{conteo.cumple}</span>
                                 </div>
                                 <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-2.5 text-center">
-                                    <span className="block text-[9px] font-bold tracking-wider text-rose-700 uppercase">
+                                    <span className="block text-[9px] font-bold tracking-wider text-rose-600 uppercase">
                                         No Cumple
                                     </span>
-                                    <span className="text-sm font-black text-rose-800">{conteo.no_cumple}</span>
+                                    <span className="text-sm font-black text-rose-600">{conteo.no_cumple}</span>
                                 </div>
                                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-2.5 text-center">
-                                    <span className="block text-[9px] font-bold tracking-wider text-amber-700 uppercase">
+                                    <span className="block text-[9px] font-bold tracking-wider text-amber-600 uppercase">
                                         Por Revisar
                                     </span>
-                                    <span className="text-sm font-black text-amber-800">{conteo.por_revisar}</span>
+                                    <span className="text-sm font-black text-amber-600">{conteo.por_revisar}</span>
                                 </div>
-                                <div className="col-span-2 rounded-xl border border-neutral-200 bg-neutral-100/70 p-2.5 text-center sm:col-span-1">
-                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-600 uppercase">
+                                <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-100/70 p-2.5 text-center sm:col-span-1">
+                                    <span className="block text-[9px] font-bold tracking-wider text-slate-600 uppercase">
                                         No Aplica
                                     </span>
-                                    <span className="text-sm font-black text-neutral-700">{conteo.na}</span>
+                                    <span className="text-sm font-black text-slate-700">{conteo.na}</span>
                                 </div>
                             </div>
 
@@ -549,14 +552,14 @@ export default function InformePreventivo({
                                     return (
                                         <div
                                             key={`${item.codigo}-${idx}`}
-                                            className="rounded-xl border border-neutral-200 bg-white p-3 print:break-inside-avoid"
+                                            className="rounded-xl border border-slate-200 bg-white p-3 print:break-inside-avoid"
                                         >
-                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2">
+                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                                                 <div className="flex flex-wrap items-center gap-2">
-                                                    <span className="font-mono text-xs font-black text-neutral-800">
+                                                    <span className="font-mono text-xs font-black text-slate-800">
                                                         {item.codigo}
                                                     </span>
-                                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold text-neutral-600">
+                                                    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
                                                         {catNombre}
                                                     </span>
                                                     {item.es_critico && (
@@ -573,11 +576,11 @@ export default function InformePreventivo({
                                                 </div>
                                             </div>
                                             <div className="mt-2">
-                                                <p className="text-xs leading-snug font-semibold text-neutral-900">
+                                                <p className="text-xs leading-snug font-semibold text-slate-900">
                                                     {item.nombre}
                                                 </p>
                                                 {item.norma && (
-                                                    <p className="mt-1 font-mono text-[9px] text-neutral-400">
+                                                    <p className="mt-1 font-mono text-[9px] text-slate-400">
                                                         Ref: {item.norma}
                                                     </p>
                                                 )}
@@ -591,8 +594,8 @@ export default function InformePreventivo({
                         {/* 5. Matriz de trazabilidad de subsanaciones */}
                         <section className="print:break-inside-avoid">
                             <div className="mb-2.5 flex items-center gap-2">
-                                <Layers className="h-4 w-4 text-emerald-900" />
-                                <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                <Layers className="h-4 w-4 text-emerald-600" />
+                                <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
                                     Matriz de Trazabilidad de Subsanaciones y Adecuaciones
                                 </h2>
                             </div>
@@ -610,8 +613,8 @@ export default function InformePreventivo({
                             </div>
 
                             {!tieneSubsanaciones ? (
-                                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center">
-                                    <span className="text-[11px] text-neutral-500">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+                                    <span className="text-[11px] text-slate-500">
                                         Sin adecuaciones ni subsanaciones declaradas registradas en esta autoevaluación.
                                     </span>
                                 </div>
@@ -620,36 +623,36 @@ export default function InformePreventivo({
                                     {matrizSubsanaciones.map((fila) => (
                                         <div
                                             key={fila.codigo_item}
-                                            className="overflow-hidden rounded-2xl border border-neutral-200 print:break-inside-avoid"
+                                            className="overflow-hidden rounded-2xl border border-slate-200 print:break-inside-avoid"
                                         >
-                                            <div className="flex items-center gap-2 bg-neutral-50 px-3 py-2">
-                                                <span className="font-mono text-xs font-black text-[#7f1d1d]">
+                                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-2">
+                                                <span className="font-mono text-xs font-black text-danger-900">
                                                     {fila.codigo_item}
                                                 </span>
-                                                <span className="text-[10px] text-neutral-400">
+                                                <span className="text-[10px] text-slate-400">
                                                     {etiquetaEstado(fila.estado)} ·{' '}
                                                     {fila.fecha_subsanacion ?? 'Sin fecha'}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-[1fr_1.4fr_1fr] print:grid-cols-[1fr_1.4fr_1fr]">
                                                 <div>
-                                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                                    <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                         Deficiencia Inicial
                                                     </span>
-                                                    <p className="mt-0.5 text-[11px] leading-snug font-semibold text-neutral-800">
+                                                    <p className="mt-0.5 text-[11px] leading-snug font-semibold text-slate-800">
                                                         {fila.deficiencia_inicial}
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                                    <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                         Acción Realizada
                                                     </span>
-                                                    <p className="mt-0.5 text-[11px] leading-snug text-neutral-700">
+                                                    <p className="mt-0.5 text-[11px] leading-snug text-slate-700">
                                                         {fila.accion_realizada}
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <span className="block text-[9px] font-bold tracking-wider text-neutral-500 uppercase">
+                                                    <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                         Evidencia Adjunta
                                                     </span>
                                                     {fila.evidencia_url ? (
@@ -663,7 +666,7 @@ export default function InformePreventivo({
                                                                 <img
                                                                     src={fila.evidencia_url}
                                                                     alt={`Evidencia declarada de ${fila.codigo_item}`}
-                                                                    className="max-h-20 w-full rounded-md border border-neutral-200 object-contain break-inside-avoid"
+                                                                    className="max-h-20 w-full rounded-md border border-slate-200 object-contain break-inside-avoid"
                                                                 />
                                                             </a>
                                                         ) : (
@@ -678,7 +681,7 @@ export default function InformePreventivo({
                                                             </a>
                                                         )
                                                     ) : (
-                                                        <span className="mt-1 block text-[10px] text-neutral-400">
+                                                        <span className="mt-1 block text-[10px] text-slate-400">
                                                             Sin evidencia declarada
                                                         </span>
                                                     )}
@@ -691,7 +694,7 @@ export default function InformePreventivo({
                         </section>
 
                         {/* Cuerpo del informe */}
-                        <div className="space-y-3 text-justify text-xs leading-relaxed text-neutral-700 sm:text-sm print:space-y-2">
+                        <div className="space-y-3 text-justify text-xs leading-relaxed text-slate-700 sm:text-sm print:space-y-2">
                             <p>
                                 El titular del establecimiento <strong>"{autoevaluacion.nombre_comercio}"</strong>,
                                 identificado con <strong>RUC N° {autoevaluacion.ruc}</strong>, ubicado en el sector
@@ -716,105 +719,78 @@ export default function InformePreventivo({
 
                         {/* Declaración del responsable del establecimiento */}
                         <div className="flex flex-col items-center justify-center pt-6 text-center print:break-inside-avoid print:pt-4">
-                            <div className="w-72 border-t border-neutral-400 pt-2">
-                                <span className="block text-[10px] font-bold text-neutral-800 uppercase">
+                            <div className="w-72 border-t border-slate-400 pt-2">
+                                <span className="block text-[10px] font-bold text-slate-800 uppercase">
                                     Declaración del responsable del establecimiento
                                 </span>
-                                <span className="text-[9px] text-neutral-500">
+                                <span className="text-[9px] text-slate-500">
                                     {autoevaluacion.nombre_comercio} · RUC {autoevaluacion.ruc}
                                 </span>
                             </div>
-                            <p className="mt-2 max-w-md text-[9px] leading-relaxed text-neutral-500">
+                            <p className="mt-2 max-w-md text-[9px] leading-relaxed text-slate-500">
                                 La presente declaración es de carácter personal y preventivo. No sustituye la inspección
                                 técnica de seguridad en edificaciones (ITSE) realizada por el órgano ejecutante
                                 competente ni convalida el cumplimiento normativo ante la municipalidad.
                             </p>
                         </div>
 
-                        {/* 6. Pie de página pericial preventivo: QR + huella criptográfica */}
-                        <section className="rounded-2xl border border-neutral-200 p-4 print:break-inside-avoid">
+                        {/* 6. Pie de página pericial preventivo: huella criptográfica */}
+                        <section className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
                             <div className="mb-3 flex items-center gap-2">
-                                <Hash className="h-4 w-4 text-emerald-900" />
-                                <h2 className="text-xs font-black tracking-wider text-neutral-800 uppercase">
+                                <Hash className="h-4 w-4 text-emerald-600" />
+                                <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
                                     Trazabilidad Pericial Preventiva
                                 </h2>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2 text-[11px] text-neutral-600">
-                                    <div className="flex items-start gap-2">
-                                        <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
-                                        <div>
-                                            <span className="block text-[9px] font-bold tracking-wider text-neutral-700 uppercase">
-                                                UUID de Trazabilidad
-                                            </span>
-                                            <span className="font-mono break-all text-neutral-900 select-all">
-                                                {autoevaluacion.uuid_trazabilidad}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                        <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
-                                        <div>
-                                            <span className="block text-[9px] font-bold tracking-wider text-neutral-700 uppercase">
-                                                Fecha de Generación
-                                            </span>
-                                            <span className="font-mono text-neutral-900">{fechaEmision}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2">
-                                        <FileCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-800" />
-                                        <div>
-                                            <span className="block text-[9px] font-bold tracking-wider text-emerald-900 uppercase">
-                                                Estado del Registro
-                                            </span>
-                                            <span className="text-xs font-black text-emerald-900">
-                                                Autoevaluación registrada según las respuestas declaradas
-                                            </span>
-                                        </div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div className="flex items-start gap-2">
+                                    <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                    <div>
+                                        <span className="block text-[9px] font-bold tracking-wider text-slate-700 uppercase">
+                                            UUID de Trazabilidad
+                                        </span>
+                                        <span className="font-mono break-all text-slate-900 select-all">
+                                            {autoevaluacion.uuid_trazabilidad}
+                                        </span>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center gap-3 rounded-xl border border-neutral-100 bg-neutral-50 p-3">
-                                    <div className="shrink-0 rounded-lg border border-neutral-200 bg-white p-1.5">
-                                        <QRCodeSVG value={urlSeguimiento} size={84} level="M" />
-                                    </div>
-                                    <div className="space-y-1 text-[10px] text-neutral-500">
-                                        <span className="flex items-center gap-1 font-bold text-neutral-800">
-                                            <QrCode className="h-3 w-3" /> Seguimiento Preventivo
+                                <div className="flex items-start gap-2">
+                                    <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                    <div>
+                                        <span className="block text-[9px] font-bold tracking-wider text-slate-700 uppercase">
+                                            Fecha de Generación
                                         </span>
-                                        <p className="leading-tight">
-                                            El código QR y la huella criptográfica permiten verificar la integridad y
-                                            trazabilidad del registro de autoevaluación en la plataforma CheckITSE
-                                            Huancayo. No acreditan inspección municipal.
-                                        </p>
-                                        <a
-                                            href={urlSeguimiento}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="inline-flex items-center gap-1 pt-1 font-bold text-[#7f1d1d] hover:underline"
-                                        >
-                                            <span>Abrir seguimiento</span>
-                                            <ExternalLink className="h-3 w-3" />
-                                        </a>
+                                        <span className="font-mono text-slate-900">{fechaEmision}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2">
+                                    <FileCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                    <div>
+                                        <span className="block text-[9px] font-bold tracking-wider text-emerald-600 uppercase">
+                                            Estado del Registro
+                                        </span>
+                                        <span className="text-xs font-black text-emerald-600">
+                                            Autoevaluación registrada según las respuestas declaradas
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-3 space-y-2">
-                                <div className="rounded-xl bg-neutral-900 p-3 font-mono text-neutral-300 print:bg-neutral-900">
+                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300 print:bg-slate-900">
                                     <div className="mb-1 flex items-center gap-1.5">
                                         <Hash className="h-3.5 w-3.5 text-emerald-400" />
-                                        <span className="text-[10px] tracking-wider text-neutral-400 uppercase">
+                                        <span className="text-[10px] tracking-wider text-slate-400 uppercase">
                                             Hash SHA-256 del Registro
                                         </span>
                                     </div>
                                     <p className="text-[10px] leading-relaxed break-all select-all">{hashIntegridad}</p>
                                 </div>
-                                <div className="rounded-xl bg-neutral-900 p-3 font-mono text-neutral-300 print:bg-neutral-900">
+                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300 print:bg-slate-900">
                                     <div className="mb-1 flex items-center gap-1.5">
                                         <Fingerprint className="h-3.5 w-3.5 text-emerald-400" />
-                                        <span className="text-[10px] tracking-wider text-neutral-400 uppercase">
+                                        <span className="text-[10px] tracking-wider text-slate-400 uppercase">
                                             Huella Criptográfica del Payload Consolidado
                                         </span>
                                     </div>
@@ -824,9 +800,9 @@ export default function InformePreventivo({
                         </section>
 
                         {/* Pie de la hoja */}
-                        <div className="flex items-start gap-2 border-t border-neutral-200 pt-3 text-center">
-                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-neutral-400" />
-                            <p className="text-[9px] text-neutral-500">
+                        <div className="flex items-start gap-2 border-t border-slate-200 pt-3 text-center">
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
+                            <p className="text-[9px] text-slate-500">
                                 Informe cívico de autoevaluación generado por el asistente CheckITSE Huancayo. Su
                                 verificación queda respaldada por el bloque de trazabilidad criptográfica. Este
                                 documento es de carácter preventivo e informativo y no constituye un documento oficial.
@@ -836,7 +812,7 @@ export default function InformePreventivo({
                 </div>
 
                 {/* Pie de página web — oculto al imprimir */}
-                <footer className="mt-6 text-center text-[11px] text-neutral-400 print:hidden">
+                <footer className="mt-6 text-center text-[11px] text-slate-400 print:hidden">
                     CheckITSE Huancayo · Plataforma Cívica de Autoevaluación y Preparación ITSE
                 </footer>
             </main>
