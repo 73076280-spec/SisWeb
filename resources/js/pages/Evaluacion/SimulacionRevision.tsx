@@ -54,8 +54,8 @@ interface Props {
 }
 
 export default function SimulacionRevision({ autoevaluacion }: Props) {
-  // Verificaciones iniciales de la simulaciÃ³n: por defecto reflejan lo que el
-  // ciudadano declarÃ³ como cumplido en su autoevaluaciÃ³n.
+  // Verificaciones iniciales de la simulación: por defecto reflejan lo que el
+  // ciudadano declaró como cumplido en su autoevaluación.
   const estadoInicial = autoevaluacion.detalle_checklist.reduce((acc, item) => {
     acc[item.codigo] = item.estado === 'CUMPLE' || item.cumple === true;
     return acc;
@@ -111,16 +111,16 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
 
   return (
     <>
-      <Head title={`SimulaciÃ³n de RevisiÃ³n In Situ - ${autoevaluacion.nombre_comercio}`} />
+      <Head title={`Simulación de Revisión In Situ - ${autoevaluacion.nombre_comercio}`} />
 
-      {/* Barra de navegaciÃ³n contextual */}
+      {/* Barra de navegación contextual */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div className="text-left">
           <span className="text-[10px] font-bold uppercase tracking-wider bg-primary-50 text-primary-700 px-2.5 py-0.5 rounded-full border border-primary-100">
-            SimulaciÃ³n de RevisiÃ³n In Situ
+            Simulación de Revisión In Situ
           </span>
           <p className="text-[11px] text-neutral-500 mt-1">
-            AutoevaluaciÃ³n preventiva Â· MÃ©todo de contraste GAP (PUCP)
+            Autoevaluación preventiva · Método de contraste GAP (PUCP)
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-danger-900 px-2.5 py-0.5 rounded-full border border-rose-100">
-                SimulaciÃ³n de RevisiÃ³n In Situ
+                Simulación de Revisión In Situ
               </span>
               <span className="text-[10px] font-mono text-neutral-400">
                 UUID: {autoevaluacion.uuid_trazabilidad.substring(0, 13)}...
@@ -149,14 +149,14 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
               {autoevaluacion.nombre_comercio}
             </h1>
             <p className="text-xs text-neutral-500 mt-0.5">
-              RUC: <strong className="font-mono text-neutral-700">{autoevaluacion.ruc}</strong> Â· Giro: <strong>{autoevaluacion.funcion_economica}</strong> Â· Sector: <strong>{autoevaluacion.sector_huancayo}</strong>
+              RUC: <strong className="font-mono text-neutral-700">{autoevaluacion.ruc}</strong> · Giro: <strong>{autoevaluacion.funcion_economica}</strong> · Sector: <strong>{autoevaluacion.sector_huancayo}</strong>
             </p>
           </div>
 
           <div className="flex items-center gap-3 self-start md:self-auto">
             {autoevaluacion.tipo_tramite && (
               <div className="p-3.5 bg-neutral-50 border border-neutral-100 rounded-2xl text-center">
-                <span className="text-[10px] font-bold text-neutral-400 uppercase block">TrÃ¡mite</span>
+                <span className="text-[10px] font-bold text-neutral-400 uppercase block">Trámite</span>
                 <span className="text-xs font-extrabold text-neutral-900">
                   {autoevaluacion.tipo_tramite}
                 </span>
@@ -165,46 +165,46 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
             <div className="p-3.5 bg-neutral-50 border border-neutral-100 rounded-2xl text-center">
               <span className="text-[10px] font-bold text-neutral-400 uppercase block">Escala</span>
               <span className="text-xs font-extrabold text-neutral-900">
-                {autoevaluacion.area_m2} mÂ² / {autoevaluacion.pisos} P.
+                {autoevaluacion.area_m2} m² / {autoevaluacion.pisos} P.
               </span>
             </div>
           </div>
         </div>
 
-        {/* Aviso de naturaleza didÃ¡ctica */}
+        {/* Aviso de naturaleza didáctica */}
         <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-950 text-xs">
           <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            Esta herramienta te permite simular, por tu cuenta, una revisiÃ³n in situ de tu establecimiento.
-            El porcentaje resultante expresa tu <strong>nivel de preparaciÃ³n declarado</strong> segÃºn la
-            simulaciÃ³n que realices; <strong>no es una probabilidad de aprobaciÃ³n</strong> ni un acta oficial
-            de inspecciÃ³n.
+            Esta herramienta te permite simular, por tu cuenta, una revisión in situ de tu establecimiento.
+            El porcentaje resultante expresa tu <strong>nivel de preparación declarado</strong> según la
+            simulación que realices; <strong>no es una probabilidad de aprobación</strong> ni un acta oficial
+            de inspección.
           </p>
         </div>
 
         {/* Panel de Contraste GAP */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white border border-neutral-200/80 rounded-3xl p-5 shadow-xs">
-            <span className="text-[10px] font-bold uppercase text-neutral-400 block">1. AutoevaluaciÃ³n Declarada</span>
+            <span className="text-[10px] font-bold uppercase text-neutral-400 block">1. Autoevaluación Declarada</span>
             <span className="text-2xl font-extrabold text-neutral-900 mt-1 block">
               {autoevaluacion.porcentaje_cumplimiento}%
             </span>
-            <span className="text-[11px] text-neutral-500">Condiciones que declaraste cumplir en tu autoevaluaciÃ³n.</span>
+            <span className="text-[11px] text-neutral-500">Condiciones que declaraste cumplir en tu autoevaluación.</span>
           </div>
 
           <div className="bg-white border border-neutral-200/80 rounded-3xl p-5 shadow-xs">
-            <span className="text-[10px] font-bold uppercase text-neutral-400 block">2. RevisiÃ³n In Situ Simulada</span>
+            <span className="text-[10px] font-bold uppercase text-neutral-400 block">2. Revisión In Situ Simulada</span>
             <span className="text-2xl font-extrabold text-emerald-700 mt-1 block">
               {porcentajeRevision}%
             </span>
-            <span className="text-[11px] text-neutral-500">Resultado segÃºn la simulaciÃ³n que realizas ahora mismo.</span>
+            <span className="text-[11px] text-neutral-500">Resultado según la simulación que realizas ahora mismo.</span>
           </div>
 
           <div className={`border rounded-3xl p-5 shadow-xs ${
             metricaGap > 0 ? 'bg-amber-50/60 border-amber-200 text-amber-950' : 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
           }`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider block">3. Brecha de PreparaciÃ³n (GAP)</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider block">3. Brecha de Preparación (GAP)</span>
               <Activity className="w-4 h-4 text-danger-900" />
             </div>
             <span className="text-2xl font-extrabold mt-1 block">
@@ -212,19 +212,19 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
             </span>
             <span className="text-[11px] leading-tight block mt-0.5">
               {metricaGap > 0
-                ? 'Detectaste una brecha: hay condiciones que declaraste y que en la simulaciÃ³n no se mantienen.'
-                : 'Coherencia: tu declaraciÃ³n coincide con la simulaciÃ³n que realizaste.'}
+                ? 'Detectaste una brecha: hay condiciones que declaraste y que en la simulación no se mantienen.'
+                : 'Coherencia: tu declaración coincide con la simulación que realizaste.'}
             </span>
           </div>
         </div>
 
-        {/* Formulario de RevisiÃ³n Simulada */}
+        {/* Formulario de Revisión Simulada */}
         <form onSubmit={handleGuardarRevision} className="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-neutral-100 pb-4 gap-2">
             <div>
-              <h3 className="text-sm font-bold text-neutral-900">Matriz de RevisiÃ³n In Situ Simulada</h3>
+              <h3 className="text-sm font-bold text-neutral-900">Matriz de Revisión In Situ Simulada</h3>
               <p className="text-xs text-neutral-500">
-                Simula recorrer tu local: confirma solo aquello que verificarÃ­as fÃ­sicamente como presente. Lo que no confirmes queda como observaciÃ³n de preparaciÃ³n.
+                Simula recorrer tu local: confirma solo aquello que verificarías físicamente como presente. Lo que no confirmes queda como observación de preparación.
               </p>
             </div>
 
@@ -233,7 +233,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
                 ? 'bg-rose-50 text-danger-900 border-rose-200'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-200'
             }`}>
-              {totalObservaciones} ObservaciÃ³n(es) de preparaciÃ³n
+              {totalObservaciones} Observación(es) de preparación
             </span>
           </div>
 
@@ -257,7 +257,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
                       </span>
                       {item.es_critico && (
                         <span className="text-[9px] font-bold bg-rose-100 text-danger-900 px-2 py-0.5 rounded-full">
-                          Falla CrÃ­tica
+                          Falla Crítica
                         </span>
                       )}
                     </div>
@@ -274,7 +274,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
                   <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
                     {hayObservacion && (
                       <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-xl">
-                        ObservaciÃ³n
+                        Observación
                       </span>
                     )}
 
@@ -295,7 +295,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
                       ) : (
                         <>
                           <XCircle className="w-3.5 h-3.5" />
-                          <span>Con observaciÃ³n</span>
+                          <span>Con observación</span>
                         </>
                       )}
                     </button>
@@ -305,10 +305,10 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
             })}
           </div>
 
-          {/* BotÃ³n de Registro de la SimulaciÃ³n */}
+          {/* Botón de Registro de la Simulación */}
           <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-xs text-neutral-500 text-left">
-              Al registrar la simulaciÃ³n se generarÃ¡ un cÃ³digo preventivo <strong>PREV-ITSE-â€¦</strong> con fines de seguimiento y preparaciÃ³n. No es un documento oficial.
+              Al registrar la simulación se generará un código preventivo <strong>PREV-ITSE-…</strong> con fines de seguimiento y preparación. No es un documento oficial.
             </div>
 
             <button
@@ -317,7 +317,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
               className="inline-flex items-center justify-center gap-2 bg-danger-900 hover:bg-danger-800 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
-              <span>{processing ? 'Procesando SimulaciÃ³n...' : 'Registrar SimulaciÃ³n de RevisiÃ³n'}</span>
+              <span>{processing ? 'Procesando Simulación...' : 'Registrar Simulación de Revisión'}</span>
             </button>
           </div>
         </form>
@@ -325,7 +325,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
         {/* Historial de Simulaciones */}
         {autoevaluacion.simulaciones && autoevaluacion.simulaciones.length > 0 && (
           <div className="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-bold text-neutral-900">Historial de Simulaciones de RevisiÃ³n</h3>
+            <h3 className="text-sm font-bold text-neutral-900">Historial de Simulaciones de Revisión</h3>
             <div className="space-y-3">
               {autoevaluacion.simulaciones.map(sim => (
                 <div key={sim.id} className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
@@ -342,7 +342,7 @@ export default function SimulacionRevision({ autoevaluacion }: Props) {
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-neutral-400 block uppercase">% RevisiÃ³n</span>
+                      <span className="text-[10px] text-neutral-400 block uppercase">% Revisión</span>
                       <span className="font-extrabold text-neutral-800">{sim.porcentaje_revision}%</span>
                     </div>
                     <div>

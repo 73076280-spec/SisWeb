@@ -72,13 +72,13 @@ const OPCIONES_ESTADO: Array<{
   {
     valor: 'PENDIENTE',
     etiqueta: 'Pendiente',
-    detalle: 'AÃºn no inicias la adecuaciÃ³n.',
+    detalle: 'Aún no inicias la adecuación.',
     activo: 'bg-neutral-200 text-neutral-800 ring-1 ring-neutral-300',
   },
   {
     valor: 'EN_PROCESO',
     etiqueta: 'En Proceso',
-    detalle: 'AdecuaciÃ³n en curso o parcial.',
+    detalle: 'Adecuación en curso o parcial.',
     activo: 'bg-amber-100 text-amber-900 ring-1 ring-amber-300',
   },
   {
@@ -122,7 +122,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
       {
         codigo_item: codigo,
         descripcion_subsanacion:
-          sub?.descripcion ?? 'AdecuaciÃ³n preventiva registrada desde el panel de la condiciÃ³n.',
+          sub?.descripcion ?? 'Adecuación preventiva registrada desde el panel de la condición.',
         estado: nuevo,
       },
       { preserveScroll: true }
@@ -160,7 +160,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
 
   return (
     <>
-      <Head title={`Plan de SubsanaciÃ³n Preventiva - ${autoevaluacion.nombre_comercio}`} />
+      <Head title={`Plan de Subsanación Preventiva - ${autoevaluacion.nombre_comercio}`} />
       <GuiaModal isOpen={showGuia} onClose={() => setShowGuia(false)} />
       <ModalGuardarProgreso
         isOpen={showGuardarProgreso}
@@ -201,7 +201,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-danger-900 px-2.5 py-0.5 rounded-full border border-rose-100">
-                Plan de SubsanaciÃ³n Preventiva
+                Plan de Subsanación Preventiva
               </span>
               {ultimaRevision && (
                 <span className="text-[10px] font-mono text-neutral-500 font-bold">
@@ -213,7 +213,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
               Registro de Adecuaciones Declaradas
             </h1>
             <p className="text-xs text-neutral-500 mt-0.5">
-              {autoevaluacion.nombre_comercio} Â· RUC: <strong className="font-mono">{autoevaluacion.ruc}</strong>
+              {autoevaluacion.nombre_comercio} · RUC: <strong className="font-mono">{autoevaluacion.ruc}</strong>
             </p>
           </div>
 
@@ -239,7 +239,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
                 onClick={() => setShowGuardarProgreso(true)}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer self-start sm:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
-                <Save className="w-3.5 h-3.5" /> Guardar mi progreso para continuar despuÃ©s
+                <Save className="w-3.5 h-3.5" /> Guardar mi progreso para continuar después
               </button>
             )}
           </div>
@@ -254,7 +254,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <p>
               Las evidencias que adjuntes son <strong>declaradas por el ciudadano</strong> y respaldan tu
-              adecuaciÃ³n con fines preventivos: no han sido verificadas oficialmente por la autoridad competente
+              adecuación con fines preventivos: no han sido verificadas oficialmente por la autoridad competente
               y se conservan en almacenamiento privado, accesible solo para ti.
             </p>
           </div>
@@ -263,15 +263,15 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
         {!ultimaRevision ? (
           <div className="p-8 rounded-3xl bg-amber-50 border border-amber-200 text-center">
             <AlertTriangle className="w-8 h-8 text-amber-700 mx-auto mb-2" />
-            <h3 className="text-sm font-bold text-amber-950">Sin SimulaciÃ³n de RevisiÃ³n Previo</h3>
+            <h3 className="text-sm font-bold text-amber-950">Sin Simulación de Revisión Previo</h3>
             <p className="text-xs text-amber-800 mt-1 max-w-md mx-auto">
-              Primero realiza la simulaciÃ³n de revisiÃ³n in situ para identificar las condiciones que requieren tu plan de preparaciÃ³n.
+              Primero realiza la simulación de revisión in situ para identificar las condiciones que requieren tu plan de preparación.
             </p>
             <Link
               href={`/autoevaluacion/revision/${autoevaluacion.uuid_trazabilidad}`}
               className="mt-4 inline-flex items-center justify-center gap-2 text-xs font-bold text-white bg-danger-900 hover:bg-danger-800 px-4 py-2.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
             >
-              Realizar SimulaciÃ³n de RevisiÃ³n In Situ
+              Realizar Simulación de Revisión In Situ
             </Link>
           </div>
         ) : estadoOperativo ? (
@@ -279,7 +279,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
             <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
             <h3 className="text-sm font-bold text-emerald-950">Sin Observaciones Declaradas</h3>
             <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
-              Tu Ãºltima simulaciÃ³n de revisiÃ³n no registrÃ³ observaciones. MantÃ©n tus condiciones al dÃ­a para conservar un buen nivel de preparaciÃ³n.
+              Tu última simulación de revisión no registró observaciones. Mantén tus condiciones al día para conservar un buen nivel de preparación.
             </p>
             <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
               <button
@@ -293,13 +293,13 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
                 href={`/autoevaluacion/informe/${autoevaluacion.uuid_trazabilidad}`}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 rounded-xl shadow-xs"
               >
-                <FileCheck className="w-4 h-4" /> Generar Informe de AutoevaluaciÃ³n
+                <FileCheck className="w-4 h-4" /> Generar Informe de Autoevaluación
               </a>
             </div>
           </div>
         ) : (
           <>
-            {/* Tarjetas por condiciÃ³n observada */}
+            {/* Tarjetas por condición observada */}
             <div className="space-y-4">
               {itemsParaSubsanar.map(item => {
                 const sub = subsanacionesRealizadas.find(s => s.codigo_item === item.codigo);
@@ -333,7 +333,7 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
                     {/* Cambio de estado reactivo */}
                     <div>
                       <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
-                        Estado declarado de tu adecuaciÃ³n
+                        Estado declarado de tu adecuación
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {OPCIONES_ESTADO.map(opcion => {
