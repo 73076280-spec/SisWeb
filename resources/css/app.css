@@ -4,8 +4,6 @@
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
-@custom-variant dark (&:is(.dark *));
-
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
@@ -23,7 +21,12 @@
     --color-popover: var(--popover);
     --color-popover-foreground: var(--popover-foreground);
 
-    --color-primary: var(--primary);
+    /*
+      Escala semántica única por familia. El token base es un alias del shade 600,
+      de modo que `bg-danger` y `bg-danger-600` resuelven al MISMO valor desde una
+      sola fuente de verdad, sin literales duplicados.
+    */
+    --color-primary: var(--color-primary-600);
     --color-primary-foreground: var(--primary-foreground);
 
     --color-secondary: var(--secondary);
@@ -35,7 +38,7 @@
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
 
-    --color-destructive: var(--destructive);
+    --color-destructive: var(--color-danger-600);
     --color-destructive-foreground: var(--destructive-foreground);
 
     --color-border: var(--border);
@@ -54,7 +57,7 @@
     --color-primary-900: #1e3a8a;
     --color-primary-950: #172554;
 
-    --color-success: #059669;
+    --color-success: var(--color-success-600);
     --color-success-foreground: #ffffff;
     --color-success-50: #ecfdf5;
     --color-success-100: #d1fae5;
@@ -67,7 +70,7 @@
     --color-success-800: #065f46;
     --color-success-900: #064e3b;
 
-    --color-warning: #d97706;
+    --color-warning: var(--color-warning-600);
     --color-warning-foreground: #ffffff;
     --color-warning-50: #fffbeb;
     --color-warning-100: #fef3c7;
@@ -94,7 +97,7 @@
     --color-danger-900: #7f1d1d;
     --color-danger-950: #450a0a;
 
-    --color-info: #0284c7;
+    --color-info: var(--color-info-600);
     --color-info-foreground: #ffffff;
     --color-info-50: #f0f9ff;
     --color-info-100: #e0f2fe;
@@ -107,9 +110,15 @@
     --color-info-800: #075985;
     --color-info-900: #0c4a6e;
 
+    /*
+      Convención de radios de la aplicación:
+        tarjetas y superficies grandes -> rounded-2xl  (1rem)
+        controles interactivos        -> rounded-xl   (0.75rem)
+        badges y chips                 -> rounded-full
+    */
     --radius-card: 1rem;
-    --radius-control: 0.625rem;
-    --radius-overlay: 1.25rem;
+    --radius-control: 0.75rem;
+    --radius-overlay: 1rem;
 
     --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06);
 
@@ -130,12 +139,9 @@
 }
 
 /*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+  Tailwind CSS v4 cambió el color de borde por defecto a `currentColor`. Este shim
+  lo fija a la escala `neutral` (la única que consume la aplicación) para que los
+  elementos con `border` sin color explícito conserven el aspecto previo a v4.
 */
 @layer base {
     *,
@@ -143,7 +149,7 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-neutral-200, currentColor);
     }
 }
 
@@ -154,7 +160,6 @@
     --card-foreground: hsl(0, 0%, 3.9%);
     --popover: hsl(0, 0%, 100%);
     --popover-foreground: hsl(0, 0%, 3.9%);
-    --primary: hsl(221, 83%, 53%);
     --primary-foreground: hsl(0, 0%, 100%);
     --secondary: hsl(0, 0%, 96.1%);
     --secondary-foreground: hsl(0, 0%, 9%);
@@ -162,7 +167,6 @@
     --muted-foreground: hsl(0, 0%, 45.1%);
     --accent: hsl(0, 0%, 96.1%);
     --accent-foreground: hsl(0, 0%, 9%);
-    --destructive: hsl(0, 72%, 51%);
     --destructive-foreground: hsl(0, 0%, 100%);
     --border: hsl(0, 0%, 92.8%);
     --input: hsl(0, 0%, 89.8%);
@@ -183,46 +187,18 @@
     --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
 }
 
+/*
+  Modo oscuro desactivado a propósito. Las superficies ciudadanas fijan fondos
+  claros de forma explícita, y un override de `.dark` invertía los tokens
+  semánticos (primary/danger/success) dejando texto claro sobre fondos claros.
+  Para reactivarlo hay que reintroducir `@custom-variant dark (&:is(.dark *))` y
+  las variables de `.dark` de forma completa y verificada.
+*/
 .dark {
-    --background: hsl(0, 0%, 3.9%);
-    --foreground: hsl(0, 0%, 98%);
-    --card: hsl(0, 0%, 3.9%);
-    --card-foreground: hsl(0, 0%, 98%);
-    --popover: hsl(0, 0%, 3.9%);
-    --popover-foreground: hsl(0, 0%, 98%);
-    --primary: hsl(0, 0%, 98%);
-    --primary-foreground: hsl(0, 0%, 9%);
-    --secondary: hsl(0, 0%, 14.9%);
-    --secondary-foreground: hsl(0, 0%, 98%);
-    --muted: hsl(0, 0%, 6.9%);
-    --muted-foreground: hsl(0, 0%, 63.9%);
-    --accent: hsl(0, 0%, 14.9%);
-    --accent-foreground: hsl(0, 0%, 98%);
-    --destructive: hsl(0, 84%, 60%);
-    --destructive-foreground: hsl(0, 0%, 98%);
-    --border: hsl(0, 0%, 14.9%);
-    --input: hsl(0, 0%, 14.9%);
-    --ring: hsl(0, 0%, 83.1%);
-    --chart-1: hsl(220, 70%, 50%);
-    --chart-2: hsl(160, 60%, 45%);
-    --chart-3: hsl(30, 80%, 55%);
-    --chart-4: hsl(280, 65%, 60%);
-    --chart-5: hsl(340, 75%, 55%);
-    --sidebar-background: hsl(0, 0%, 7%);
-    --sidebar-foreground: hsl(0, 0%, 80%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0, 0%, 100%);
-    --sidebar-accent: hsl(0, 0%, 15.9%);
-    --sidebar-accent-foreground: hsl(240, 4.8%, 95.9%);
-    --sidebar-border: hsl(0, 0%, 15.9%);
-    --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
+    color-scheme: light;
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-
     body {
         @apply bg-background text-foreground;
     }

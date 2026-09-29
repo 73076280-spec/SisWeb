@@ -286,72 +286,71 @@ it('precarga en reevaluacion sin inventar datos que la evaluacion original no te
         ->and($pageProps['usa_liquidos_inflamables'])->toBeNull();
 });
 
-it('audita coherencia de GLP: caso 1 (usa_glp = null y galones_glp = null)', function () {
-    $this->post(route('autoevaluacion.store'), payloadPaso1Base([
-        'usa_glp' => null,
-        'galones_glp' => null,
-    ]))->assertSessionHasNoErrors();
+it('audita coherencia entre la declaracion de uso de GLP y la cantidad declarada', function (
+    array $payload,
+    ?bool $esperado_usa_glp,
+    ?float $esperado_galones,
+    bool $declara_usa_glp,
+    bool $declara_galones
+) {
+    $this->post(route('autoevaluacion.store'), payloadPaso1Base($payload))
+        ->assertSessionHasNoErrors();
 
     $evaluacion = Autoevaluacion::latest('id')->firstOrFail();
-    expect($evaluacion->usa_glp)->toBeNull()
-        ->and($evaluacion->galones_glp)->toBeNull()
-        ->and(array_key_exists('usa_glp', $evaluacion->caracteristicas_declaradas ?? []))->toBeFalse()
-        ->and(array_key_exists('galones_glp', $evaluacion->caracteristicas_declaradas ?? []))->toBeFalse();
-});
+    $declaradas = $evaluacion->caracteristicas_declaradas ?? [];
+    $galones = $evaluacion->galones_glp;
 
-it('audita coherencia de GLP: caso 2 (usa_glp = false y galones_glp = null)', function () {
-    $this->post(route('autoevaluacion.store'), payloadPaso1Base([
-        'usa_glp' => false,
-        'galones_glp' => null,
-    ]))->assertSessionHasNoErrors();
+    expect($evaluacion->usa_glp)->toBe($esperado_usa_glp)
+        ->and($galones === null ? null : (float) $galones)->toBe($esperado_galones);
 
-    $evaluacion = Autoevaluacion::latest('id')->firstOrFail();
-    expect($evaluacion->usa_glp)->toBeFalse()
-        ->and($evaluacion->galones_glp)->toBeNull()
-        ->and($evaluacion->caracteristicas_declaradas['usa_glp'])->toBeFalse()
-        ->and(array_key_exists('galones_glp', $evaluacion->caracteristicas_declaradas ?? []))->toBeFalse();
-});
+    if ($declara_usa_glp) {
+        expect($declaradas['usa_glp'])->toBe($esperado_usa_glp);
+    } else {
+        expect(array_key_exists('usa_glp', $declaradas))->toBeFalse();
+    }
 
-it('audita coherencia de GLP: caso 3 (usa_glp = true y galones_glp = null)', function () {
-    $this->post(route('autoevaluacion.store'), payloadPaso1Base([
-        'usa_glp' => true,
-        'galones_glp' => null,
-    ]))->assertSessionHasNoErrors();
-
-    $evaluacion = Autoevaluacion::latest('id')->firstOrFail();
-    expect($evaluacion->usa_glp)->toBeTrue()
-        ->and($evaluacion->galones_glp)->toBeNull()
-        ->and($evaluacion->caracteristicas_declaradas['usa_glp'])->toBeTrue()
-        ->and(array_key_exists('galones_glp', $evaluacion->caracteristicas_declaradas ?? []))->toBeFalse();
-});
-
-it('audita coherencia de GLP: caso 4 (usa_glp = true con cantidad positiva)', function () {
-    $this->post(route('autoevaluacion.store'), payloadPaso1Base([
-        'usa_glp' => true,
-        'galones_glp' => 25.5,
-    ]))->assertSessionHasNoErrors();
-
-    $evaluacion = Autoevaluacion::latest('id')->firstOrFail();
-    expect($evaluacion->usa_glp)->toBeTrue()
-        ->and((float) $evaluacion->galones_glp)->toBe(25.5)
-        ->and($evaluacion->caracteristicas_declaradas['usa_glp'])->toBeTrue()
-        ->and($evaluacion->caracteristicas_declaradas['galones_glp'])->toBe(25.5);
-});
-
-it('audita coherencia de GLP: caso 5 (usa_glp = false con cantidad positiva se normaliza a null evitando contradicciones)', function () {
-    // Si el usuario marca usa_glp = false pero se envía cantidad positiva (ej. 20 galones),
-    // el sistema evita estados contradictorios normalizando galones_glp a null.
-    $this->post(route('autoevaluacion.store'), payloadPaso1Base([
-        'usa_glp' => false,
-        'galones_glp' => 20.0,
-    ]))->assertSessionHasNoErrors();
-
-    $evaluacion = Autoevaluacion::latest('id')->firstOrFail();
-    expect($evaluacion->usa_glp)->toBeFalse()
-        ->and($evaluacion->galones_glp)->toBeNull()
-        ->and($evaluacion->caracteristicas_declaradas['usa_glp'])->toBeFalse()
-        ->and(array_key_exists('galones_glp', $evaluacion->caracteristicas_declaradas ?? []))->toBeFalse();
-});
+    if ($declara_galones) {
+        expect((float) $declaradas['galones_glp'])->toBe($esperado_galones);
+    } else {
+        expect(array_key_exists('galones_glp', $declaradas))->toBeFalse();
+    }
+})->with([
+    'usa_glp null y galones null' => [
+        'payload' => ['usa_glp' => null, 'galones_glp' => null],
+        'esperado_usa_glp' => null,
+        'esperado_galones' => null,
+        'declara_usa_glp' => false,
+        'declara_galones' => false,
+    ],
+    'usa_glp false y galones null' => [
+        'payload' => ['usa_glp' => false, 'galones_glp' => null],
+        'esperado_usa_glp' => false,
+        'esperado_galones' => null,
+        'declara_usa_glp' => true,
+        'declara_galones' => false,
+    ],
+    'usa_glp true y galones null' => [
+        'payload' => ['usa_glp' => true, 'galones_glp' => null],
+        'esperado_usa_glp' => true,
+        'esperado_galones' => null,
+        'declara_usa_glp' => true,
+        'declara_galones' => false,
+    ],
+    'usa_glp true con cantidad positiva' => [
+        'payload' => ['usa_glp' => true, 'galones_glp' => 25.5],
+        'esperado_usa_glp' => true,
+        'esperado_galones' => 25.5,
+        'declara_usa_glp' => true,
+        'declara_galones' => true,
+    ],
+    'usa_glp false con cantidad positiva se normaliza a null evitando contradicciones' => [
+        'payload' => ['usa_glp' => false, 'galones_glp' => 20.0],
+        'esperado_usa_glp' => false,
+        'esperado_galones' => null,
+        'declara_usa_glp' => true,
+        'declara_galones' => false,
+    ],
+]);
 
 it('audita coherencia de GLP: caso 6 (cambio de true a false durante una reevaluacion limpia galones_glp a null)', function () {
     $token = 'token_reevaluacion_glp_coherencia';

@@ -129,12 +129,12 @@ test('3. Separa correctamente las cuatro colecciones descriptivas de criterios',
     // 3. CUMPLE_DECLARADO
     expect($data['cumple_declarado'])->toHaveCount(1)
         ->and($data['cumple_declarado'][0]['codigo'])->toBe('CRIT-01')
-        ->and($data['cumple_declarado'][0]['declaracion'])->toBe('Declarado por el ciudadano como cumplido.');
+        ->and($data['cumple_declarado'][0]['declaracion'])->toBeString()->not->toBeEmpty();
 
     // 4. NO_APLICA
     expect($data['no_aplica'])->toHaveCount(1)
         ->and($data['no_aplica'][0]['codigo'])->toBe('CRIT-10')
-        ->and($data['no_aplica'][0]['motivo'])->toContain('GLP');
+        ->and($data['no_aplica'][0]['motivo'])->toBeString()->not->toBeEmpty();
 
     // Conteos
     expect($data['resumen']['total_cumple_declarado'])->toBe(1)

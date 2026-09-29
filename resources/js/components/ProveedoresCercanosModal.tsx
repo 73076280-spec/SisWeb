@@ -45,7 +45,7 @@ interface Props {
 }
 
 // Referencia aproximada: centro de Huancayo. El directorio es comunitario y
-// referencial; no se solicita ubicación GPS del navegador porque el sistema no
+// referencial; no se solicita ubicaciÃ³n GPS del navegador porque el sistema no
 // registra coordenadas del establecimiento.
 const LAT_REFERENCIA = -12.068;
 const LON_REFERENCIA = -75.21;
@@ -56,7 +56,7 @@ const OPCIONES_RADIO = [
   { etiqueta: 'Valle del Mantaro', valor: 25 },
 ];
 
-function whatsappUrl(numero: string | null): string | null {
+function whatsappUrl(numero: string | null | undefined): string | null {
   const digitos = (numero ?? '').replace(/\D/g, '');
 
   return digitos ? `https://wa.me/${digitos}` : null;
@@ -190,14 +190,14 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-1">
-                Directorio Comunitario · Valle del Mantaro
+                Directorio Comunitario Â· Valle del Mantaro
               </span>
               <h3 id="recursos-cercanos-titulo" className="text-sm font-bold text-neutral-900 leading-snug">
                 Recursos cercanos
               </h3>
               {nombreItem && (
                 <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                  <span className="font-mono font-bold text-primary-700">{codigo}</span> · {nombreItem}
+                  <span className="font-mono font-bold text-primary-700">{codigo}</span> Â· {nombreItem}
                 </p>
               )}
             </div>
@@ -215,31 +215,31 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
 
         {/* Texto introductorio */}
         <p id="recursos-cercanos-intro" className="text-xs text-neutral-600 leading-relaxed">
-          Consulta algunas opciones cercanas que podrían ayudarte a atender aspectos pendientes de tu establecimiento.
+          Consulta algunas opciones cercanas que podrÃ­an ayudarte a atender aspectos pendientes de tu establecimiento.
           Esta lista es solo una ayuda referencial.
         </p>
 
-        {/* Aviso de carácter referencial */}
+        {/* Aviso de carÃ¡cter referencial */}
         <div
           role="note"
-          aria-label="Aviso sobre el carácter referencial de los recursos"
+          aria-label="Aviso sobre el carÃ¡cter referencial de los recursos"
           className="mt-3 flex items-start gap-2.5 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-[11px] leading-relaxed text-sky-900"
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>
             <strong>Aviso importante:</strong> estos recursos son referenciales. CheckITSE no verifica ni certifica que los
-            proveedores estén autorizados, disponibles o especializados para realizar el trabajo que necesitas.
+            proveedores estÃ©n autorizados, disponibles o especializados para realizar el trabajo que necesitas.
           </p>
         </div>
 
-        {/* Relación con el aspecto pendiente */}
+        {/* RelaciÃ³n con el aspecto pendiente */}
         {nombreItem && (
           <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-[11px] leading-relaxed text-neutral-700">
             <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-700" />
             <p>
               <strong>Aspecto relacionado:</strong> {nombreItem}.
               <br />
-              Puedes consultar recursos relacionados con este tipo de trabajo. Es solo una orientación.
+              Puedes consultar recursos relacionados con este tipo de trabajo. Es solo una orientaciÃ³n.
             </p>
           </div>
         )}
@@ -249,16 +249,16 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
           <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-neutral-200 bg-white px-3.5 py-3 text-[11px] leading-relaxed text-neutral-600">
             <Store className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
             <p>
-              Zona de tu establecimiento registrada: <strong>{sectorRef}</strong>. La cercanía real de cada recurso debe
+              Zona de tu establecimiento registrada: <strong>{sectorRef}</strong>. La cercanÃ­a real de cada recurso debe
               verificarse directamente con el proveedor.
             </p>
           </div>
         )}
 
-        {/* Selector de radio de búsqueda */}
+        {/* Selector de radio de bÃºsqueda */}
         <div className="mt-4">
           <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
-            Radio de búsqueda aproximado
+            Radio de bÃºsqueda aproximado
           </label>
           <div className="grid grid-cols-3 gap-2">
             {OPCIONES_RADIO.map(opcion => (
@@ -291,7 +291,7 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
         )}
 
         {!cargando && error && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-[#7f1d1d] font-medium">
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-danger-900 font-medium">
             {error}
           </div>
         )}
@@ -302,7 +302,7 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 mb-3 flex items-start gap-2">
                 <Search className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                 <span>
-                  Sin resultados dentro del radio seleccionado; se muestran los recursos más cercanos del Valle del Mantaro.
+                  Sin resultados dentro del radio seleccionado; se muestran los recursos mÃ¡s cercanos del Valle del Mantaro.
                 </span>
               </div>
             )}
@@ -331,11 +331,11 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-neutral-900">{nombre}</span>
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5">
-                            <MapPin className="w-3 h-3" /> ≈ {proveedor.distancia_km.toFixed(1)} km
+                            <MapPin className="w-3 h-3" /> â‰ˆ {proveedor.distancia_km.toFixed(1)} km
                           </span>
                         </div>
                         <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                          {[proveedor.distrito, proveedor.direccion].filter(Boolean).join(' · ')}
+                          {[proveedor.distrito, proveedor.direccion].filter(Boolean).join(' Â· ')}
                         </p>
                         {proveedor.servicios_ofrecidos && (
                           <p className="text-[11px] text-neutral-600 mt-1 leading-relaxed">
@@ -378,8 +378,8 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
             )}
 
             <div className="mt-4 p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-[10px] leading-relaxed text-neutral-500">
-              Información referencial comunitaria. No implica recomendación, garantía, autorización oficial ni relación con la
-              inspección municipal.
+              InformaciÃ³n referencial comunitaria. No implica recomendaciÃ³n, garantÃ­a, autorizaciÃ³n oficial ni relaciÃ³n con la
+              inspecciÃ³n municipal.
             </div>
           </>
         )}

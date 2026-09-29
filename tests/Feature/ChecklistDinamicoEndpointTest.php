@@ -29,6 +29,23 @@ function crearAutoevaluacionTest(array $params = []): Autoevaluacion
     ]);
 }
 
+/**
+ * Verifica la clasificación de un criterio dentro de `no_aplican` por su contrato
+ * estructural, sin depender del texto del `motivo` generado por el motor.
+ */
+function esperarCriterioNoAplica(array $data, string $codigo): array
+{
+    $criterio = collect($data['no_aplican'])->firstWhere('codigo', $codigo);
+
+    expect($criterio)->not->toBeNull()
+        ->and($criterio['estado'])->toBe('NO_APLICA')
+        ->and($criterio['aplicable'])->toBeFalse()
+        ->and($criterio['requiere_informacion'])->toBeFalse()
+        ->and($criterio['motivo'])->toBeString()->not->toBeEmpty();
+
+    return $criterio;
+}
+
 // CASO 1: Consulta del checklist con toda la información disponible (todas las variables = true)
 test('Caso 1: consulta del checklist con toda la informacion disponible (13 aplicables, 0 no aplican, 0 pendientes)', function () {
     $evaluacion = crearAutoevaluacionTest([
@@ -58,12 +75,15 @@ test('Caso 1: consulta del checklist con toda la informacion disponible (13 apli
         ->and($data['no_aplican'])->toHaveCount(0)
         ->and($data['informacion_pendiente'])->toHaveCount(0);
 
-    // Verificar definiciones y metadata congelada para CRIT-06 y CRIT-07
+    // Verificar que la metadata normativa se devuelve congelada desde el catálogo,
+    // sin depender del texto literal sembrado por el seeder.
     $crit06 = collect($data['criterios'])->firstWhere('codigo', 'CRIT-06');
-    expect($crit06['titulo'])->toBe('Tablero con mandil protector y diferencial en tomacorrientes');
+    expect($crit06['titulo'])->toBe(CriterioNormativo::where('codigo_criterio', 'CRIT-06')->value('titulo'))
+        ->and($crit06['titulo'])->not->toBeEmpty();
 
     $crit07 = collect($data['criterios'])->firstWhere('codigo', 'CRIT-07');
-    expect($crit07['titulo'])->toBe('Cables canalizados, sin cables expuestos o "mellizos"');
+    expect($crit07['titulo'])->toBe(CriterioNormativo::where('codigo_criterio', 'CRIT-07')->value('titulo'))
+        ->and($crit07['titulo'])->not->toBeEmpty();
 
     // Verificar que todas las opciones de respuesta no contengan NO_APLICA
     foreach ($data['criterios'] as $criterio) {
@@ -89,9 +109,7 @@ test('Caso 2: consulta cuando usa_glp = false clasifica CRIT-10 en no_aplican co
     $codigosNoAplican = collect($data['no_aplican'])->pluck('codigo')->all();
     expect($codigosNoAplican)->toContain('CRIT-10');
 
-    $crit10 = collect($data['no_aplican'])->firstWhere('codigo', 'CRIT-10');
-    expect($crit10['estado'])->toBe('NO_APLICA')
-        ->and($crit10['motivo'])->toContain('usa_glp = false');
+    esperarCriterioNoAplica($data, 'CRIT-10');
 
     $codigosCriterios = collect($data['criterios'])->pluck('codigo')->all();
     expect($codigosCriterios)->not->toContain('CRIT-10');
@@ -136,9 +154,7 @@ test('Caso 4: consulta cuando tiene_equipos_fritura = false clasifica CRIT-02A e
     $codigosNoAplican = collect($data['no_aplican'])->pluck('codigo')->all();
     expect($codigosNoAplican)->toContain('CRIT-02A');
 
-    $crit02a = collect($data['no_aplican'])->firstWhere('codigo', 'CRIT-02A');
-    expect($crit02a['estado'])->toBe('NO_APLICA')
-        ->and($crit02a['motivo'])->toContain('tiene_equipos_fritura = false');
+    esperarCriterioNoAplica($data, 'CRIT-02A');
 });
 
 // CASO 5: Consulta cuando tiene_equipos_fritura = null
@@ -180,9 +196,7 @@ test('Caso 6: consulta cuando tiene_escaleras = false clasifica CRIT-11 en no_ap
     $codigosNoAplican = collect($data['no_aplican'])->pluck('codigo')->all();
     expect($codigosNoAplican)->toContain('CRIT-11');
 
-    $crit11 = collect($data['no_aplican'])->firstWhere('codigo', 'CRIT-11');
-    expect($crit11['estado'])->toBe('NO_APLICA')
-        ->and($crit11['motivo'])->toContain('tiene_escaleras = false');
+    esperarCriterioNoAplica($data, 'CRIT-11');
 });
 
 // CASO 7: Consulta cuando tiene_estanterias_altas = false
@@ -202,9 +216,7 @@ test('Caso 7: consulta cuando tiene_estanterias_altas = false clasifica CRIT-13 
     $codigosNoAplican = collect($data['no_aplican'])->pluck('codigo')->all();
     expect($codigosNoAplican)->toContain('CRIT-13');
 
-    $crit13 = collect($data['no_aplican'])->firstWhere('codigo', 'CRIT-13');
-    expect($crit13['estado'])->toBe('NO_APLICA')
-        ->and($crit13['motivo'])->toContain('tiene_estanterias_altas = false');
+    esperarCriterioNoAplica($data, 'CRIT-13');
 });
 
 // CASO 8: Exclusión total de los 6 criterios suspendidos

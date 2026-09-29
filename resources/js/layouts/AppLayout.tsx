@@ -1,4 +1,4 @@
-import { Navbar } from '@/components/Navbar';
+﻿import { Navbar } from '@/components/Navbar';
 import { FooterLegal } from '@/components/FooterLegal';
 
 interface AppLayoutProps {
@@ -7,7 +7,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
     return (
-        <div className="flex min-h-screen flex-col bg-[#FAFAFA] text-neutral-900 font-sans antialiased print:bg-white">
+        <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 font-sans antialiased print:bg-white">
             <a
                 href="#main-content"
                 className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-primary-700 focus:px-4 focus:py-2.5 focus:text-xs focus:font-bold focus:text-white focus:shadow-lg focus:ring-2 focus:ring-primary-500 focus:outline-none"
