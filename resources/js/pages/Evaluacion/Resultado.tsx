@@ -675,7 +675,7 @@ export default function Resultado({ autoevaluacion, catalogo = [] }: Props) {
                 {/* Enlace de seguimiento — el QR se retiró para unificar con InformePreventivo */}
                 <div className="flex items-center gap-4 p-3 bg-neutral-50 rounded-2xl border border-neutral-100 self-center sm:self-auto">
                   <div className="text-[10px] text-neutral-500 space-y-1">
-                    <span className="block font-bold text-neutral-800 text-xs">Credencial de Seguimiento Preventivo</span>
+                    <span className="block font-bold text-neutral-800 text-xs">Seguimiento Preventivo</span>
                     <p className="leading-tight text-neutral-500">
                       Abre tu simulación de revisión in situ y da seguimiento a tu plan de preparación.
                     </p>
