@@ -162,6 +162,51 @@ export interface ResumenConteos {
     total_no_aplica: number;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Asistencia técnica (DirectorioAliadosService)                              */
+/* -------------------------------------------------------------------------- */
+
+/** Rango de costo orientativo derivado del catálogo canónico de costos ITSE. */
+export interface RangoCostoContrato {
+    referencia_soles: number;
+    minimo_soles: number;
+    maximo_soles: number;
+}
+
+/**
+ * Registro del directorio serializado por
+ * `DirectorioAliadosService::registroPublico()`.
+ */
+export interface AliadoAsistenciaContrato {
+    id: string;
+    categoria: string;
+    nombre_comercial: string;
+    contacto_nombre: string;
+    especialidad_texto: string;
+    telefono: string;
+    whatsapp: string;
+    sede: string;
+    cobertura: string;
+    verificado: boolean;
+    servicios: string[];
+}
+
+/**
+ * Bloque de asistencia técnica embebido por
+ * `EvaluacionController::construirAsistenciaTecnica()`.
+ *
+ * Estructuralmente compatible con `CriterioAsistencia` de
+ * `components/Evaluacion/NubeAsistenciaModal`, que es el componente que lo consume.
+ */
+export interface AsistenciaTecnicaContrato {
+    codigo: string;
+    titulo: string;
+    norma: string | null;
+    guia_autoayuda: string[];
+    rango_costo: RangoCostoContrato | null;
+    aliados: AliadoAsistenciaContrato[];
+}
+
 /** Bloque de condiciones aplicables aún sin declarar. */
 export interface CriterioPendienteResumen {
     codigo: string;
@@ -172,6 +217,7 @@ export interface CriterioPendienteResumen {
     norma_base?: string | null;
     articulo_referencia?: string | null;
     recursos_educativos?: RecursoEducativoContrato[];
+    asistencia_tecnica?: AsistenciaTecnicaContrato | null;
     notas?: string | null;
 }
 
@@ -183,6 +229,7 @@ export interface CriterioPorRevisarResumen {
     norma_base?: string | null;
     articulo_referencia?: string | null;
     recursos_educativos?: RecursoEducativoContrato[];
+    asistencia_tecnica?: AsistenciaTecnicaContrato | null;
     notas?: string | null;
 }
 
@@ -193,6 +240,7 @@ export interface CriterioCumpleResumen {
     norma_base?: string | null;
     articulo_referencia?: string | null;
     recursos_educativos?: RecursoEducativoContrato[];
+    asistencia_tecnica?: AsistenciaTecnicaContrato | null;
     notas?: string | null;
 }
 
@@ -203,6 +251,29 @@ export interface CriterioNoAplicaResumen {
     norma_base?: string | null;
     articulo_referencia?: string | null;
 }
+
+/** Una disciplina técnica ITSE y su conteo de condiciones evaluadas. */
+export interface EspecialidadDesglose {
+    nombre: string;
+    /** Pendientes por atender más las marcadas por revisar. */
+    alertas: number;
+    cumplidas: number;
+    /** Condiciones evaluadas de la disciplina: `alertas` + `cumplidas`. */
+    total: number;
+    estado: 'en_orden' | 'pendiente';
+}
+
+/**
+ * Desglose complementario de las condiciones evaluadas por disciplina técnica.
+ *
+ * Es aditivo: no reemplaza ni altera `resumen`, `conteos_normativos` ni
+ * `conteo_condiciones`. Solo las autoevaluaciones del flujo nuevo lo reciben, y
+ * las condiciones `NO_APLICA` quedan excluidas por no ser condiciones evaluadas.
+ */
+export type DesgloseEspecialidades = Record<
+    'electricas' | 'incendios' | 'arquitectura' | 'estructuras',
+    EspecialidadDesglose
+>;
 
 /** Cabecera que `Resumen` recibe del backend. */
 export interface ResumenAutoevaluacion {
@@ -227,6 +298,7 @@ export interface ResumenProps {
     por_revisar?: CriterioPorRevisarResumen[];
     cumple_declarado?: CriterioCumpleResumen[];
     no_aplica?: CriterioNoAplicaResumen[];
+    desglose_especialidades?: DesgloseEspecialidades | null;
 }
 
 /**
@@ -398,6 +470,7 @@ export interface AutoevaluacionItem {
     registrada_at?: string | null;
     es_flujo_nuevo?: boolean;
     conteos_normativos?: ConteosNormativos | null;
+    desglose_especialidades?: DesgloseEspecialidades | null;
     semaforo: SemaforoRiesgo | string;
     porcentaje_cumplimiento: number;
     fecha: string;

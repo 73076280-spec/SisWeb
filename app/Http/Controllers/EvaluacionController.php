@@ -11,6 +11,7 @@ use App\Models\RecursoEducativo;
 use App\Models\SimulacionRevision;
 use App\Models\Subsanacion;
 use App\Services\ApplicabilityEngineService;
+use App\Services\DirectorioAliadosService;
 use App\Services\GeoLocationService;
 use App\Services\ItseRiskService;
 use Illuminate\Database\QueryException;
@@ -41,14 +42,18 @@ class EvaluacionController extends Controller
 
     protected ApplicabilityEngineService $applicabilityEngine;
 
+    protected DirectorioAliadosService $directorioAliados;
+
     public function __construct(
         ItseRiskService $riskService,
         GeoLocationService $geoLocationService,
-        ApplicabilityEngineService $applicabilityEngine
+        ApplicabilityEngineService $applicabilityEngine,
+        DirectorioAliadosService $directorioAliados
     ) {
         $this->riskService = $riskService;
         $this->geoLocationService = $geoLocationService;
         $this->applicabilityEngine = $applicabilityEngine;
+        $this->directorioAliados = $directorioAliados;
     }
 
     public function index(): Response
@@ -862,7 +867,16 @@ class EvaluacionController extends Controller
                 ];
 
                 $conteosNormativos = null;
+                $desgloseEspecialidades = null;
+
                 if ($esFlujoNuevo) {
+                    // El resumen se genera una sola vez: alimenta tanto los conteos
+                    // como el desglose por especialidad. Para una autoevaluación ya
+                    // registrada los conteos siguen leyéndose de los contadores
+                    // sellados; el desglose se reconstruye porque solo existen
+                    // totales agregados, no el detalle por criterio.
+                    $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
+
                     if ($autoevaluacion->estaRegistrada() && $autoevaluacion->total_condiciones_evaluadas !== null) {
                         $conteosNormativos = [
                             'total_criterios_aplicables' => (int) $autoevaluacion->total_condiciones_evaluadas,
@@ -872,7 +886,6 @@ class EvaluacionController extends Controller
                             'no_aplica' => (int) $autoevaluacion->total_no_aplica,
                         ];
                     } else {
-                        $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
                         $conteos = $resumenData['conteos'];
                         $conteosNormativos = [
                             'total_criterios_aplicables' => (int) $conteos['total_criterios_aplicables'],
@@ -882,6 +895,8 @@ class EvaluacionController extends Controller
                             'no_aplica' => (int) $conteos['total_no_aplica'],
                         ];
                     }
+
+                    $desgloseEspecialidades = $this->adjuntarDesgloseEspecialidadesAResumen($resumenData)['desglose_especialidades'];
                 }
 
                 return [
@@ -901,6 +916,7 @@ class EvaluacionController extends Controller
                     'registrada_at' => $autoevaluacion->registrada_at?->format('d/m/Y H:i'),
                     'es_flujo_nuevo' => $esFlujoNuevo,
                     'conteos_normativos' => $conteosNormativos,
+                    'desglose_especialidades' => $desgloseEspecialidades,
                     'semaforo' => $autoevaluacion->semaforo,
                     'porcentaje_cumplimiento' => $autoevaluacion->porcentaje_cumplimiento,
                     'fecha' => $autoevaluacion->created_at?->format('d/m/Y H:i'),
@@ -1125,6 +1141,8 @@ class EvaluacionController extends Controller
 
         $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
         $resumenData = $this->adjuntarRecursosEducativosAResumen($resumenData);
+        $resumenData = $this->adjuntarAsistenciaTecnicaAResumen($resumenData);
+        $resumenData = $this->adjuntarDesgloseEspecialidadesAResumen($resumenData);
 
         $datosAutoevaluacion = [
             'id' => $autoevaluacion->id,
@@ -1147,6 +1165,7 @@ class EvaluacionController extends Controller
             'por_revisar' => $resumenData['por_revisar'],
             'cumple_declarado' => $resumenData['cumple_declarado'],
             'no_aplica' => $resumenData['no_aplica'],
+            'desglose_especialidades' => $resumenData['desglose_especialidades'],
         ];
 
         if (! $request->wantsJson() && ! $request->is('api/*')) {
@@ -1268,6 +1287,44 @@ class EvaluacionController extends Controller
     }
 
     /**
+     * Agrega el desglose de condiciones por disciplina técnica ITSE al resumen.
+     *
+     * Es puramente aditivo: no toca ninguna clave existente. El estado de cada
+     * condición se deduce de la colección de la que proviene, porque
+     * `generarResumenDescriptivo()` no expone `estado` dentro de cada ítem.
+     * Las condiciones `NO_APLICA` quedan fuera del desglose por definición: no
+     * son condiciones evaluadas.
+     *
+     * @param  array<string, mixed>  $resumenData
+     * @return array<string, mixed>
+     */
+    private function adjuntarDesgloseEspecialidadesAResumen(array $resumenData): array
+    {
+        $estadoPorColeccion = [
+            'pendiente_atender' => ApplicabilityEngineService::ESTADO_PENDIENTE_ATENDER,
+            'por_revisar' => ApplicabilityEngineService::ESTADO_POR_REVISAR,
+            'cumple_declarado' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
+        ];
+
+        $condiciones = [];
+        foreach ($estadoPorColeccion as $coleccion => $estado) {
+            foreach ($resumenData[$coleccion] ?? [] as $item) {
+                $codigo = $item['codigo'] ?? null;
+
+                if ($codigo === null || $codigo === '') {
+                    continue;
+                }
+
+                $condiciones[] = ['codigo' => $codigo, 'estado' => $estado];
+            }
+        }
+
+        $resumenData['desglose_especialidades'] = $this->directorioAliados->desglosePorEspecialidad($condiciones);
+
+        return $resumenData;
+    }
+
+    /**
      * Adjunta los recursos educativos activos al resumen descriptivo para la interfaz ciudadana.
      * Los recursos se asignan exclusivamente a pendiente_atender, por_revisar y cumple_declarado.
      * no_aplica se mantiene estrictamente sin recursos educativos.
@@ -1312,6 +1369,81 @@ class EvaluacionController extends Controller
         }
 
         return $resumenData;
+    }
+
+    /**
+     * Adjunta el bloque de asistencia técnica de DirectorioAliadosService al resumen
+     * descriptivo. Es el gemelo de adjuntarRecursosEducativosAResumen(): comparte las
+     * mismas colecciones (pendiente_atender, por_revisar y cumple_declarado) y respeta
+     * la regla de no_aplica estrictamente sin contenido.
+     *
+     * El payload viaja embebido en la página porque el directorio es un catálogo estático
+     * en memoria: no justifica un endpoint adicional ni una consulta por criterio.
+     *
+     * @param  array<string, mixed>  $resumenData
+     * @return array<string, mixed>
+     */
+    private function adjuntarAsistenciaTecnicaAResumen(array $resumenData): array
+    {
+        $coleccionesConAsistencia = ['pendiente_atender', 'por_revisar', 'cumple_declarado'];
+
+        foreach ($coleccionesConAsistencia as $coleccion) {
+            if (empty($resumenData[$coleccion])) {
+                continue;
+            }
+
+            foreach ($resumenData[$coleccion] as &$item) {
+                $item['asistencia_tecnica'] = $this->construirAsistenciaTecnica(
+                    $item['codigo'] ?? null,
+                    $item['titulo'] ?? null,
+                    $item['norma_base'] ?? null,
+                );
+            }
+            unset($item);
+        }
+
+        return $resumenData;
+    }
+
+    /**
+     * Traduce un criterio del checklist al contrato que consume
+     * NubeAsistenciaModal: guía de autoayuda, rango de costo y aliados sugeridos.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function construirAsistenciaTecnica(?string $codigo, ?string $titulo, ?string $norma): ?array
+    {
+        if (blank($codigo)) {
+            return null;
+        }
+
+        // El código que viaja al frontend es el del catálogo normativo (CRIT-xx) para
+        // que el modal muestre el mismo identificador que el resto del resumen;
+        // el servicio internamente lo traduce al código técnico ITSE.
+        $codigoOriginal = $codigo;
+        $resumen = $this->directorioAliados->obtenerPorCriterio($codigo);
+
+        // Un criterio sin equivalente en el directorio (p. ej. GLP o calderas) igual
+        // puede mostrar su guía de autoayuda, por lo que no se descarta el bloque.
+        if (! $resumen['criterio_conocido']) {
+            return [
+                'codigo' => $codigoOriginal,
+                'titulo' => $titulo ?? $codigoOriginal,
+                'norma' => $norma,
+                'guia_autoayuda' => [],
+                'rango_costo' => null,
+                'aliados' => [],
+            ];
+        }
+
+        return [
+            'codigo' => $codigoOriginal,
+            'titulo' => $titulo ?? $resumen['criterio'],
+            'norma' => $norma ?? $resumen['norma'],
+            'guia_autoayuda' => $resumen['guia_autoayuda'],
+            'rango_costo' => $resumen['rango_costo'],
+            'aliados' => array_merge([$resumen['aliado']], $resumen['alternativas']),
+        ];
     }
 
     /**

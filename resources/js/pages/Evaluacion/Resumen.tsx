@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ModalGuardarProgreso } from '@/components/ModalGuardarProgreso';
 import { RecursoEducativoModal, type RecursoEducativoData } from '@/components/RecursoEducativoModal';
+import { NubeAsistenciaModal, type CriterioAsistencia } from '@/components/Evaluacion/NubeAsistenciaModal';
+import { DesgloseEspecialidades } from '@/components/Evaluacion/DesgloseEspecialidades';
 import {
     AlertTriangle,
     ArrowLeft,
@@ -17,6 +19,7 @@ import {
     Copy,
     HelpCircle,
     Info,
+    Layers,
     Loader2,
     Lock,
     Printer,
@@ -24,6 +27,7 @@ import {
     RotateCcw,
     Save,
     ShieldAlert,
+    Wrench,
     X,
 } from 'lucide-react';
 
@@ -67,6 +71,7 @@ export default function Resumen({
     por_revisar = [],
     cumple_declarado = [],
     no_aplica = [],
+    desglose_especialidades = null,
 }: ResumenProps) {
     const { auth } = usePage().props as { auth?: { user: any | null } };
     const [mostrarModalGuardar, setMostrarModalGuardar] = useState<boolean>(false);
@@ -85,6 +90,8 @@ export default function Resumen({
     const [errorFinalizar, setErrorFinalizar] = useState<string | null>(null);
     const [pendientesFinalizar, setPendientesFinalizar] = useState<FinalizarPendiente[]>([]);
     const [copiado, setCopiado] = useState<boolean>(false);
+    const [criterioSeleccionadoParaAsistencia, setCriterioSeleccionadoParaAsistencia] =
+        useState<CriterioAsistencia | null>(null);
 
     const triggerRef = useRef<HTMLElement | null>(null);
     const modalRef = useRef<HTMLDivElement | null>(null);
@@ -190,6 +197,24 @@ export default function Resumen({
             titulo: item.titulo,
         });
     };
+
+    /** Abre la nube de asistencia técnica con el bloque que ya trae el backend. */
+    const abrirAsistencia = (asistencia: CriterioAsistencia) => {
+        setCriterioSeleccionadoParaAsistencia(asistencia);
+    };
+
+    /** Botón "Ver solución": visible solo si el backend resolvió aliados para el criterio. */
+    const botonVerSolucion = (asistencia?: CriterioAsistencia | null) =>
+        asistencia && Array.isArray(asistencia.aliados) && asistencia.aliados.length > 0 ? (
+            <button
+                type="button"
+                onClick={() => abrirAsistencia(asistencia)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-2.5 py-1.5 font-semibold text-white shadow-2xs hover:bg-emerald-700 transition-colors cursor-pointer shrink-0 print:hidden"
+            >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Ver solución</span>
+            </button>
+        ) : null;
 
     const copiarHash = () => {
         if (!autoevaluacion?.hash_integridad) return;
@@ -645,6 +670,41 @@ export default function Resumen({
                     </section>
 
                     {/* ========================================================================= */}
+                    {/* DESGLOSE POR ESPECIALIDAD — DISCIPLINA TÉCNICA ITSE                    */}
+                    {/* ========================================================================= */}
+                    {desglose_especialidades && (
+                        <section
+                            aria-labelledby="especialidades-title"
+                            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 print:border-slate-300 print:shadow-none print:p-3"
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                                    <Layers className="h-4 w-4" />
+                                </span>
+                                <div>
+                                    <h2 id="especialidades-title" className="text-base font-bold text-slate-900">
+                                        Desglose por especialidad
+                                    </h2>
+                                    <p className="text-xs text-slate-500">
+                                        Tus condiciones declaradas agrupadas por disciplina técnica
+                                    </p>
+                                </div>
+                            </div>
+
+                            <DesgloseEspecialidades
+                                desglose={desglose_especialidades}
+                                className="mt-4"
+                            />
+
+                            <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                                Cada especialidad agrupa las condiciones de una disciplina técnica. La suma de
+                                las cuatro especialidades coincide con tus condiciones declaradas, que pueden
+                                ser menos que las aplicables si aún no respondiste todas.
+                            </p>
+                        </section>
+                    )}
+
+                    {/* ========================================================================= */}
                     {/* SECCIÓN 1 — ASPECTOS QUE REQUIEREN ATENCIÓN PREVENTIVA             */}
                     {/* ========================================================================= */}
                     <section className="space-y-4 print:space-y-3">
@@ -750,6 +810,8 @@ export default function Resumen({
                                                     </button>
                                                 </div>
                                             )}
+
+                                            {botonVerSolucion(item.asistencia_tecnica)}
                                         </div>
                                     ))}
                                 </div>
@@ -856,6 +918,8 @@ export default function Resumen({
                                                     </button>
                                                 </div>
                                             )}
+
+                                            {botonVerSolucion(item.asistencia_tecnica)}
                                         </div>
                                     ))}
                                 </div>
@@ -924,6 +988,7 @@ export default function Resumen({
                                                             <span>Consultar guía</span>
                                                         </button>
                                                     )}
+                                                    {botonVerSolucion(item.asistencia_tecnica)}
                                                 </div>
                                             </div>
 
@@ -1278,6 +1343,11 @@ export default function Resumen({
                 recursos={modalRecurso.recursos}
                 criterioCodigo={modalRecurso.codigo}
                 criterioTitulo={modalRecurso.titulo}
+            />
+            <NubeAsistenciaModal
+                isOpen={criterioSeleccionadoParaAsistencia !== null}
+                onClose={() => setCriterioSeleccionadoParaAsistencia(null)}
+                criterio={criterioSeleccionadoParaAsistencia}
             />
         </>
     );

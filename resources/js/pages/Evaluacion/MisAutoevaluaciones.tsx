@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { ModalConfirmarReevaluacion } from '@/components/ModalConfirmarReevaluacion';
+import { DesgloseEspecialidades } from '@/components/Evaluacion/DesgloseEspecialidades';
 import {
   AlertTriangle,
   ArrowRight,
@@ -445,6 +446,21 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                           ))}
                         </div>
                       </div>
+
+                      {/* Desglose por especialidad (solo flujo nuevo).
+                          En el flujo histórico `desglose_especialidades` llega null y
+                          la barra y los conteos de condiciones se muestran igual. */}
+                      {original.desglose_especialidades && (
+                        <div className="mt-4 border-t border-slate-100 pt-3">
+                          <h4 className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            Desglose por especialidad
+                          </h4>
+                          <DesgloseEspecialidades
+                            desglose={original.desglose_especialidades}
+                            variante="compacta"
+                          />
+                        </div>
+                      )}
 
                       {/* Estado de subsanaciones si existen */}
                       {subsanacionesOrig && subsanacionesOrig.total > 0 && (

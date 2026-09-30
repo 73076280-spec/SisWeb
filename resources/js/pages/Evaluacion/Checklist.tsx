@@ -260,6 +260,20 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
     const puedeVerResumen = todosRespondidos || esRegistrada;
     const porcentajeAvance = criteriosAplicables.length > 0 ? Math.round((respondidosCount / criteriosAplicables.length) * 100) : 0;
 
+    // Hallazgos en vivo: se derivan de `respuestas` y no mantienen estado propio, así que
+    // el panel lateral no introduce ninguna mutación extra. Un criterio cuenta como falta
+    // cuando el ciudadano lo declara pendiente de atender o por revisar: son exactamente
+    // los dos estados que el backend suma como `alertas` en `desglose_especialidades`.
+    const hallazgos = useMemo(
+        () =>
+            criteriosAplicables.filter((c) => {
+                const estado = respuestas[c.codigo];
+                return estado === 'PENDIENTE_ATENDER' || estado === 'POR_REVISAR';
+            }),
+        [criteriosAplicables, respuestas]
+    );
+    const faltasDetectadas = hallazgos.length;
+
     const seleccionarRespuesta = (codigo: string, estado: string) => {
         if (esRegistrada) {
             return;
@@ -404,14 +418,17 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
         <>
             <Head title="Paso 2 de 3: Checklist de Autoevaluación - CheckITSE Huancayo" />
 
-            <div className="relative">
+            {/* Escritorio: retícula de 12 columnas con el formulario a la izquierda y el
+                panel de hallazgos a la derecha. Por debajo de `lg` esto es un bloque normal,
+                así que la experiencia móvil queda idéntica. */}
+            <div className="relative mx-auto max-w-4xl lg:max-w-6xl lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
                 {/* Capa de patrón grid sutil, acotada a la columna de contenido */}
                 <div
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--color-slate-200)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-slate-200)_1px,transparent_1px)] bg-[size:28px_28px] opacity-45 [mask-image:radial-gradient(ellipse_75%_60%_at_50%_0%,#000_10%,transparent_100%)]"
                 />
 
-                <div className="relative mx-auto max-w-4xl space-y-7 pb-32">
+                <div className="space-y-7 pb-32 lg:col-span-8">
                     {/* ============================================== */}
                     {/* Cabecera institucional                           */}
                     {/* ============================================== */}
@@ -973,12 +990,141 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                         </section>
                     )}
                 </div>
+
+                {/* ================================================== */}
+                {/* Panel lateral: resumen de hallazgos en vivo       */}
+                {/* Solo escritorio; en móvil la barra inferior hace */}
+                {/* exactamente el mismo trabajo.                      */}
+                {/* ================================================== */}
+                <aside aria-label="Resumen de hallazgos en vivo" className="hidden lg:col-span-4 lg:block">
+                    <div className="sticky top-6 space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+                        <div className="flex items-center gap-2.5">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                                <ShieldAlert className="h-4 w-4" />
+                            </span>
+                            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                                Resumen de hallazgos en vivo
+                            </h2>
+                        </div>
+
+                        <div>
+                            <p className="flex items-baseline gap-2">
+                                <span
+                                    className={`text-4xl font-black tracking-tight ${
+                                        faltasDetectadas > 0 ? 'text-rose-700' : 'text-emerald-700'
+                                    }`}
+                                >
+                                    {faltasDetectadas}
+                                </span>
+                                <span className="text-sm font-bold text-slate-700">
+                                    {faltasDetectadas === 1 ? 'falta detectada' : 'faltas detectadas'}
+                                </span>
+                            </p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                                Se actualiza con cada declaración que marques, sin guardar nada.
+                            </p>
+                        </div>
+
+                        <div>
+                            <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                                <span className="font-bold uppercase tracking-wider text-slate-500">Avance</span>
+                                <span className="font-black text-slate-900">
+                                    {respondidosCount} de {criteriosAplicables.length}
+                                </span>
+                            </div>
+                            <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                    className={`h-full rounded-full ${porcentajeAvance === 100 ? 'bg-emerald-600' : 'bg-amber-500'}`}
+                                    style={{ width: `${porcentajeAvance}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {faltasDetectadas === 0 ? (
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
+                                <p className="flex items-start gap-2 text-xs font-medium leading-relaxed text-emerald-900">
+                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                                    <span>
+                                        Aún no hay faltas registradas. Tu local cumple lo declarado hasta el momento.
+                                    </span>
+                                </p>
+                            </div>
+                        ) : (
+                            <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
+                                {hallazgos.map((hallazgo) => (
+                                    <li
+                                        key={hallazgo.codigo}
+                                        className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700"
+                                    >
+                                        <span className="font-mono text-[10px] font-bold text-rose-500">
+                                            {hallazgo.codigo}
+                                        </span>
+                                        <span className="mt-0.5 block text-xs font-semibold leading-snug">
+                                            {hallazgo.titulo}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+
+                        {/* Mismos handlers y misma condición de habilitación que la barra
+                            inferior: el panel no reimplementa la persistencia. */}
+                        <div className="space-y-2 border-t border-slate-100 pt-4">
+                            {esRegistrada ? (
+                                <Link
+                                    href={`/autoevaluacion/${autoevaluacion.uuid}/resumen`}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-xs transition-colors hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                >
+                                    <span>Ver mi veredicto</span>
+                                    <ArrowRight className="h-4 w-4" />
+                                </Link>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={handleContinuarAlResumen}
+                                        disabled={guardandoAvance || guardandoContinuar || !todosRespondidos}
+                                        className={`inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                                            todosRespondidos
+                                                ? 'cursor-pointer bg-emerald-500 text-slate-950 hover:bg-emerald-400 focus-visible:ring-emerald-400'
+                                                : 'cursor-not-allowed bg-slate-100 text-slate-400'
+                                        }`}
+                                    >
+                                        {guardandoContinuar ? (
+                                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                                        ) : (
+                                            <>
+                                                <span>Ver mi veredicto</span>
+                                                <ArrowRight className="h-4 w-4" />
+                                            </>
+                                        )}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleGuardarAvance}
+                                        disabled={guardandoAvance || guardandoContinuar || respondidosCount === 0}
+                                        className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {guardandoAvance ? (
+                                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                                        ) : (
+                                            <Save className="h-3.5 w-3.5 text-slate-500" />
+                                        )}
+                                        <span>Guardar avance</span>
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </aside>
             </div>
 
             {/* ================================================== */}
-            {/* Barra de acción fija inferior                     */}
+            {/* Barra de acción fija inferior (solo móvil)          */}
+            {/* En escritorio su lugar lo ocupa el panel lateral.   */}
             {/* ================================================== */}
-            <div className="sticky bottom-2 sm:bottom-4 z-20 mx-auto max-w-4xl px-2 sm:px-0">
+            <div className="sticky bottom-2 z-20 mx-auto max-w-4xl px-2 sm:bottom-4 sm:px-0 lg:hidden">
                 <div className="flex items-center justify-between gap-2 sm:gap-4 rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2.5 sm:px-5 sm:py-3 shadow-xl min-h-[56px] max-h-[72px]">
                     <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-300 truncate">
                         <ClipboardList className="h-4 w-4 shrink-0 text-emerald-400" />
