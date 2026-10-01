@@ -15,6 +15,7 @@ import {
   GitBranch,
   Hash,
   Info,
+  MoveHorizontal,
   PlusCircle,
   RefreshCw,
   Scale,
@@ -210,7 +211,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Cabecera del Panel */}
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
@@ -226,7 +227,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
 
           <Link
             href="/autoevaluacion"
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:self-auto"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:self-start min-h-[44px]"
           >
             <PlusCircle className="h-4 w-4" />
             + Nueva Autoevaluación
@@ -293,7 +294,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                 <section
                   key={proceso.id}
                   aria-labelledby={`proceso-titulo-${proceso.id}`}
-                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs"
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
                 >
                   {/* Cabecera del establecimiento */}
                   <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
@@ -333,7 +334,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
 
                   <div className="space-y-6 p-5 sm:p-6">
                     {/* A. Estado Técnico de Seguridad */}
-                    <section aria-label={`Estado técnico de seguridad de ${proceso.nombre_comercio}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs sm:p-5">
+                    <section aria-label={`Estado técnico de seguridad de ${proceso.nombre_comercio}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
@@ -488,11 +489,11 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                       )}
 
                       {/* Acciones */}
-                      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                      <div className="mt-4 flex flex-wrap items-center justify-start gap-2 border-t border-slate-100 pt-3 sm:justify-end">
                         {enCurso ? (
                           <Link
                             href={`/autoevaluacion/${original.uuid_trazabilidad}/checklist`}
-                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
+                            className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
                           >
                             <span>Continuar Checklist</span>
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -507,14 +508,14 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                                   nombre: original.nombre_comercio,
                                 })
                               }
-                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                              className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
                             >
                               <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
                               <span>Reevaluar</span>
                             </button>
                             <Link
                               href={`/autoevaluacion/informe/${original.uuid_trazabilidad}`}
-                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+                              className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-95"
                             >
                               <FileText className="h-3.5 w-3.5 text-slate-500" />
                               <span>Ver Informe</span>
@@ -522,7 +523,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                             {pendientes > 0 ? (
                               <Link
                                 href={`/autoevaluacion/resultado/${original.uuid_trazabilidad}`}
-                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
+                                className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
                               >
                                 <ShieldAlert className="h-3.5 w-3.5" />
                                 <span>Revisar Alertas Pendientes ({pendientes})</span>
@@ -530,7 +531,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                             ) : (
                               <Link
                                 href={`/autoevaluacion/${original.uuid_trazabilidad}/resumen`}
-                                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
+                                className="inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 <span>Ver Resumen</span>
@@ -734,7 +735,7 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                       </div>
 
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[640px] text-left text-xs">
+                        <table className="w-full min-w-[560px] text-left text-xs sm:min-w-[640px]">
                           <thead className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             <tr>
                               <th scope="col" className="px-4 py-2.5">Registro</th>
@@ -783,6 +784,12 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                                         REGISTRADA
                                       </span>
                                     )}
+                                    <span
+                                      className={`mt-1.5 flex w-fit items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold sm:hidden ${cfg.badge}`}
+                                    >
+                                      <IconoSemaforo className="h-3 w-3" />
+                                      {item.semaforo}
+                                    </span>
                                   </td>
                                   <td className="hidden px-4 py-3 sm:table-cell">
                                     <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${cfg.badge}`}>
@@ -829,6 +836,11 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                           </tbody>
                         </table>
                       </div>
+
+                      <p className="flex items-center gap-1.5 border-t border-slate-100 bg-slate-50/60 px-4 py-2 text-[10px] text-slate-500 sm:hidden">
+                        <MoveHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        Desliza la tabla horizontalmente para ver todas las columnas.
+                      </p>
                     </section>
 
                     {!esFlujoNuevo && tieneReev && (

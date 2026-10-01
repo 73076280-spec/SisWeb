@@ -202,4 +202,15 @@
     body {
         @apply bg-background text-foreground;
     }
+
+    /*
+      Los enlaces ancla de la barra superior (#como-funciona, #beneficios,
+      #normativa) necesitan que el scroll suave se aplique al elemento que
+      realmente desplaza la página: el elemento raíz, no un contenedor interno.
+    */
+    @media (prefers-reduced-motion: no-preference) {
+        html {
+            scroll-behavior: smooth;
+        }
+    }
 }

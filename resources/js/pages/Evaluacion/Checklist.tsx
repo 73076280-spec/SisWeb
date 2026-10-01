@@ -673,7 +673,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                         </div>
                                     </div>
 
-                                    <div className="space-y-5">
+                                    <div className="space-y-4 sm:space-y-5">
                                         {area.criterios.map((criterio, index) => {
                                             const valorSeleccionado = respuestas[criterio.codigo];
                                             const estaGuardado = criteriosGuardados[criterio.codigo];
@@ -699,7 +699,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                                 <article
                                                     key={criterio.codigo}
                                                     id={`criterio-${criterio.codigo}`}
-                                                    className={`rounded-3xl border bg-white p-5 sm:p-6 shadow-xs transition-colors ${bordeTarjeta}`}
+                                                    className={`scroll-mt-24 rounded-3xl border bg-white p-4 sm:p-6 shadow-xs transition-colors ${bordeTarjeta}`}
                                                 >
                                                     <fieldset className="space-y-4">
                                                         {/* El legend debe ser el primer hijo del fieldset; el título visible va aparte para conservar el orden visual */}
@@ -805,21 +805,23 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                                                     onClick={() => setMostrarGuia((prev) => ({ ...prev, [criterio.codigo]: !prev[criterio.codigo] }))}
                                                                     aria-expanded={guiaAbierta}
                                                                     aria-controls={`guia-${criterio.codigo}`}
-                                                                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                                                                    className={`inline-flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                                                                         esPendienteCiudadano
                                                                             ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                                                                             : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                                                                     }`}
                                                                 >
-                                                                    <Lightbulb className="h-4 w-4 shrink-0" />
-                                                                    <span>¿Por qué me piden esto?</span>
-                                                                    {guiaAbierta ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                                    <span className="inline-flex items-center gap-2">
+                                                                        <Lightbulb className="h-4 w-4 shrink-0" />
+                                                                        <span>¿Por qué me piden esto?</span>
+                                                                    </span>
+                                                                    {guiaAbierta ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                                                                 </button>
 
                                                                 {guiaAbierta && (
                                                                     <div
                                                                         id={`guia-${criterio.codigo}`}
-                                                                        className="mt-2.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 p-4 space-y-3 animate-in fade-in"
+                                                                        className="mt-2.5 overflow-hidden rounded-2xl bg-emerald-50/60 border border-emerald-200 p-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200 ease-out"
                                                                     >
                                                                         {criterio.que_observar && (
                                                                             <div>
@@ -872,7 +874,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                                                             titulo: criterio.titulo,
                                                                         })
                                                                     }
-                                                                    className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                                                                    className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
                                                                         esPendienteCiudadano
                                                                             ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                                                                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
@@ -895,7 +897,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setMostrarNotas((prev) => ({ ...prev, [criterio.codigo]: true }))}
-                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg"
+                                                                    className="inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg"
                                                                 >
                                                                     <FileEdit className="h-3.5 w-3.5 text-slate-400" />
                                                                     <span>Añadir apunte personal (opcional)</span>
@@ -924,7 +926,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                                                         }}
                                                                         placeholder="Escribe un recordatorio para esta condición (ej. consultar con el técnico, comprar repuesto, revisar fecha)..."
                                                                         rows={2}
-                                                                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:opacity-75 resize-y"
+                                                                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-base sm:text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none disabled:bg-slate-100 disabled:opacity-75 resize-y min-h-20"
                                                                     />
                                                                     <p className="text-[10px] text-slate-500 leading-normal">
                                                                         Este apunte es privado para tu organización preventiva y no constituye un informe técnico oficial.
@@ -997,7 +999,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                 {/* exactamente el mismo trabajo.                      */}
                 {/* ================================================== */}
                 <aside aria-label="Resumen de hallazgos en vivo" className="hidden lg:col-span-4 lg:block">
-                    <div className="sticky top-6 space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+                    <div className="sticky top-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
                         <div className="flex items-center gap-2.5">
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
                                 <ShieldAlert className="h-4 w-4" />
@@ -1124,8 +1126,8 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
             {/* Barra de acción fija inferior (solo móvil)          */}
             {/* En escritorio su lugar lo ocupa el panel lateral.   */}
             {/* ================================================== */}
-            <div className="sticky bottom-2 z-20 mx-auto max-w-4xl px-2 sm:bottom-4 sm:px-0 lg:hidden">
-                <div className="flex items-center justify-between gap-2 sm:gap-4 rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2.5 sm:px-5 sm:py-3 shadow-xl min-h-[56px] max-h-[72px]">
+<div className="sticky bottom-0 z-20 mx-auto max-w-4xl px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-0 lg:hidden">
+                <div className="flex items-center justify-between gap-2 sm:gap-4 rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2.5 sm:px-5 sm:py-3 shadow-xl min-h-[60px]">
                     <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-300 truncate">
                         <ClipboardList className="h-4 w-4 shrink-0 text-emerald-400" />
                         <span className="font-bold text-white truncate">
@@ -1142,7 +1144,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                 type="button"
                                 onClick={handleGuardarAvance}
                                 disabled={guardandoAvance || guardandoContinuar || respondidosCount === 0}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-600 bg-slate-800 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-slate-100 shadow-2xs hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 h-11 sm:h-auto rounded-xl border border-slate-600 bg-slate-800 px-3.5 sm:px-4 sm:py-2 text-xs font-semibold text-slate-100 shadow-2xs hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                             >
                                 {guardandoAvance ? (
                                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-transparent" />
@@ -1157,7 +1159,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                         {esRegistrada ? (
                             <Link
                                 href={`/autoevaluacion/${autoevaluacion.uuid}/resumen`}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold text-slate-950 shadow-xs hover:bg-emerald-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                className="inline-flex items-center gap-1.5 h-11 sm:h-auto rounded-xl bg-emerald-500 px-4 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold text-slate-950 shadow-xs hover:bg-emerald-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                             >
                                 <span>Ver Veredicto</span>
                                 <ArrowRight className="h-3.5 w-3.5" />
@@ -1167,7 +1169,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                 type="button"
                                 onClick={handleContinuarAlResumen}
                                 disabled={guardandoAvance || guardandoContinuar || !todosRespondidos}
-                                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                                className={`inline-flex items-center gap-1.5 h-11 sm:h-auto rounded-xl px-4 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 ${
                                     todosRespondidos
                                         ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 focus-visible:ring-emerald-400 cursor-pointer'
                                         : 'bg-slate-700 text-slate-400 cursor-not-allowed'

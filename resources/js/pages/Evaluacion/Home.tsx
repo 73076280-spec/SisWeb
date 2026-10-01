@@ -271,8 +271,17 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
       {/* ========================================================== */}
       {/* HERO                                                        */}
       {/* ========================================================== */}
-      <section className="mb-8 rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 shadow-sm">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center px-6 py-12 sm:px-10 sm:py-16">
+      <section className="relative mb-8 rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 shadow-sm">
+        <div
+          className="pointer-events-none absolute -top-32 -right-24 w-80 h-80 rounded-full bg-emerald-500/10 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute -bottom-40 -left-24 w-96 h-96 rounded-full bg-sky-500/10 blur-3xl"
+          aria-hidden="true"
+        />
+
+        <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center px-5 py-12 sm:px-10 sm:py-16">
           <div>
             <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-300 border border-emerald-400/30 px-3 py-1.5 rounded-full">
               <Sparkles className="w-3.5 h-3.5" />
@@ -313,7 +322,7 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
 
           {/* Tarjeta de semáforo simulado */}
           <div className="relative">
-            <div className="rounded-3xl bg-white p-5 sm:p-6 shadow-2xl">
+            <div className="relative rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 shadow-xl shadow-slate-950/25 ring-1 ring-white/60">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 shrink-0 rounded-2xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
@@ -612,13 +621,13 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
           </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
           {VALORES.map(valor => {
             const Icono = valor.icono;
             return (
               <div
                 key={valor.titulo}
-                className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col"
+                className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col transition duration-200 hover:border-slate-300 hover:shadow-md"
               >
                 <div className="p-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-2xl w-fit">
                   <Icono className="w-5 h-5" />
@@ -634,7 +643,7 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
       {/* ========================================================== */}
       {/* MINI-GUÍA INTERACTIVA (TABS)                                */}
       {/* ========================================================== */}
-      <section id="cumplimiento" className="scroll-mt-24 mb-8">
+      <section id="normativa" className="scroll-mt-24 mb-8">
         <div className="max-w-2xl">
           <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Cumplimiento normativo</span>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 mt-2">
@@ -816,7 +825,7 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
             return (
               <div
                 key={area.titulo}
-                className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between"
+                className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col justify-between transition duration-200 hover:border-slate-300 hover:shadow-md"
               >
                 <div>
                   <div className={`p-2.5 border rounded-2xl w-fit ${area.tono}`}>

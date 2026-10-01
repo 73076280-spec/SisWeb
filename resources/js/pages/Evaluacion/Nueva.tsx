@@ -21,6 +21,7 @@ import {
     Building2,
     CheckCircle2,
     AlertTriangle,
+    Check,
 } from 'lucide-react';
 
 export interface ReevaluacionData {
@@ -174,6 +175,59 @@ const PASOS_FLUJO = [
     { numero: '2', titulo: 'Simulacro en vivo', estado: 'pendiente' },
     { numero: '3', titulo: 'Veredicto', estado: 'pendiente' },
 ] as const;
+
+interface SelectorSiNoProps {
+    etiquetaId: string;
+    descripcionId: string;
+    valor: boolean | null | undefined;
+    onSeleccion: (valor: boolean) => void;
+}
+
+/**
+ * Declaraciones binarias (Sí/No) presentadas como selector tipo pastilla.
+ *
+ * Es una pieza puramente presentacional: no guarda estado propio ni conoce el
+ * motor de aplicabilidad. Recibe el valor declarado y emite la intención del
+ * ciudadano, de modo que la escritura en `useForm()` sigue ocurriendo en el
+ * manejador que la acompaña. El estado activo se marca con relleno sólido,
+ * anillo y un icono de confirmación, para que sea inequívoco al tacto.
+ */
+function SelectorSiNo({ etiquetaId, descripcionId, valor, onSeleccion }: SelectorSiNoProps) {
+    const opciones: Array<{ texto: string; valor: boolean }> = [
+        { texto: 'No', valor: false },
+        { texto: 'Sí', valor: true },
+    ];
+
+    return (
+        <div
+            role="group"
+            aria-labelledby={etiquetaId}
+            aria-describedby={descripcionId}
+            className="inline-flex items-center gap-1 shrink-0 rounded-full border border-slate-200 bg-slate-100 p-1"
+        >
+            {opciones.map(({ texto, valor: opcion }) => {
+                const activo = valor === opcion;
+
+                return (
+                    <button
+                        key={texto}
+                        type="button"
+                        aria-pressed={activo}
+                        onClick={() => onSeleccion(opcion)}
+                        className={`inline-flex items-center justify-center gap-1.5 h-11 sm:h-10 px-5 rounded-full text-sm font-bold transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                            activo
+                                ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600'
+                                : 'bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-2xs'
+                        }`}
+                    >
+                        {activo && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                        {texto}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
     const [showGuia, setShowGuia] = useState<boolean>(false);
@@ -528,8 +582,8 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         placeholder="Ej: Bodega Don Pepe"
                                         aria-invalid={!!(erroresFormulario.nombre_comercio || errors.nombre_comercio)}
                                         aria-describedby={erroresFormulario.nombre_comercio || errors.nombre_comercio ? 'error-nombre' : undefined}
-                                        className={`w-full px-3.5 py-2.5 bg-slate-50 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
-                                            erroresFormulario.nombre_comercio || errors.nombre_comercio ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-200'
+                                        className={`w-full h-12 sm:h-11 px-3.5 bg-slate-50 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
+                                            erroresFormulario.nombre_comercio || errors.nombre_comercio ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-300'
                                         }`}
                                     />
                                     {(erroresFormulario.nombre_comercio || errors.nombre_comercio) && (
@@ -555,8 +609,8 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         placeholder="Ej: 20601234567"
                                         aria-invalid={!!(erroresFormulario.ruc || errors.ruc)}
                                         aria-describedby={erroresFormulario.ruc || errors.ruc ? 'error-ruc' : 'ayuda-ruc'}
-                                        className={`w-full px-3.5 py-2.5 bg-slate-50 rounded-2xl text-sm font-mono font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
-                                            erroresFormulario.ruc || errors.ruc ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-200'
+                                        className={`w-full h-12 sm:h-11 px-3.5 bg-slate-50 rounded-2xl text-base sm:text-sm font-mono font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
+                                            erroresFormulario.ruc || errors.ruc ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-300'
                                         }`}
                                     />
                                     <span id="ayuda-ruc" className="text-xs text-slate-500 mt-1 block">
@@ -578,7 +632,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         required
                                         value={data.funcion_economica}
                                         onChange={e => setData('funcion_economica', e.target.value)}
-                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none cursor-pointer"
+                                        className="w-full h-12 sm:h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none cursor-pointer"
                                     >
                                         <option value="Comercio">Comercio (Bodegas, Farmacias, Tiendas, Bazares)</option>
                                         <option value="Encuentro">Encuentro (Restaurantes, Cafeterías, Bares, Discotecas)</option>
@@ -618,8 +672,8 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         placeholder="Ej: 60"
                                         aria-invalid={!!(erroresFormulario.area_m2 || errors.area_m2)}
                                         aria-describedby={erroresFormulario.area_m2 || errors.area_m2 ? 'error-area' : undefined}
-                                        className={`w-full px-3.5 py-2.5 bg-slate-50 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
-                                            erroresFormulario.area_m2 || errors.area_m2 ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-200'
+                                        className={`w-full h-12 sm:h-11 px-3.5 bg-slate-50 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
+                                            erroresFormulario.area_m2 || errors.area_m2 ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-300'
                                         }`}
                                     />
                                     <span className="text-xs text-slate-500 mt-1 block">Orientación: hasta 750 m² suele calificar a ITSE posterior.</span>
@@ -647,8 +701,8 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         placeholder="Ej: 1"
                                         aria-invalid={!!(erroresFormulario.pisos || errors.pisos)}
                                         aria-describedby={erroresFormulario.pisos || errors.pisos ? 'error-pisos' : undefined}
-                                        className={`w-full px-3.5 py-2.5 bg-slate-50 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
-                                            erroresFormulario.pisos || errors.pisos ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-200'
+                                        className={`w-full h-12 sm:h-11 px-3.5 bg-slate-50 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
+                                            erroresFormulario.pisos || errors.pisos ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-300'
                                         }`}
                                     />
                                     <span className="text-xs text-slate-500 mt-1 block">Orientación: hasta 3 pisos suele calificar a ITSE posterior.</span>
@@ -675,8 +729,8 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         placeholder="Ej: 15"
                                         aria-invalid={!!(erroresFormulario.aforo || errors.aforo)}
                                         aria-describedby={erroresFormulario.aforo || errors.aforo ? 'error-aforo' : undefined}
-                                        className={`w-full px-3.5 py-2.5 bg-slate-50 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
-                                            erroresFormulario.aforo || errors.aforo ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-200'
+                                        className={`w-full h-12 sm:h-11 px-3.5 bg-slate-50 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none ${
+                                            erroresFormulario.aforo || errors.aforo ? 'border border-danger-400 bg-danger-50/20' : 'border border-slate-300'
                                         }`}
                                     />
                                     <span className="text-xs text-slate-500 mt-1 block">Personas simultáneas estimadas (clientes + personal).</span>
@@ -723,40 +777,18 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 Balones o tanques de GLP para cocción o proceso comercial (determina aplicabilidad de CRIT-10).
                                             </span>
                                         </div>
-                                        <div
-                                            role="group"
-                                            aria-labelledby="label-usa_glp"
-                                            aria-describedby="desc-usa_glp"
-                                            className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0"
-                                        >
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.usa_glp === false}
-                                                onClick={() => {
-                                                    setData('usa_glp', false);
+                                        <SelectorSiNo
+                                            etiquetaId="label-usa_glp"
+                                            descripcionId="desc-usa_glp"
+                                            valor={data.usa_glp}
+                                            onSeleccion={valor => {
+                                                setData('usa_glp', valor);
+                                                if (!valor) {
                                                     setData('galones_glp', '');
-                                                    limpiarErrorDe('usa_glp');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.usa_glp === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.usa_glp === true}
-                                                onClick={() => {
-                                                    setData('usa_glp', true);
-                                                    limpiarErrorDe('usa_glp');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.usa_glp === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                                }
+                                                limpiarErrorDe('usa_glp');
+                                            }}
+                                        />
                                     </div>
 
                                     {erroresFormulario.usa_glp && (
@@ -776,7 +808,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 value={data.galones_glp}
                                                 onChange={e => setData('galones_glp', e.target.value === '' ? '' : parseFloat(e.target.value))}
                                                 placeholder="Ej: 10"
-                                                className="w-full sm:w-48 px-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                                                className="w-full sm:w-48 h-11 px-3 bg-white border border-amber-300 rounded-xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
                                             />
                                             <span className="text-xs text-amber-800 block mt-1">
                                                 Indica la cantidad estimada en galones si cuentas con dicha información.
@@ -804,39 +836,15 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div
-                                            role="group"
-                                            aria-labelledby="label-tiene_equipos_fritura"
-                                            aria-describedby="desc-tiene_equipos_fritura"
-                                            className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0"
-                                        >
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_equipos_fritura === false}
-                                                onClick={() => {
-                                                    setData('tiene_equipos_fritura', false);
-                                                    limpiarErrorDe('tiene_equipos_fritura');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_equipos_fritura === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_equipos_fritura === true}
-                                                onClick={() => {
-                                                    setData('tiene_equipos_fritura', true);
-                                                    limpiarErrorDe('tiene_equipos_fritura');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_equipos_fritura === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-tiene_equipos_fritura"
+                                            descripcionId="desc-tiene_equipos_fritura"
+                                            valor={data.tiene_equipos_fritura}
+                                            onSeleccion={valor => {
+                                                setData('tiene_equipos_fritura', valor);
+                                                limpiarErrorDe('tiene_equipos_fritura');
+                                            }}
+                                        />
                                     </div>
 
                                     {erroresFormulario.tiene_equipos_fritura && (
@@ -863,39 +871,15 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div
-                                            role="group"
-                                            aria-labelledby="label-tiene_escaleras"
-                                            aria-describedby="desc-tiene_escaleras"
-                                            className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0"
-                                        >
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_escaleras === false}
-                                                onClick={() => {
-                                                    setData('tiene_escaleras', false);
-                                                    limpiarErrorDe('tiene_escaleras');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_escaleras === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_escaleras === true}
-                                                onClick={() => {
-                                                    setData('tiene_escaleras', true);
-                                                    limpiarErrorDe('tiene_escaleras');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_escaleras === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-tiene_escaleras"
+                                            descripcionId="desc-tiene_escaleras"
+                                            valor={data.tiene_escaleras}
+                                            onSeleccion={valor => {
+                                                setData('tiene_escaleras', valor);
+                                                limpiarErrorDe('tiene_escaleras');
+                                            }}
+                                        />
                                     </div>
 
                                     {erroresFormulario.tiene_escaleras && <span className="text-danger-600 text-xs mt-2 block font-medium">{erroresFormulario.tiene_escaleras}</span>}
@@ -920,39 +904,15 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 </span>
                                             </div>
                                         </div>
-                                        <div
-                                            role="group"
-                                            aria-labelledby="label-tiene_estanterias_altas"
-                                            aria-describedby="desc-tiene_estanterias_altas"
-                                            className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shrink-0"
-                                        >
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_estanterias_altas === false}
-                                                onClick={() => {
-                                                    setData('tiene_estanterias_altas', false);
-                                                    limpiarErrorDe('tiene_estanterias_altas');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_estanterias_altas === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                aria-pressed={data.tiene_estanterias_altas === true}
-                                                onClick={() => {
-                                                    setData('tiene_estanterias_altas', true);
-                                                    limpiarErrorDe('tiene_estanterias_altas');
-                                                }}
-                                                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                                                    data.tiene_estanterias_altas === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-tiene_estanterias_altas"
+                                            descripcionId="desc-tiene_estanterias_altas"
+                                            valor={data.tiene_estanterias_altas}
+                                            onSeleccion={valor => {
+                                                setData('tiene_estanterias_altas', valor);
+                                                limpiarErrorDe('tiene_estanterias_altas');
+                                            }}
+                                        />
                                     </div>
 
                                     {erroresFormulario.tiene_estanterias_altas && (
@@ -965,57 +925,37 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                     {/* Caldero */}
                                     <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
                                         <div>
-                                            <span className="text-xs font-bold text-slate-800 block">¿Cuenta con caldero?</span>
-                                            <span className="text-xs text-slate-500">Calderas industriales o de vapor.</span>
+                                            <span id="label-usa_caldero" className="text-xs font-bold text-slate-800 block">
+                                                ¿Cuenta con caldero?
+                                            </span>
+                                            <span id="desc-usa_caldero" className="text-xs text-slate-500">
+                                                Calderas industriales o de vapor.
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-fit">
-                                            <button
-                                                type="button"
-                                                onClick={() => setData('usa_caldero', false)}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                                                    data.usa_caldero === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setData('usa_caldero', true)}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                                                    data.usa_caldero === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-usa_caldero"
+                                            descripcionId="desc-usa_caldero"
+                                            valor={data.usa_caldero}
+                                            onSeleccion={valor => setData('usa_caldero', valor)}
+                                        />
                                     </div>
 
                                     {/* Líquidos Inflamables */}
                                     <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
                                         <div>
-                                            <span className="text-xs font-bold text-slate-800 block">¿Almacena líquidos o reactivos inflamables?</span>
-                                            <span className="text-xs text-slate-500">Thinner, pinturas, solventes o combustibles.</span>
+                                            <span id="label-usa_liquidos_inflamables" className="text-xs font-bold text-slate-800 block">
+                                                ¿Almacena líquidos o reactivos inflamables?
+                                            </span>
+                                            <span id="desc-usa_liquidos_inflamables" className="text-xs text-slate-500">
+                                                Thinner, pinturas, solventes o combustibles.
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-fit">
-                                            <button
-                                                type="button"
-                                                onClick={() => setData('usa_liquidos_inflamables', false)}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                                                    data.usa_liquidos_inflamables === false ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                No
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setData('usa_liquidos_inflamables', true)}
-                                                className={`px-3 py-1 text-xs font-semibold rounded-lg transition cursor-pointer ${
-                                                    data.usa_liquidos_inflamables === true ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-500 hover:text-slate-900'
-                                                }`}
-                                            >
-                                                Sí
-                                            </button>
-                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-usa_liquidos_inflamables"
+                                            descripcionId="desc-usa_liquidos_inflamables"
+                                            valor={data.usa_liquidos_inflamables}
+                                            onSeleccion={valor => setData('usa_liquidos_inflamables', valor)}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -1041,7 +981,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         value={data.direccion}
                                         onChange={e => setData('direccion', e.target.value)}
                                         placeholder="Ej: Jr. Ancash 345, Huancayo"
-                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                                        className="w-full h-12 sm:h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
                                     />
                                     <span className="text-xs text-slate-500 mt-1 block">Ayuda a identificar tu local; aparecerá en tu resumen y registro.</span>
                                 </div>
@@ -1057,7 +997,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                         value={data.referencia}
                                         onChange={e => setData('referencia', e.target.value)}
                                         placeholder="Ej: frente al parque Huamanmarca"
-                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                                        className="w-full h-12 sm:h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-base sm:text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 outline-none"
                                     />
                                 </div>
                             </div>
