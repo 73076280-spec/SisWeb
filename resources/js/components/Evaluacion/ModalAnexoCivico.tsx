@@ -284,42 +284,65 @@ export const ModalAnexoCivico: React.FC<Props> = ({ isOpen, onClose, anexo, esta
         >
             <div
                 ref={panelRef}
-                className="max-h-[85vh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white text-left shadow-2xl"
+                className="max-h-[85vh] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl border border-slate-300 bg-white text-left shadow-lg"
                 onClick={(event) => event.stopPropagation()}
             >
-                <header className="flex items-start justify-between gap-4 rounded-t-2xl bg-slate-900 px-5 py-4 sm:px-6">
+                <header className="flex items-start justify-between gap-4 bg-white px-5 pt-5 sm:px-6">
                     <div className="min-w-0">
-                        <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Expediente Digital Preventivo</span>
-                        <h2 id="anexo-civico-titulo" className="mt-1 text-sm leading-snug font-bold text-white sm:text-base">
+                        <h2
+                            id="anexo-civico-titulo"
+                            className="text-sm leading-snug font-bold text-slate-900 sm:text-base"
+                        >
                             {definicion.titulo}
                         </h2>
-                        <p className="mt-1 text-[11px] text-slate-400">{definicion.subtitulo}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">{definicion.subtitulo}</p>
                     </div>
                     <button
                         ref={closeButtonRef}
                         type="button"
                         onClick={onClose}
                         aria-label="Cerrar la vista previa del anexo"
-                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-slate-800 text-slate-300 transition hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                        className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </header>
 
-                <div className="space-y-4 px-5 py-5 sm:px-6">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] leading-relaxed text-slate-600">
-                        <p>
-                            <span className="font-semibold text-slate-800">Destino:</span> {definicion.destinatario}
-                        </p>
-                        <p className="mt-1">
-                            <span className="font-semibold text-slate-800">Base normativa:</span> {definicion.baseNormativa}
-                        </p>
+                {/* Sello de agua del borrador. Va sobre el papel, no en el
+                    encabezado oscuro, para que se lea como el estado del
+                    documento y no como parte de la identidad institucional. */}
+                <div className="border-b border-slate-200 bg-slate-100/80 px-5 py-2 text-center sm:px-6">
+                    <span className="font-mono text-[10px] font-bold tracking-widest text-slate-500 uppercase">
+                        Borrador pre-llenado — Uso cívico orientativo
+                    </span>
+                </div>
+
+                <div className="space-y-4 bg-white px-5 py-5 sm:px-6">
+                    {/* Membrete del expediente: banda técnica superior */}
+                    <div className="overflow-hidden rounded-xl border border-slate-300">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-300 bg-slate-900 px-3.5 py-2">
+                            <span className="font-mono text-[10px] font-bold tracking-wider text-white uppercase">
+                                Expediente Digital Preventivo
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-400">Hoja {anexo.replace('ANEXO_', '')}</span>
+                        </div>
+                        <div className="bg-slate-50 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-600">
+                            <p>
+                                <span className="font-semibold text-slate-800">Destino:</span> {definicion.destinatario}
+                            </p>
+                            <p className="mt-0.5">
+                                <span className="font-semibold text-slate-800">Base normativa:</span>{' '}
+                                {definicion.baseNormativa}
+                            </p>
+                        </div>
                     </div>
 
                     {definicion.bloques.map((bloque) => (
                         <section key={bloque.titulo}>
-                            <h3 className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">{bloque.titulo}</h3>
-                            <dl className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+                            <h3 className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                                {bloque.titulo}
+                            </h3>
+                            <dl className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-300">
                                 {bloque.campos.map((campo) => (
                                     <div
                                         key={`${bloque.titulo}-${campo.etiqueta}`}
@@ -340,13 +363,19 @@ export const ModalAnexoCivico: React.FC<Props> = ({ isOpen, onClose, anexo, esta
                         <p className="mt-1.5 text-xs leading-relaxed text-emerald-950">{definicion.declaracion}</p>
                     </section>
 
-                    <section>
-                        <h3 className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Firmas requeridas</h3>
-                        <ul className="mt-2 space-y-1.5">
+                    {/* Firmas: renglones punteados como en hoja oficial */}
+                    <section className="rounded-xl border border-slate-300 bg-slate-50/60 p-4">
+                        <h3 className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                            Firmas requeridas
+                        </h3>
+                        <ul className="mt-3 space-y-4">
                             {definicion.firmas.map((firma) => (
-                                <li key={firma} className="flex items-center gap-3 text-xs text-slate-600">
-                                    <span aria-hidden="true" className="h-px flex-1 border-b border-dashed border-slate-300" />
-                                    <span className="shrink-0">{firma}</span>
+                                <li key={firma}>
+                                    <span
+                                        aria-hidden="true"
+                                        className="block h-px w-full border-b border-dashed border-slate-400"
+                                    />
+                                    <span className="mt-1.5 block text-[11px] text-slate-600">{firma}</span>
                                 </li>
                             ))}
                         </ul>
@@ -361,7 +390,7 @@ export const ModalAnexoCivico: React.FC<Props> = ({ isOpen, onClose, anexo, esta
                     </p>
                 </div>
 
-                <footer className="border-t border-slate-200 px-5 py-4 sm:px-6">
+                <footer className="border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
                     <button
                         type="button"
                         onClick={onClose}

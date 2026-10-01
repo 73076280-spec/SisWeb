@@ -28,7 +28,69 @@ import {
   Calculator,
   Users,
   Ruler,
+  Star,
+  MapPin,
+  MessageCircle,
 } from 'lucide-react';
+
+interface ProveedorDestacado {
+  nombre: string;
+  especialidad: string;
+  cobertura: string;
+  valoracion: number;
+}
+
+/**
+ * Muestra de los allied del catálogo real (`DirectorioAliadosService`).
+ *
+ * Son datos de ejemplo embebidos en la vista, no los del catálogo: la sección
+ * cumple función de invitación y todos los enlaces apuntan a `/directorio`,
+ * que sí consume el directorio canónico. No inventan proveedores reales ni
+ * los duplican en base de datos.
+ */
+const PROVEEDORES_DESTACADOS: ProveedorDestacado[] = [
+  {
+    nombre: 'Extintores & Recarga',
+    especialidad: 'Recarga y certificación de extintores PQS y Clase K',
+    cobertura: 'Huancayo Centro',
+    valoracion: 4.8,
+  },
+  {
+    nombre: 'ElectroPerú SAC',
+    especialidad: 'Medición de pozo a tierra y tableros con mandil protector',
+    cobertura: 'El Tambo, Chilca',
+    valoracion: 4.9,
+  },
+  {
+    nombre: 'Señalética Junín',
+    especialidad: 'Señalética fotoluminiscente y luces de emergencia',
+    cobertura: 'Huancayo Centro',
+    valoracion: 4.7,
+  },
+  {
+    nombre: 'MedSafe Huancayo',
+    especialidad: 'Planos de evacuación y señalización de rutas',
+    cobertura: 'El Tambo, Chilca',
+    valoracion: 4.9,
+  },
+];
+
+/**
+ * Número de captación de aliados.
+ *
+ * Configurable con `VITE_WHATSAPP_ALIADOS` en `.env`. Mientras no se defina, el
+ * CTA degrada a `/directorio` en vez de enlazar a un número ficticio, para que
+ * las solicitudes de alta no se pierdan. Formato esperado: solo dígitos con
+ * código de país, sin `+` ni espacios (ej. `51987654321`).
+ */
+const WHATSAPP_ALIADOS_NUMERO = import.meta.env.VITE_WHATSAPP_ALIADOS ?? '';
+
+const WHATSAPP_ALIADOS = WHATSAPP_ALIADOS_NUMERO
+  ? `https://wa.me/${WHATSAPP_ALIADOS_NUMERO}?text=` +
+    encodeURIComponent(
+      'Hola CheckITSE, deseo registrar mi tienda/servicio técnico en el directorio de proveedores de Huancayo.'
+    )
+  : '/directorio';
 
 interface HomeProps {
   catalogo?: unknown[];
@@ -896,6 +958,116 @@ export default function Home({ catalogo: _catalogo }: HomeProps) {
                 Simular mi local gratis
                 <ArrowRight className="w-4 h-4" />
               </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* DIRECTORIO — Proveedores certificados en Huancayo */}
+      <section id="directorio" className="scroll-mt-24 mb-8" aria-labelledby="directorio-titulo">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold tracking-wider text-emerald-700 uppercase">
+              <Users className="h-3.5 w-3.5" />
+              Directorio
+            </span>
+            <h2
+              id="directorio-titulo"
+              className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl"
+            >
+              Proveedores certificados en Huancayo
+            </h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+              Empresas y especialistas locales verificados que pueden ayudarte a subsanar observaciones ITSE.
+            </p>
+          </div>
+
+          <ul className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-2">
+            {PROVEEDORES_DESTACADOS.map((proveedor) => {
+              const inicial = proveedor.nombre.charAt(0).toUpperCase();
+
+              return (
+                <li
+                  key={proveedor.nombre}
+                  className="rounded-2xl border border-slate-100 bg-slate-50/60 p-5 transition-all hover:shadow-md"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-base font-black text-blue-700"
+                    >
+                      {inicial}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm leading-snug font-bold text-slate-900">
+                        {proveedor.nombre}
+                      </h3>
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                        {proveedor.especialidad}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      {proveedor.cobertura}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-800"
+                      aria-label={`Valoración orientativa: ${proveedor.valoracion} de 5`}
+                    >
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      {proveedor.valoracion.toFixed(1)}
+                    </span>
+                  </div>
+
+                  <Link
+                    href="/directorio"
+                    className="mt-3.5 inline-flex min-h-[44px] items-center gap-1 text-[11px] font-bold text-emerald-700 transition hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded-lg"
+                  >
+                    Ver contacto
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="mt-5 text-center text-[11px] leading-relaxed text-slate-500">
+            Muestra ilustrativa con fines de presentación. La ficha completa de cada
+            proveedor, con cobertura y especialidades verificables, está en la vista de directorio.
+          </p>
+
+          {/* Captación de nuevos aliados */}
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center">
+            <p className="text-sm font-bold text-slate-900">
+              ¿Eres proveedor o especialista técnico? Únete al directorio
+            </p>
+            <p className="mx-auto mt-1 max-w-xl text-[11px] leading-relaxed text-slate-600">
+              El alta es gratuita y sin intermediarios. CheckITSE no cobra comisiones ni fija precios: la contratación
+              ocurre directamente entre el comerciante y el prestador.
+            </p>
+            <div className="mt-4 flex justify-center">
+              {WHATSAPP_ALIADOS_NUMERO ? (
+                <a
+                  href={WHATSAPP_ALIADOS}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Solicitar mi registro
+                </a>
+              ) : (
+                <Link
+                  href="/directorio"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Solicitar mi registro
+                </Link>
+              )}
             </div>
           </div>
         </div>
