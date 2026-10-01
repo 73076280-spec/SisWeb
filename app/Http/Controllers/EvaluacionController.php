@@ -1166,6 +1166,7 @@ class EvaluacionController extends Controller
             'cumple_declarado' => $resumenData['cumple_declarado'],
             'no_aplica' => $resumenData['no_aplica'],
             'desglose_especialidades' => $resumenData['desglose_especialidades'],
+            'clasificacion_tramite' => $this->clasificarModalidadTramite($autoevaluacion),
         ];
 
         if (! $request->wantsJson() && ! $request->is('api/*')) {
@@ -1173,6 +1174,52 @@ class EvaluacionController extends Controller
         }
 
         return response()->json($payload);
+    }
+
+    /**
+     * Modalidad de trámite que tendría la evaluación ante la ITSE, según el
+     * D.S. N° 002-2018-PCM y la R.J. N° 016-2018-CENEPRED/J.
+     *
+     * Respeta el par `tipo_tramite`/`nivel_riesgo` ya persistido. Como el
+     * clasificador heredado dejó de ejecutarse en el paso 1, las evaluaciones
+     * nuevas lo tienen en NULL; en ese caso se recalcula aquí con
+     * `ItseRiskService::clasificarTramite()`, que es la única implementación de
+     * esa regla normativa, para no inventar una segunda en el frontend.
+     *
+     * Es informativo y no altera el expediente: no escribe en la base de datos,
+     * no participa del semáforo de cumplimiento y no se registra como
+     * clasificación oficial, porque esa solo corresponde al órgano competente.
+     */
+    protected function clasificarModalidadTramite(Autoevaluacion $autoevaluacion): array
+    {
+        if ($autoevaluacion->tipo_tramite && $autoevaluacion->nivel_riesgo) {
+            return [
+                'tipo_tramite' => (string) $autoevaluacion->tipo_tramite,
+                'nivel_riesgo' => (string) $autoevaluacion->nivel_riesgo,
+                'es_previa' => $autoevaluacion->tipo_tramite === 'EX_ANTE',
+                'motivos' => [],
+                'fuente' => 'registro',
+            ];
+        }
+
+        $clasificacion = $this->riskService->clasificarTramite(
+            (string) ($autoevaluacion->funcion_economica ?: 'Comercio'),
+            $autoevaluacion->area_m2 !== null ? (float) $autoevaluacion->area_m2 : null,
+            $autoevaluacion->pisos !== null ? (int) $autoevaluacion->pisos : null,
+            $autoevaluacion->aforo !== null ? (int) $autoevaluacion->aforo : null,
+            (bool) $autoevaluacion->usa_glp,
+            (float) ($autoevaluacion->galones_glp ?? 0),
+            (bool) $autoevaluacion->usa_caldero,
+            (bool) $autoevaluacion->usa_liquidos_inflamables,
+        );
+
+        return [
+            'tipo_tramite' => (string) $clasificacion['tipo_tramite'],
+            'nivel_riesgo' => (string) $clasificacion['nivel_riesgo'],
+            'es_previa' => (bool) $clasificacion['es_bloqueante'],
+            'motivos' => array_values((array) $clasificacion['motivos']),
+            'fuente' => 'recalculado',
+        ];
     }
 
     /**

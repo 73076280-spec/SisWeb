@@ -2,16 +2,21 @@ import { useMemo, useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { ModalConfirmarReevaluacion } from '@/components/ModalConfirmarReevaluacion';
 import { DesgloseEspecialidades } from '@/components/Evaluacion/DesgloseEspecialidades';
+import { ModalAnexoCivico, type AnexoCivicoId, type DatosAnexoCivico } from '@/components/Evaluacion/ModalAnexoCivico';
 import {
   AlertTriangle,
   ArrowRight,
+  BellRing,
   Building2,
   Calendar,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   Clock,
   Eye,
   FileText,
+  Files,
+  FolderCheck,
   GitBranch,
   Hash,
   Info,
@@ -78,6 +83,29 @@ const configPorDefecto = {
   icon: ShieldCheck,
 };
 
+/**
+ * Mantenimientos con periodicity fijada por norma. No dependen del resultado de
+ * la autoevaluación: el rótulo «100%» se refiere a las condiciones declaradas, no
+ * a la vigencia de estos certificados.
+ */
+const ALERTAS_MANTENIMIENTO: { titulo: string; texto: string; norma: string }[] = [
+  {
+    titulo: 'Extintores',
+    texto: 'Recarga anual obligatoria. Verifica la tarjeta de control de cada unidad y la fecha de la última recarga.',
+    norma: 'NTP 350.043-1',
+  },
+  {
+    titulo: 'Pozo a Tierra',
+    texto: 'Protocolo de medición anual de la resistencia del sistema de puesta a tierra.',
+    norma: 'CNE-UNE 170.012 · Máx. 25 Ω',
+  },
+  {
+    titulo: 'Certificado ITSE',
+    texto: 'Vigencia de 2 años contados desde la emisión municipal. Renueva antes del vencimiento.',
+    norma: 'D.S. 002-2018-PCM',
+  },
+];
+
 interface SegmentoEstado {
   clave: string;
   etiqueta: string;
@@ -128,6 +156,8 @@ function formatVariacion(val: number, sufijo: string = ''): string {
 
 export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluacionesProps) {
   const [evaluacionAReevaluar, setEvaluacionAReevaluar] = useState<{ uuid: string; nombre: string } | null>(null);
+  const [anexoAbierto, setAnexoAbierto] = useState<AnexoCivicoId | null>(null);
+  const [expedienteSeleccionado, setExpedienteSeleccionado] = useState<DatosAnexoCivico | null>(null);
 
   // Agrupación estructurada de autoevaluaciones en Procesos Preventivos
   const procesos = useMemo<ProcesoPreventivo[]>(() => {
@@ -289,6 +319,22 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                 { item: original, etiqueta: 'Original' },
                 ...reevs.map((r, idx) => ({ item: r, etiqueta: `Reevaluación #${idx + 1}` })),
               ];
+
+              /* Expediente Digital: el informe y los anexos se emiten sobre el
+                 último registro del proceso, que es el estado vigente. */
+              const ultimaUuidExpediente = proceso.ultimaEvaluacion.uuid_trazabilidad;
+              const datosExpediente: DatosAnexoCivico = {
+                nombre_comercio: original.nombre_comercio,
+                funcion_economica: original.funcion_economica,
+                ruc: original.ruc,
+                direccion: original.direccion,
+                area_m2: original.area_m2,
+                pisos: original.pisos,
+                aforo: original.aforo,
+                codigo_acceso: original.codigo_acceso,
+                uuid_trazabilidad: ultimaUuidExpediente,
+                fecha: proceso.ultimaEvaluacion.fecha,
+              };
 
               return (
                 <section
@@ -487,6 +533,83 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                           </span>
                         </div>
                       )}
+
+                      {/* Expediente Digital Preventivo: documentos de referencia para
+                          presentar ante la Municipalidad Provincial de Huancayo. El informe
+                          enlaza al último registro del proceso (el mismo que se imprime en A4). */}
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-lg bg-slate-700 p-1.5 text-white">
+                            <FolderCheck className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <h4 className="text-[10px] font-black tracking-wider text-slate-600 uppercase">
+                              Expediente Digital Preventivo
+                            </h4>
+                            <p className="text-[11px] leading-snug text-slate-500">
+                              Documentos de referencia para tu presentación en mesa de partes
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <Link
+                            href={`/autoevaluacion/informe/${ultimaUuidExpediente}`}
+                            className="flex min-h-[44px] cursor-pointer flex-col justify-center gap-0.5 rounded-xl border border-slate-300 bg-white px-3 py-2 transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
+                          >
+                            <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                              <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                              Reporte Técnico (PDF)
+                            </span>
+                            <span className="text-[10px] leading-snug text-slate-500">
+                              Informe íntegro del último registro
+                            </span>
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpedienteSeleccionado(datosExpediente);
+                              setAnexoAbierto('ANEXO_4');
+                            }}
+                            className="flex min-h-[44px] cursor-pointer flex-col justify-center gap-0.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
+                          >
+                            <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                              <Files className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                              Declaración Jurada (Anexo 4)
+                            </span>
+                            <span className="text-[10px] leading-snug text-slate-500">
+                              Formato sugerido para riesgo bajo o medio
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setExpedienteSeleccionado(datosExpediente);
+                              setAnexoAbierto('ANEXO_1');
+                            }}
+                            className="flex min-h-[44px] cursor-pointer flex-col justify-center gap-0.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-left transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98]"
+                          >
+                            <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-800">
+                              <ClipboardList className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                              Solicitud ITSE (Anexo 1)
+                            </span>
+                            <span className="text-[10px] leading-snug text-slate-500">
+                              Estructura para inspección previa
+                            </span>
+                          </button>
+                        </div>
+
+                        <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-slate-500">
+                          <Info className="mt-px h-3 w-3 shrink-0 text-slate-400" />
+                          <span>
+                            Los anexos se muestran como vista previa de referencia con los datos declarados. El
+                            formato oficial vigente se descarga de la web municipal y es el único con validez para el
+                            trámite.
+                          </span>
+                        </p>
+                      </div>
 
                       {/* Acciones */}
                       <div className="mt-4 flex flex-wrap items-center justify-start gap-2 border-t border-slate-100 pt-3 sm:justify-end">
@@ -855,8 +978,76 @@ export default function MisAutoevaluaciones({ autoevaluaciones }: MisAutoevaluac
                 </section>
               );
             })}
+
+            {/* Alertas de Mantenimiento y Renovación Obligatoria */}
+            <section
+              aria-labelledby="alertas-mantenimiento"
+              className="mt-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 shrink-0 text-amber-600" />
+                <h2
+                  id="alertas-mantenimiento"
+                  className="text-xs font-black tracking-wider text-amber-900 uppercase sm:text-sm"
+                >
+                  Alertas de Mantenimiento y Renovación Obligatoria
+                </h2>
+              </div>
+
+              <ul className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                {ALERTAS_MANTENIMIENTO.map((alerta) => (
+                  <li
+                    key={alerta.titulo}
+                    className="flex h-full flex-col rounded-xl border border-amber-200/80 bg-white p-3"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <BellRing className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                      <span className="text-[11px] font-black tracking-wide text-amber-950 uppercase">
+                        {alerta.titulo}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-slate-700">
+                      {alerta.texto}
+                    </p>
+                    <span className="mt-2 inline-flex w-fit rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-800">
+                      {alerta.norma}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-relaxed text-amber-900/80">
+                <Info className="mt-px h-3 w-3 shrink-0 text-amber-600" />
+                <span>
+                  Calendario orientativo: estas obligaciones se cumplen con mantenimiento documentado y vigente,
+                  aunque tu autoevaluación figure al 100% de preparación. La verificación de los certificados
+                  corresponde a la Unidad de ITSE de la Municipalidad Provincial de Huancayo.
+                </span>
+              </p>
+
+              {procesos.length > 0 && (
+                /* El directorio de especialistas vive en el Plan de Acción del
+                   veredicto, donde cada observación abre «Ver solución» con los
+                   aliados que devolvió el backend. */
+                <Link
+                  href={`/autoevaluacion/${procesos[0].ultimaEvaluacion.uuid_trazabilidad}/resumen`}
+                  className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-[11px] font-bold text-amber-900 transition hover:border-amber-400 hover:bg-amber-100/60 active:scale-[0.98] sm:text-xs"
+                >
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  <span>Cotizar renovaciones con el directorio de especialistas</span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                </Link>
+              )}
+            </section>
           </div>
         )}
+
+        <ModalAnexoCivico
+          isOpen={anexoAbierto !== null}
+          anexo={anexoAbierto}
+          establecimiento={expedienteSeleccionado}
+          onClose={() => setAnexoAbierto(null)}
+        />
       </div>
     </>
   );

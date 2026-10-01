@@ -17,6 +17,7 @@ import {
     ClipboardList,
     Clock,
     Copy,
+    FileCheck,
     HelpCircle,
     Info,
     Layers,
@@ -26,7 +27,9 @@ import {
     RefreshCw,
     RotateCcw,
     Save,
+    Scale,
     ShieldAlert,
+    ShieldCheck,
     Wrench,
     X,
 } from 'lucide-react';
@@ -64,6 +67,37 @@ const CARACTERISTICAS_DECLARADAS: Record<string, { etiqueta: string; sufijo?: st
     tiene_estanterias_altas: { etiqueta: 'Estanterías altas o mobiliario con riesgo de volteo' },
 };
 
+/**
+ * Contenido cívico de la modalidad de trámite, derivado de la clasificación que
+ * entrega el backend. Las etiquetas y plazos son orientativos: la modalidad
+ * definitiva y los plazos de subsanación los fija la Unidad de Inspección
+ * Técnica de Seguridad en Seguridad (ITSE) de la Municipalidad de Huancayo.
+ */
+const MODALIDAD_TRAMITE = {
+    EX_POST: {
+        badge: 'Modalidad: ITSE Posterior (D.S. N° 002-2018-PCM)',
+        badgeClases: 'border-sky-300 bg-sky-50 text-sky-900',
+        icono: ShieldCheck,
+        iconoClases: 'border-sky-200 bg-sky-100 text-sky-700',
+        titulo: 'Inspección con posterioridad',
+        mensaje:
+            'Tu establecimiento califica para tramitar la Licencia de Funcionamiento presentando la Declaración Jurada de Cumplimiento (Anexo 4). La inspección de Defensa Civil se ejecuta con posterioridad.',
+        plazo: 'Hasta 3 días hábiles de plazo en diligencia.',
+        plazoIcono: Clock,
+    },
+    EX_ANTE: {
+        badge: 'Modalidad: ITSE Previa (Inspección Multidisciplinaria)',
+        badgeClases: 'border-amber-300 bg-amber-50 text-amber-900',
+        icono: ShieldAlert,
+        iconoClases: 'border-amber-200 bg-amber-100 text-amber-700',
+        titulo: 'Inspección previa a la licencia',
+        mensaje:
+            'Requiere inspección física previa al otorgamiento de la Licencia de Funcionamiento por un Grupo Inspector especializado.',
+        plazo: 'Hasta 20 días hábiles para levantar observaciones.',
+        plazoIcono: Clock,
+    },
+} as const;
+
 export default function Resumen({
     autoevaluacion,
     resumen,
@@ -72,6 +106,7 @@ export default function Resumen({
     cumple_declarado = [],
     no_aplica = [],
     desglose_especialidades = null,
+    clasificacion_tramite = null,
 }: ResumenProps) {
     const { auth } = usePage().props as { auth?: { user: any | null } };
     const [mostrarModalGuardar, setMostrarModalGuardar] = useState<boolean>(false);
@@ -152,6 +187,27 @@ export default function Resumen({
     const esRegistrada = autoevaluacion?.estado === 'REGISTRADA';
 
     /**
+     * Modalidad de trámite resuelta por el backend. Se acepta un payload antiguo
+     * sin `clasificacion_tramite` (evaluaciones legacy renderizadas con props
+     * previas) y también un tipo de trámite desconocido: en ambos casos la tarjeta
+     * se oculta en lugar de suponer una modalidad que nadie respalda.
+     */
+    const modalidadTramite = useMemo(() => {
+        if (!clasificacion_tramite) return null;
+
+        const tipo = String(clasificacion_tramite.tipo_tramite ?? '').toUpperCase();
+        const contenido = MODALIDAD_TRAMITE[tipo as keyof typeof MODALIDAD_TRAMITE];
+        if (!contenido) return null;
+
+        return {
+            contenido,
+            nivelRiesgo: clasificacion_tramite.nivel_riesgo,
+            motivos: Array.isArray(clasificacion_tramite.motivos) ? clasificacion_tramite.motivos : [],
+            fuente: clasificacion_tramite.fuente,
+        };
+    }, [clasificacion_tramite]);
+
+    /**
      * Ficha de las características que el ciudadano declaró en el paso 1.
      * Son datos eco de su propia declaración, ya consumidos por el motor de
      * aplicabilidad: no representan una clasificación de riesgo.
@@ -178,6 +234,13 @@ export default function Resumen({
      * los de la prop `resumen`.
      */
     const totalAplicables = resumen.total_criterios_aplicables;
+    /**
+     * Observaciones abiertas: pendientes de atender más las marcadas por revisar.
+     * Es el único criterio que gobierna la Hero Card y el pronóstico de
+     * diligencia; no altera ningún conteo ni el semáforo de `resumen`.
+     */
+    const totalPendientes = resumen.total_pendiente_atender + resumen.total_por_revisar;
+    const esApto = totalPendientes === 0;
     const segmentosDesglose = [
         { clave: 'cumple', etiqueta: 'Declaradas cumplidas', valor: resumen.total_cumple_declarado, claseSegmento: 'bg-emerald-500' },
         { clave: 'pendiente', etiqueta: 'Pendientes de atender', valor: resumen.total_pendiente_atender, claseSegmento: 'bg-amber-500' },
@@ -431,8 +494,66 @@ export default function Resumen({
 
                                 <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Veredicto del autodiagnóstico</h1>
                                 <p className="text-sm text-slate-500">
-                                    Paso 3 de 3 · Resumen descriptivo de las declaraciones preventative de tu establecimiento
+                                    Paso 3 de 3 · Resumen descriptivo de las declaraciones preventivas de tu establecimiento
                                 </p>
+                            </div>
+
+                            {/* Hero Card Dinámica: el mensaje de cabecera depende del
+                                estado de las declaraciones, no del semáforo ni de
+                                un porcentaje. Un local con cero observaciones
+                                pendientes se presenta como apto para tramitar. */}
+                            <div
+                                className={`mt-5 overflow-hidden rounded-2xl border-2 p-5 shadow-sm transition-colors duration-150 print:border-slate-300 print:bg-white print:shadow-none sm:p-6 ${
+                                    esApto
+                                        ? 'border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50/30'
+                                        : 'border-amber-300 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/30'
+                                }`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <span
+                                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${
+                                            esApto
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'bg-amber-500 text-white shadow-sm'
+                                        }`}
+                                    >
+                                        {esApto ? (
+                                            <CheckCircle2 className="h-7 w-7" />
+                                        ) : (
+                                            <AlertTriangle className="h-7 w-7" />
+                                        )}
+                                    </span>
+
+                                    <div className="min-w-0">
+                                        <h2
+                                            className={`text-lg leading-tight font-black tracking-tight sm:text-xl ${
+                                                esApto ? 'text-emerald-950' : 'text-amber-950'
+                                            }`}
+                                        >
+                                            {esApto
+                                                ? '¡Tu local está listo para tramitar la ITSE!'
+                                                : 'Tu local requiere correcciones antes de la inspección oficial'}
+                                        </h2>
+                                        <p
+                                            className={`mt-2 text-sm leading-relaxed ${
+                                                esApto ? 'text-emerald-900/85' : 'text-amber-900/85'
+                                            }`}
+                                        >
+                                            {esApto
+                                                ? 'Cumple con las condiciones de seguridad evaluadas para presentar tu expediente ante la Municipalidad de Huancayo.'
+                                                : 'Se detectaron observaciones subsanables. Corrígelas antes de solicitar la diligencia para evitar suspensiones o clausuras temporales.'}
+                                        </p>
+
+                                        <p
+                                            className={`mt-3 text-[11px] leading-relaxed print:text-slate-600 ${
+                                                esApto ? 'text-emerald-800/75' : 'text-amber-800/75'
+                                            }`}
+                                        >
+                                            Resultado derivado de tus propias declaraciones ciudadanas. No constituye una
+                                            verificación oficial ni un dictamen de la Unidad de ITSE.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 sm:self-start">
@@ -505,6 +626,80 @@ export default function Resumen({
                             </div>
                         </div>
                     </header>
+
+                    {/* ========================================================================= */}
+                    {/* MODALIDAD DE TRÁMITE MUNICIPAL (D.S. 002-2018-PCM)                 */}
+                    {/* ========================================================================= */}
+                    {modalidadTramite && (
+                        <section aria-labelledby="modalidad-tramite-title" className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5 shadow-xs sm:p-6 print:border-slate-300 print:bg-white print:shadow-none print:p-3">
+                            <div className="flex items-start gap-3">
+                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${modalidadTramite.contenido.iconoClases}`}>
+                                    <modalidadTramite.contenido.icono className="h-5 w-5" />
+                                </span>
+                                <div className="min-w-0">
+                                    <h2
+                                        id="modalidad-tramite-title"
+                                        className="text-[11px] font-black uppercase tracking-wider text-slate-500"
+                                    >
+                                        Modalidad de trámite municipal
+                                    </h2>
+                                    <p className="mt-0.5 text-sm font-bold text-slate-900">
+                                        {modalidadTramite.contenido.titulo}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p
+                                className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${modalidadTramite.contenido.badgeClases}`}
+                            >
+                                <FileCheck className="h-3.5 w-3.5 shrink-0" />
+                                {modalidadTramite.contenido.badge}
+                            </p>
+
+                            <p className="mt-3.5 text-sm leading-relaxed text-slate-700">
+                                {modalidadTramite.contenido.mensaje}
+                            </p>
+
+                            <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-white p-3.5">
+                                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        Plazo de subsanación
+                                    </p>
+                                    <p className="mt-0.5 text-xs font-semibold leading-relaxed text-slate-800">
+                                        {modalidadTramite.contenido.plazo}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {modalidadTramite.motivos.length > 0 && (
+                                <div className="mt-4">
+                                    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                        <Scale className="h-3.5 w-3.5" />
+                                        Criterios que sustentan la clasificación
+                                    </p>
+                                    <ul className="mt-2 space-y-1.5">
+                                        {modalidadTramite.motivos.map((motivo) => (
+                                            <li key={motivo} className="flex items-start gap-2 text-xs leading-relaxed text-slate-600">
+                                                <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                                                <span>{motivo}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            <p className="mt-4 flex items-start gap-2 border-t border-slate-200 pt-3 text-[11px] leading-relaxed text-slate-500">
+                                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <span>
+                                    Clasificación de referencia calculada con la R.J. N° 016-2018-CENEPRED/J
+                                    {modalidadTramite.fuente === 'recalculado' && ' a partir de los datos que declaraste'} a partir de tus
+                                    declaraciones. La modalidad definitiva y los plazos los fija la Unidad de
+                                    Inspección Técnica de Seguridad en Seguridad de la Municipalidad de Huancayo.
+                                </span>
+                            </p>
+                        </section>
+                    )}
 
                     {/* ========================================================================= */}
                     {/* FICHA DE CARACTERÍSTICAS DECLARADAS EN EL PASO 1                    */}
@@ -667,6 +862,79 @@ export default function Resumen({
                             Los “no aplicables” no forman parte de las {totalAplicables} condiciones aplicables: los determinó el motor
                             técnico a partir de lo que declaraste en el paso 1 y no son seleccionables por ti.
                         </p>
+
+                        {/* Pronóstico de desenlace de diligencia (simulación orientativa) */}
+                        {(() => {
+                            const esExPost = modalidadTramite?.contenido
+                                ? Object.keys(MODALIDAD_TRAMITE).find((k) => MODALIDAD_TRAMITE[k as keyof typeof MODALIDAD_TRAMITE] === modalidadTramite.contenido) === 'EX_POST'
+                                : false;
+                            const tipoTramiteKey = clasificacion_tramite?.tipo_tramite?.toUpperCase();
+
+                            return (
+                                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-3.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="rounded-lg bg-slate-700 p-1.5 text-white">
+                                            <Scale className="h-4 w-4" />
+                                        </span>
+                                        <h3 className="text-[11px] font-black tracking-wider text-slate-700 uppercase sm:text-xs">
+                                            Pronóstico de Diligencia (Simulación Orientativa)
+                                        </h3>
+                                    </div>
+
+                                    <div className="mt-3 space-y-2.5 text-[11px] leading-relaxed">
+                                        {esApto && (
+                                            <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900">
+                                                <p className="font-semibold">
+                                                    Pronóstico de Diligencia: <strong>FAVORABLE</strong> — Emisión de Certificado de ITSE con vigencia de 2 años (D.S. N° 002-2018-PCM)
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {!esApto && (
+                                            <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+                                                <p className="font-semibold">
+                                                    Diligencia susceptible de <strong>SUSPENSIÓN mediante Acta (Anexo 9)</strong>.
+                                                </p>
+                                                {tipoTramiteKey === 'EX_POST' && (
+                                                    <p className="mt-1">
+                                                        En ITSE Posterior (Riesgo Bajo/Medio): Plazo legal de subsanación: <strong>hasta 3 días hábiles</strong>.
+                                                        Se levanta mediante declaración jurada y panel fotográfico por mesa de partes (sin reinspección presencial obligatoria).
+                                                    </p>
+                                                )}
+                                                {tipoTramiteKey === 'EX_ANTE' && (
+                                                    <p className="mt-1">
+                                                        En ITSE Previa (Riesgo Alto): Diligencia con suspensión de <strong>hasta 20 días hábiles</strong> con verificación física in situ de subsanaciones por Grupo Inspector.
+                                                    </p>
+                                                )}
+                                                {!tipoTramiteKey && (
+                                                    <p className="mt-1">
+                                                        Plazo de subsanación orientativo: <strong>{esExPost ? 'hasta 3 días hábiles' : 'hasta 20 días hábiles'}</strong>,
+                                                        conforme a la modalidad asignada. El plazo definitivo lo fija la Unidad de ITSE.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900">
+                                            <p className="font-semibold">
+                                                Advertencia cívica: Causales de Denegatoria Inmediata sin plazo
+                                            </p>
+                                            <p className="mt-1">
+                                                Incongruencia de giro/riesgo frente a la realidad física, o establecimiento no implementado para operar (numeral 1.2.9 Manual CENEPRED).
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-slate-500">
+                                        <Info className="mt-px h-3 w-3 shrink-0 text-slate-400" />
+                                        <span>
+                                            Simulación orientativa con base en el D.S. N° 002-2018-PCM y R.J. N° 016-2018-CENEPRED/J (Manual de Ejecución de ITSE).
+                                            La diligencia, sus plazos y el desenlace son determinados exclusivamente por la Unidad de ITSE de la Municipalidad Provincial de Huancayo.
+                                        </span>
+                                    </p>
+                                </div>
+                            );
+                        })()}
                     </section>
 
                     {/* ========================================================================= */}

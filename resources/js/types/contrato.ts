@@ -142,6 +142,13 @@ export interface ChecklistAutoevaluacion {
     estado?: EstadoAutoevaluacion | string;
     registrada_at?: string | null;
     hash_integridad?: string | null;
+    area_m2?: number | null;
+    pisos?: number | null;
+    aforo?: number | null;
+    tiene_equipos_fritura?: boolean | null;
+    tiene_escaleras?: boolean | null;
+    tiene_estanterias_altas?: boolean | null;
+    caracteristicas_declaradas?: Record<string, unknown> | null;
 }
 
 /** Props de `Inertia::render('Evaluacion/Checklist')`. */
@@ -290,6 +297,24 @@ export interface ResumenAutoevaluacion {
     hash_integridad?: string | null;
 }
 
+/**
+ * Modalidad de trámite que tendría la evaluación ante la ITSE, derivada en el
+ * backend por `EvaluacionController::clasificarModalidadTramite()` a partir del
+ * D.S. N° 002-2018-PCM y la R.J. N° 016-2018-CENEPRED/J.
+ *
+ * `EX_ANTE` equivale a ITSE Previa y `EX_POST` a ITSE Posterior. `fuente` distingue
+ * el par persistido de la evaluación del recálculo hecho al vuelo, porque el
+ * clasificador heredado ya no se ejecuta en el paso 1 y las evaluaciones nuevas
+ * llegan con ambas columnas en NULL.
+ */
+export interface ClasificacionTramiteResumen {
+    tipo_tramite: 'EX_ANTE' | 'EX_POST';
+    nivel_riesgo: string;
+    es_previa: boolean;
+    motivos: string[];
+    fuente: 'registro' | 'recalculado';
+}
+
 /** Props de `Inertia::render('Evaluacion/Resumen')`. */
 export interface ResumenProps {
     autoevaluacion: ResumenAutoevaluacion;
@@ -299,6 +324,8 @@ export interface ResumenProps {
     cumple_declarado?: CriterioCumpleResumen[];
     no_aplica?: CriterioNoAplicaResumen[];
     desglose_especialidades?: DesgloseEspecialidades | null;
+    /** Ausente en evaluaciones legacy renderizadas con un payload anterior. */
+    clasificacion_tramite?: ClasificacionTramiteResumen | null;
 }
 
 /**

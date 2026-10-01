@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\DirectorioController;
 use App\Http\Controllers\EvaluacionController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 // Portada pública y Asistente ciudadano preventivo (UX-02)
 Route::get('/', [EvaluacionController::class, 'index'])->name('autoevaluacion.index');
+Route::get('/directorio', [DirectorioController::class, 'index'])->name('directorio.index');
 Route::get('/autoevaluacion', fn () => redirect()->route('autoevaluacion.nueva'));
 Route::get('/autoevaluacion/nueva', [EvaluacionController::class, 'nueva'])->name('autoevaluacion.nueva');
 Route::post('/autoevaluacion', [EvaluacionController::class, 'store'])->name('autoevaluacion.store');

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { LogOut, Menu, ShieldCheck, Sparkles, UserRound, X } from 'lucide-react';
+import { LogOut, Menu, ShieldCheck, Sparkles, Store, UserRound, X } from 'lucide-react';
 import { ModalGuardarProgreso } from '@/components/ModalGuardarProgreso';
 
 interface Usuario {
@@ -104,6 +104,14 @@ export const Navbar: React.FC = () => {
                 {usuario ? (
                     <div className="hidden lg:flex items-center gap-3">
                         <Link
+                            href="/directorio"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                            <Store className="w-3.5 h-3.5" />
+                            Directorio Técnico
+                        </Link>
+
+                        <Link
                             href="/mis-autoevaluaciones"
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                         >
@@ -190,6 +198,15 @@ export const Navbar: React.FC = () => {
                             {ancla.etiqueta}
                         </a>
                     ))}
+
+                    <Link
+                        href="/directorio"
+                        onClick={cerraMenu}
+                        className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <Store className="w-4 h-4" />
+                        Directorio Técnico
+                    </Link>
 
                     <Link
                         href="/autoevaluacion/nueva"
