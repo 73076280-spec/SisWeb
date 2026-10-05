@@ -93,8 +93,10 @@ test('2. Modificación permitida: mientras estado = INICIADA se pueden actualiza
     $res1 = $this->postJson("/autoevaluacion/{$evaluacion->uuid_trazabilidad}/checklist", $payload1);
     $res1->assertStatus(200);
 
+    $criterioCrit01 = CriterioNormativo::where('codigo_criterio', 'CRIT-01')->firstOrFail();
+
     $respuestaDb1 = RespuestaAutoevaluacion::where('autoevaluacion_id', $evaluacion->id)
-        ->where('criterio_id', 1)
+        ->where('criterio_id', $criterioCrit01->id)
         ->firstOrFail();
     expect($respuestaDb1->estado_respuesta)->toBe('CUMPLE_DECLARADO')
         ->and($respuestaDb1->notas_ciudadano)->toBe('Primera versión');
@@ -110,7 +112,7 @@ test('2. Modificación permitida: mientras estado = INICIADA se pueden actualiza
     $res2->assertStatus(200);
 
     $respuestaDb2 = RespuestaAutoevaluacion::where('autoevaluacion_id', $evaluacion->id)
-        ->where('criterio_id', 1)
+        ->where('criterio_id', $criterioCrit01->id)
         ->firstOrFail();
     expect($respuestaDb2->estado_respuesta)->toBe('PENDIENTE_ATENDER')
         ->and($respuestaDb2->notas_ciudadano)->toBe('Segunda versión modificada');
@@ -236,7 +238,7 @@ test('6. Bloqueo de modificación: POST checklist sobre una autoevaluación REGI
 
     // Comprobar que en la base de datos no cambió
     $respuestaDb = RespuestaAutoevaluacion::where('autoevaluacion_id', $evaluacion->id)
-        ->where('criterio_id', 1)
+        ->where('criterio_id', CriterioNormativo::where('codigo_criterio', 'CRIT-01')->value('id'))
         ->firstOrFail();
     expect($respuestaDb->estado_respuesta)->toBe('CUMPLE_DECLARADO')
         ->and($respuestaDb->notas_ciudadano)->not->toContain('Intento ilegal');

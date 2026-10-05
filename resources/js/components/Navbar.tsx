@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { LogOut, Menu, ShieldCheck, Sparkles, Store, UserRound, X } from 'lucide-react';
-import { ModalGuardarProgreso } from '@/components/ModalGuardarProgreso';
 
 interface Usuario {
     id: number;
@@ -22,7 +21,6 @@ const ANCLAS_PORTADA = [
 ] as const;
 
 export const Navbar: React.FC = () => {
-    const [mostrarModalAuth, setMostrarModalAuth] = useState(false);
     const [menuAbierto, setMenuAbierto] = useState(false);
     const menuButtonRef = useRef<HTMLButtonElement | null>(null);
     const props = usePage().props as { auth?: { user: Usuario | null } };
@@ -47,7 +45,7 @@ export const Navbar: React.FC = () => {
     }, [menuAbierto]);
 
     const cerrarSesion = () => {
-        router.post('/logout');
+        router.post(route('logout'));
     };
 
     const cerraMenu = () => {
@@ -63,7 +61,7 @@ export const Navbar: React.FC = () => {
         <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/70 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 sm:gap-4">
                 <Link
-                    href="/"
+                    href={route('autoevaluacion.index')}
                     onClick={cerraMenu}
                     className="flex items-center gap-2.5 shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
@@ -81,7 +79,7 @@ export const Navbar: React.FC = () => {
                 {/* Navegación de escritorio */}
                 <nav className="hidden lg:flex items-center gap-1" aria-label="Navegación principal">
                     <Link
-                        href="/"
+                        href={route('autoevaluacion.index')}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                             esInicio
                                 ? 'bg-primary-50 text-primary-700'
@@ -104,7 +102,7 @@ export const Navbar: React.FC = () => {
                 {usuario ? (
                     <div className="hidden lg:flex items-center gap-3">
                         <Link
-                            href="/directorio"
+                            href={route('directorio.index')}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                         >
                             <Store className="w-3.5 h-3.5" />
@@ -112,7 +110,7 @@ export const Navbar: React.FC = () => {
                         </Link>
 
                         <Link
-                            href="/mis-autoevaluaciones"
+                            href={route('mis-autoevaluaciones')}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                         >
                             <UserRound className="w-3.5 h-3.5" />
@@ -136,19 +134,27 @@ export const Navbar: React.FC = () => {
                         </button>
                     </div>
                 ) : (
-                    <button
-                        type="button"
-                        onClick={() => setMostrarModalAuth(true)}
-                        className="hidden lg:inline-flex items-center gap-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-4 py-2.5 rounded-xl shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                    >
-                        <UserRound className="w-3.5 h-3.5" />
-                        Iniciar Sesión / Guardar Progreso
-                    </button>
+                    <div className="hidden lg:flex items-center gap-2">
+                        <Link
+                            href={route('login')}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-bold text-neutral-700 transition hover:border-slate-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                            <UserRound className="w-3.5 h-3.5" />
+                            Iniciar Sesión
+                        </Link>
+                        <Link
+                            href={route('register')}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-primary-700 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Crear Cuenta
+                        </Link>
+                    </div>
                 )}
 
                 {/* Acceso rápido a la acción principal en celular y tableta */}
                 <Link
-                    href="/autoevaluacion/nueva"
+                    href={route('autoevaluacion.nueva')}
                     onClick={cerraMenu}
                     className="lg:hidden inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2.5 text-[11px] font-bold text-white shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
@@ -178,7 +184,7 @@ export const Navbar: React.FC = () => {
                     className="lg:hidden border-t border-slate-200/70 bg-white/95 backdrop-blur-md max-h-[calc(100vh-4rem)] overflow-y-auto px-4 sm:px-6 py-4 space-y-2"
                 >
                     <Link
-                        href="/"
+                        href={route('autoevaluacion.index')}
                         onClick={cerraMenu}
                         className={`block px-3.5 py-2.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
                             esInicio
@@ -200,7 +206,7 @@ export const Navbar: React.FC = () => {
                     ))}
 
                     <Link
-                        href="/directorio"
+                        href={route('directorio.index')}
                         onClick={cerraMenu}
                         className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                     >
@@ -209,7 +215,7 @@ export const Navbar: React.FC = () => {
                     </Link>
 
                     <Link
-                        href="/autoevaluacion/nueva"
+                        href={route('autoevaluacion.nueva')}
                         onClick={cerraMenu}
                         className="mt-1 flex items-center justify-center gap-2 w-full px-3.5 py-3 rounded-xl text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                     >
@@ -226,7 +232,7 @@ export const Navbar: React.FC = () => {
                                 <span className="text-xs font-semibold text-neutral-700 truncate">{usuario.name}</span>
                             </div>
                             <Link
-                                href="/mis-autoevaluaciones"
+                                href={route('mis-autoevaluaciones')}
                                 onClick={cerraMenu}
                                 className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                             >
@@ -243,26 +249,27 @@ export const Navbar: React.FC = () => {
                             </button>
                         </>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setMenuAbierto(false);
-                                setMostrarModalAuth(true);
-                            }}
-                            className="flex items-center gap-2 w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                        >
-                            <UserRound className="w-4 h-4" />
-                            Iniciar Sesión / Guardar Progreso
-                        </button>
+                        <>
+                            <Link
+                                href={route('login')}
+                                onClick={cerraMenu}
+                                className="flex w-full items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            >
+                                <UserRound className="w-4 h-4" />
+                                Iniciar Sesión
+                            </Link>
+                            <Link
+                                href={route('register')}
+                                onClick={cerraMenu}
+                                className="flex w-full items-center gap-2 rounded-xl bg-primary-600 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Crear Cuenta
+                            </Link>
+                        </>
                     )}
                 </nav>
             )}
-
-            <ModalGuardarProgreso
-                isOpen={mostrarModalAuth}
-                onClose={() => setMostrarModalAuth(false)}
-                uuid={null}
-            />
         </header>
     );
 };

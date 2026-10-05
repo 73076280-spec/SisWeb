@@ -27,7 +27,7 @@ import {
     Users,
 } from 'lucide-react';
 import { useMemo } from 'react';
-import { etiquetaEstado } from '@/components/EstadoBadge';
+import { etiquetaEstado } from '@/data/estados';
 import type {
     CondicionChecklist,
     ConteoEstados,

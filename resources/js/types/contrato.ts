@@ -148,6 +148,9 @@ export interface ChecklistAutoevaluacion {
     tiene_equipos_fritura?: boolean | null;
     tiene_escaleras?: boolean | null;
     tiene_estanterias_altas?: boolean | null;
+    usa_glp?: boolean | null;
+    usa_caldero?: boolean | null;
+    usa_liquidos_inflamables?: boolean | null;
     caracteristicas_declaradas?: Record<string, unknown> | null;
 }
 
@@ -190,6 +193,8 @@ export interface AliadoAsistenciaContrato {
     nombre_comercial: string;
     contacto_nombre: string;
     especialidad_texto: string;
+    acreditacion?: string;
+    entregable_oficial?: string;
     telefono: string;
     whatsapp: string;
     sede: string;
@@ -498,6 +503,16 @@ export interface AutoevaluacionItem {
     es_flujo_nuevo?: boolean;
     conteos_normativos?: ConteosNormativos | null;
     desglose_especialidades?: DesgloseEspecialidades | null;
+    /**
+     * Modalidad de trámite (ITSE Previa vs. Posterior) que tendría esta
+     * evaluación. Reutiliza el mismo contrato que expone `Resumen`, porque ambas
+     * props se originan en `EvaluacionController::clasificarModalidadTramite()`.
+     *
+     * Opcional a propósito: solo las autoevaluaciones con la prop disponible
+     * deben mostrar la modalidad; ante su ausencia la vista declara «Sin
+     * clasificar» en lugar de asumir una clasificación.
+     */
+    clasificacion_tramite?: ClasificacionTramiteResumen | null;
     semaforo: SemaforoRiesgo | string;
     porcentaje_cumplimiento: number;
     fecha: string;
@@ -511,4 +526,28 @@ export interface AutoevaluacionItem {
 /** Props de `Inertia::render('Evaluacion/MisAutoevaluaciones')`. */
 export interface MisAutoevaluacionesProps {
     autoevaluaciones: AutoevaluacionItem[];
+}
+
+/** Proceso preventivo que agrupa una evaluación original y sus reevaluaciones. */
+export interface ProcesoPreventivo {
+    id: number;
+    nombre_comercio: string;
+    funcion_economica: string;
+    ruc?: string | null;
+    direccion?: string | null;
+    original: AutoevaluacionItem;
+    reevaluaciones: AutoevaluacionItem[];
+    ultimaEvaluacion: AutoevaluacionItem;
+    tieneReevaluaciones: boolean;
+    difPorcentaje: number;
+    difCumple: number;
+    difNoCumple: number;
+    difPorRevisar: number;
+    difNa: number;
+}
+
+/** Props de `Inertia::render('Evaluacion/ExpedienteLocal')`. */
+export interface ExpedienteLocalProps {
+    proceso: ProcesoPreventivo;
+    uuidSeleccionado?: string;
 }

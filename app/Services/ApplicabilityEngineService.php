@@ -104,6 +104,13 @@ class ApplicabilityEngineService
     }
 
     /**
+     * Cache en memoria para los criterios activos.
+     *
+     * @var Collection<int, CriterioNormativo>|null
+     */
+    protected ?Collection $criteriosActivosCache = null;
+
+    /**
      * Obtiene exclusivamente los 13 criterios normativos activos para autoevaluación.
      * Los 6 criterios suspendidos quedan excluidos de forma estricta.
      *
@@ -111,12 +118,24 @@ class ApplicabilityEngineService
      */
     public function getCriteriosActivos(): Collection
     {
-        return CriterioNormativo::activos()
+        if ($this->criteriosActivosCache !== null) {
+            return $this->criteriosActivosCache;
+        }
+
+        return $this->criteriosActivosCache = CriterioNormativo::activos()
             ->ciudadanos()
             ->whereNotIn('codigo_criterio', self::CODIGOS_SUSPENDIDOS)
             ->orderBy('orden')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Limpia la caché en memoria de criterios activos.
+     */
+    public function clearCriteriosCache(): void
+    {
+        $this->criteriosActivosCache = null;
     }
 
     /**
@@ -466,7 +485,8 @@ class ApplicabilityEngineService
         // Respuestas previas si el contexto es una Autoevaluación persistida
         $respuestasPrevias = collect();
         if ($contexto instanceof Autoevaluacion && $contexto->exists) {
-            $respuestasPrevias = $contexto->respuestas()->get()->keyBy('criterio_id');
+            $respuestasPrevias = ($contexto->relationLoaded('respuestas') ? $contexto->respuestas : $contexto->respuestas()->get())
+                ->keyBy('criterio_id');
         }
 
         foreach ($evaluaciones as $codigo => $eval) {
@@ -786,7 +806,8 @@ class ApplicabilityEngineService
 
         $evaluaciones = $this->evaluarAplicabilidad($autoevaluacion);
         $criteriosActivos = $this->getCriteriosActivos()->keyBy('codigo_criterio');
-        $respuestasGuardadas = $autoevaluacion->respuestas()->get()->keyBy('criterio_id');
+        $respuestasGuardadas = ($autoevaluacion->relationLoaded('respuestas') ? $autoevaluacion->respuestas : $autoevaluacion->respuestas()->get())
+            ->keyBy('criterio_id');
 
         $criteriosList = [];
 

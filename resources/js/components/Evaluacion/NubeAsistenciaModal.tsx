@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from '@inertiajs/react';
 import {
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   Coins,
+  FileCheck,
   Info,
   MapPin,
   MessageCircle,
@@ -28,6 +31,8 @@ export interface AliadoAsistencia {
   verificado?: boolean;
   servicios?: string[] | null;
   categoria?: string | null;
+  acreditacion?: string | null;
+  entregable_oficial?: string | null;
 }
 
 export interface RangoCostoReferencial {
@@ -377,12 +382,17 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
                             <p className="mt-0.5 text-[11px] text-slate-500">{aliado.contacto_nombre}</p>
                           )}
                         </div>
-                        {aliado.verificado && (
+                        {aliado.acreditacion ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-900">
+                            <ShieldCheck className="h-3 w-3 text-sky-600" />
+                            {aliado.acreditacion}
+                          </span>
+                        ) : aliado.verificado ? (
                           <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
                             <ShieldCheck className="h-3 w-3 text-emerald-600" />
                             {ETIQUETA_VERIFICACION}
                           </span>
-                        )}
+                        ) : null}
                       </div>
 
                       {aliado.especialidad_texto && (
@@ -396,6 +406,18 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
                           <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
                           {[aliado.sede, aliado.cobertura].filter(Boolean).join(' · ')}
                         </p>
+                      )}
+
+                      {aliado.entregable_oficial && (
+                        <div className="mt-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-[11px] text-emerald-950">
+                          <div className="flex items-center gap-1 font-bold text-emerald-900">
+                            <FileCheck className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                            <span>Entregable Oficial (MPH):</span>
+                          </div>
+                          <p className="mt-0.5 leading-relaxed text-emerald-900 font-medium">
+                            {aliado.entregable_oficial}
+                          </p>
+                        </div>
                       )}
 
                       {servicios.length > 0 && (
@@ -437,13 +459,20 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
               </ul>
             )}
 
-            <div className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Directorio referencial de la comunidad. La inclusión en esta lista no autoriza a ejecutar trabajos ni
-                reemplaza la verificación técnica que corresponde al profesional. Confirma la disponibilidad, el precio y
-                las certificaciones vigentes antes de contratar.
-              </p>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-start gap-2.5">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Directorio cívico de orientación. Contratación directa entre privados sin comisiones ni aval oficial.
+                </p>
+              </div>
+              <Link
+                href="/directorio"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-slate-800 transition"
+              >
+                <span>Directorio completo</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
           </section>
         )}

@@ -78,8 +78,12 @@ return new class extends Migration
             });
         }
 
-        // 5. Eliminar índice y columnas obsoletas de forma segura para SQLite
-        DB::statement('DROP INDEX IF EXISTS recursos_educativos_codigo_normativo_index');
+        // 5. Eliminar índice y columnas obsoletas de forma segura en cualquier motor
+        if (Schema::hasIndex('recursos_educativos', ['codigo_normativo'])) {
+            Schema::table('recursos_educativos', function (Blueprint $table) {
+                $table->dropIndex(['codigo_normativo']);
+            });
+        }
 
         $columnasAEliminar = array_filter(
             ['codigo_normativo', 'base_legal', 'evidencia_sugerida'],

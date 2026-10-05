@@ -178,7 +178,7 @@ test('un usuario autenticado lista solo sus autoevaluaciones con sus relaciones'
 
 test('un invitado no autenticado es redirigido a mis autoevaluaciones', function () {
     get(route('mis-autoevaluaciones'))
-        ->assertRedirect(route('autoevaluacion.index'));
+        ->assertRedirect(route('login'));
 
     assertGuest();
 });

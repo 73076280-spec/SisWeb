@@ -1227,7 +1227,8 @@ class EvaluacionController extends Controller
      */
     protected function resolverAutoevaluacion(string $uuid): Autoevaluacion
     {
-        return Autoevaluacion::where('uuid_trazabilidad', $uuid)
+        return Autoevaluacion::with(['respuestas'])
+            ->where('uuid_trazabilidad', $uuid)
             ->when(is_numeric($uuid), fn ($query) => $query->orWhere('id', (int) $uuid))
             ->firstOrFail();
     }
@@ -1522,5 +1523,60 @@ class EvaluacionController extends Controller
 
         return str_contains($mensaje, 'codigo_acceso')
             || str_contains($mensaje, 'autoevaluaciones_codigo_acceso_unique');
+    }
+
+    public function anexoOficial(string $uuid, Request $request)
+    {
+        $evaluacion = Autoevaluacion::with(['respuestas'])
+            ->where('uuid_trazabilidad', $uuid)
+            ->firstOrFail();
+
+        $numero = $request->query('numero', '4');
+        $esExAnte = in_array(strtoupper($evaluacion->nivel_riesgo ?? ''), ['ALTO', 'MUY ALTO', 'MUY_ALTO']);
+
+        // Mapear condiciones/criterios a partir del checklist o respuestas
+        $condiciones = collect($evaluacion->detalle_checklist ?? [])->map(function ($item) {
+            return [
+                'codigo' => $item['codigo'] ?? '',
+                'nombre' => $item['nombre'] ?? $item['pregunta'] ?? $item['codigo'] ?? '',
+                'estado' => $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE'),
+                'observacion' => $item['observacion'] ?? '',
+                'es_critico' => (bool) ($item['es_critico'] ?? false),
+            ];
+        })->values();
+
+        $cumplen = $condiciones->filter(fn ($c) => in_array($c['estado'], ['CUMPLE', 'CUMPLE_DECLARADO']))->count();
+        $total = $condiciones->count();
+
+        return inertia('Evaluacion/AnexoOficial', [
+            'numero' => (string) $numero,
+            'autoevaluacion' => $evaluacion,
+            'titular' => [
+                'nombre_comercial' => $evaluacion->nombre_comercio ?? '',
+                'razon_social' => $evaluacion->nombre_comercio ?? '',
+                'ruc' => $evaluacion->ruc ?? '',
+                'direccion' => $evaluacion->sector_huancayo ?? '',
+                'giro' => $evaluacion->funcion_economica ?? '',
+            ],
+            'riesgoTramite' => [
+                'nivel_riesgo' => $evaluacion->nivel_riesgo ?? 'MEDIO',
+                'es_ex_ante' => $esExAnte,
+                'tipo_tramite' => $evaluacion->tipo_tramite ?? ($esExAnte ? 'EX_ANTE' : 'EX_POST'),
+            ],
+            'clasificacion' => [
+                'nivel' => $evaluacion->nivel_riesgo ?? 'MEDIO',
+                'es_previa' => $esExAnte,
+            ],
+            'condiciones' => $condiciones,
+            'conteo' => [
+                'total' => $total,
+                'cumple' => $cumplen,
+                'no_cumple' => $total - $cumplen,
+                'porcentaje' => (float) ($evaluacion->porcentaje_cumplimiento ?? 0),
+            ],
+            'codigoDocumento' => 'ITSE-'.substr($evaluacion->uuid_trazabilidad, 0, 8),
+            'fechaEmision' => optional($evaluacion->created_at)->format('d/m/Y') ?? date('d/m/Y'),
+            'urlResumen' => route('autoevaluacion.resumen', ['uuid' => $uuid]),
+        ]);
     }
 }

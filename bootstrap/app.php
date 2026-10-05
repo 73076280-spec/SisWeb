@@ -21,8 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Visitantes que acceden a una ruta protegida (p. ej. Mis Autoevaluaciones)
-        // vuelven al inicio, donde pueden crear o iniciar sesión en su cuenta.
-        $middleware->redirectGuestsTo(fn () => route('autoevaluacion.index'));
+        // llegan a la pantalla canónica de acceso, donde pueden crear una cuenta o
+        // iniciar sesión. Antes se los devolvía al inicio, lo que solo los obligaba
+        // a reabrir el overlay de acceso desde la portada.
+        $middleware->redirectGuestsTo(fn () => route('login'));
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

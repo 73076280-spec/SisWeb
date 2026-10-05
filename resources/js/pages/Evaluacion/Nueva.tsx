@@ -41,6 +41,9 @@ export interface ReevaluacionData {
     tiene_equipos_fritura?: boolean | null;
     tiene_escaleras?: boolean | null;
     tiene_estanterias_altas?: boolean | null;
+    en_sotano?: boolean | null;
+    galeria_sin_itse?: boolean | null;
+    combustibles_liquidos_m3?: number | string | null;
     fecha_anterior?: string;
     semaforo_anterior?: string;
 }
@@ -67,6 +70,9 @@ interface FormEvaluacionData {
     tiene_equipos_fritura: boolean | null;
     tiene_escaleras: boolean | null;
     tiene_estanterias_altas: boolean | null;
+    en_sotano?: boolean | null;
+    galeria_sin_itse?: boolean | null;
+    combustibles_liquidos_m3?: number | string;
     [key: string]: FormDataConvertible;
 }
 
@@ -128,7 +134,9 @@ function precalificarLocalmente(data: FormEvaluacionData): PrecalificacionOrient
     const pisos = aNumero(data.pisos);
     const aforo = aNumero(data.aforo);
     const galones = aNumero(data.galones_glp);
+    const combustiblesM3 = aNumero(data.combustibles_liquidos_m3);
 
+    // 1. Escala física
     if (area !== null && area > AREA_MAXIMA_EX_POST) {
         factores.push(`Área techada de ${area} m², sobre el máximo de ${AREA_MAXIMA_EX_POST} m²`);
     }
@@ -141,19 +149,38 @@ function precalificarLocalmente(data: FormEvaluacionData): PrecalificacionOrient
         factores.push(`Aforo de ${aforo} personas en giro de ${data.funcion_economica.toLowerCase()}, sobre el límite de ${AFORO_MAXIMO_GIRO_ESPECIAL}`);
     }
 
+    // 2. Factores de Riesgo Alto / Muy Alto Obligatorio (D.S. N° 002-2018-PCM / CENEPRED)
+    // 2.1 Tanque de GLP estacionario > 0.45 m³ (118 galones)
     if (data.usa_glp === true && galones !== null && galones > GALONES_MAXIMOS_EX_POST) {
-        factores.push(`GLP declarado de ${galones} galones, sobre el máximo de ${GALONES_MAXIMOS_EX_POST}`);
+        factores.push(`Tanque de GLP estacionario de ${galones} galones (> 0.45 m³ / 118 galones)`);
     }
 
+    // 2.2 Almacenamiento de combustibles líquidos > 1 m³ (264 galones) o reactivos inflamables
+    if ((combustiblesM3 !== null && combustiblesM3 > 1) || data.usa_liquidos_inflamables === true) {
+        factores.push('Almacenamiento de combustibles líquidos > 1 m³ (264 galones) o manipulación de líquidos inflamables');
+    }
+
+    // 2.3 Uso y operación de calderas en el establecimiento
     if (data.usa_caldero === true) {
-        factores.push('Caldero declarado en el establecimiento');
+        factores.push('Uso y operación de calderas en el establecimiento');
+    }
+
+    // 2.4 Actividades de encuentro o reunión situadas en sótano/semisótano (Riesgo Muy Alto)
+    if (data.en_sotano === true) {
+        factores.push('Actividades de encuentro o reunión situadas en sótano o semisótano (Riesgo Muy Alto)');
+    }
+
+    // 2.5 Local en galería o centro comercial sin ITSE vigente en áreas comunes
+    if (data.galeria_sin_itse === true) {
+        factores.push('Local en galería comercial cuyas áreas comunes no cuentan con Certificado ITSE vigente');
     }
 
     if (factores.length > 0) {
+        const esMuyAlto = data.en_sotano === true || (area !== null && area > AREA_MAXIMA_EX_POST);
         return {
             modalidad: 'EX_ANTE',
             titulo: 'ITSE Previa (Ex-Ante)',
-            nivel: area !== null && area > AREA_MAXIMA_EX_POST ? 'Muy Alto' : 'Alto',
+            nivel: esMuyAlto ? 'Muy Alto' : 'Alto',
             factores,
         };
     }
@@ -166,7 +193,7 @@ function precalificarLocalmente(data: FormEvaluacionData): PrecalificacionOrient
         modalidad: 'EX_POST',
         titulo: 'ITSE Posterior (Ex-Post)',
         nivel: area !== null && area > 300 ? 'Medio' : 'Bajo',
-        factores: [`Área techada dentro del rango de hasta ${AREA_MAXIMA_EX_POST} m², hasta ${PISOS_MAXIMOS_EX_POST} pisos y sin factores agravantes`],
+        factores: [`Área techada dentro del rango de hasta ${AREA_MAXIMA_EX_POST} m², hasta ${PISOS_MAXIMOS_EX_POST} pisos y sin factores agravantes obligatorios`],
     };
 }
 
@@ -251,6 +278,9 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
         tiene_equipos_fritura: reevaluacionDe?.tiene_equipos_fritura !== undefined ? reevaluacionDe.tiene_equipos_fritura : null,
         tiene_escaleras: reevaluacionDe?.tiene_escaleras !== undefined ? reevaluacionDe.tiene_escaleras : null,
         tiene_estanterias_altas: reevaluacionDe?.tiene_estanterias_altas !== undefined ? reevaluacionDe.tiene_estanterias_altas : null,
+        en_sotano: reevaluacionDe?.en_sotano !== undefined ? reevaluacionDe.en_sotano : null,
+        galeria_sin_itse: reevaluacionDe?.galeria_sin_itse !== undefined ? reevaluacionDe.galeria_sin_itse : null,
+        combustibles_liquidos_m3: reevaluacionDe?.combustibles_liquidos_m3 != null ? reevaluacionDe.combustibles_liquidos_m3 : '',
     });
 
     const precalificacion = precalificarLocalmente(data);
@@ -920,7 +950,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                     )}
                                 </div>
 
-                                {/* Condiciones adicionales secundarias */}
+                                {/* Condiciones adicionales y factores de triaje (D.S. N° 002-2018-PCM) */}
                                 <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     {/* Caldero */}
                                     <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
@@ -929,7 +959,7 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                                 ¿Cuenta con caldero?
                                             </span>
                                             <span id="desc-usa_caldero" className="text-xs text-slate-500">
-                                                Calderas industriales o de vapor.
+                                                Calderas industriales o de vapor (Riesgo Alto obligatorio).
                                             </span>
                                         </div>
                                         <SelectorSiNo
@@ -944,17 +974,56 @@ export default function Nueva({ reevaluacionDe = null }: NuevaProps) {
                                     <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
                                         <div>
                                             <span id="label-usa_liquidos_inflamables" className="text-xs font-bold text-slate-800 block">
-                                                ¿Almacena líquidos o reactivos inflamables?
+                                                ¿Almacena combustibles o líquidos inflamables?
                                             </span>
                                             <span id="desc-usa_liquidos_inflamables" className="text-xs text-slate-500">
-                                                Thinner, pinturas, solventes o combustibles.
+                                                Combustibles &gt; 1 m³ (264 gal) o solventes/pinturas.
                                             </span>
                                         </div>
                                         <SelectorSiNo
                                             etiquetaId="label-usa_liquidos_inflamables"
                                             descripcionId="desc-usa_liquidos_inflamables"
                                             valor={data.usa_liquidos_inflamables}
-                                            onSeleccion={valor => setData('usa_liquidos_inflamables', valor)}
+                                            onSeleccion={valor => {
+                                                setData('usa_liquidos_inflamables', valor);
+                                                if (!valor) setData('combustibles_liquidos_m3', '');
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Actividades en Sótano o Semisótano */}
+                                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
+                                        <div>
+                                            <span id="label-en_sotano" className="text-xs font-bold text-slate-800 block">
+                                                ¿Actividad o reunión en sótano/semisótano?
+                                            </span>
+                                            <span id="desc-en_sotano" className="text-xs text-slate-500">
+                                                Encuentro o concurrencia bajo nivel de calle (Riesgo Muy Alto).
+                                            </span>
+                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-en_sotano"
+                                            descripcionId="desc-en_sotano"
+                                            valor={data.en_sotano}
+                                            onSeleccion={valor => setData('en_sotano', valor)}
+                                        />
+                                    </div>
+
+                                    {/* Galería Comercial sin ITSE Matriz */}
+                                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between gap-2">
+                                        <div>
+                                            <span id="label-galeria_sin_itse" className="text-xs font-bold text-slate-800 block">
+                                                ¿Galería comercial sin ITSE en áreas comunes?
+                                            </span>
+                                            <span id="desc-galeria_sin_itse" className="text-xs text-slate-500">
+                                                Si las áreas comunes no tienen ITSE, el local pasa a ITSE Previa.
+                                            </span>
+                                        </div>
+                                        <SelectorSiNo
+                                            etiquetaId="label-galeria_sin_itse"
+                                            descripcionId="desc-galeria_sin_itse"
+                                            valor={data.galeria_sin_itse}
+                                            onSeleccion={valor => setData('galeria_sin_itse', valor)}
                                         />
                                     </div>
                                 </div>

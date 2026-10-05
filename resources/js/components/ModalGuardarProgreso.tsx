@@ -1,23 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { router } from '@inertiajs/react';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  Loader2,
-  LogIn,
-  Save,
-  UserPlus,
-  X,
-} from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { AlertTriangle, CheckCircle2, Info, Loader2, LogIn, UserPlus } from 'lucide-react';
+import AuthLayout from '@/layouts/AuthLayout';
 
 type Pestania = 'crear' | 'iniciar';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  uuid?: string | null;
+  /** Autoevaluación cuyo avance se quiere conservar. Obligatorio: este modal solo
+   *  existe para el contexto de pausar una autoevaluación, no como acceso genérico
+   *  a la cuenta. El acceso genérico vive en las rutas `/login` y `/registro`. */
+  uuid: string;
   establecimiento?: string | null;
   destino?: 'checklist' | 'resumen' | null;
 }
@@ -28,10 +23,24 @@ function obtenerCsrf(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
 }
 
+/**
+ * Aviso de pausa con guardado de avance.
+ *
+ * Antes de la Fase 1 este componente también era la pantalla de acceso a la cuenta
+ * del Navbar, montada con `uuid={null}`: login, registro y vinculación ocurrían
+ * sobre un overlay sin URL. Ese caso ya no existe; el acceso a la cuenta se
+ * resuelve en `/login` y `/registro`, y aquí solo queda la decisión contextual de
+ * pausar el checklist para conservar el avance.
+ *
+ * El formulario de acceso se mantiene embebido a propósito: interrumpir el flujo
+ * con un viaje a otra pantalla obligaría al ciudadano a transporting el estado del
+ * formulario para volver. Quien prefiera la pantalla completa tiene los enlaces
+ * visibles al pie.
+ */
 export const ModalGuardarProgreso: React.FC<Props> = ({
   isOpen,
   onClose,
-  uuid = null,
+  uuid,
   establecimiento = null,
   destino = null,
 }) => {
@@ -110,32 +119,22 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
         return;
       }
 
-      if (uuid) {
-        const payloadVincular: { uuid: string; destino?: string } = { uuid };
-        if (destino) {
-          payloadVincular.destino = destino;
-        }
-
-        router.post(
-          '/autoevaluacion/vincular-cuenta',
-          payloadVincular,
-          {
-            preserveScroll: true,
-            onSuccess: () => {
-              setGuardado(true);
-              setCargando(false);
-            },
-            onError: err => {
-              setCargando(false);
-              setError(Object.values(err)[0] ?? 'No pudimos guardar tu autoevaluación. Inténtalo nuevamente.');
-            },
-          }
-        );
-      } else {
-        router.reload({ only: ['auth'] });
-        setGuardado(true);
-        setCargando(false);
+      const payloadVincular: { uuid: string; destino?: string } = { uuid };
+      if (destino) {
+        payloadVincular.destino = destino;
       }
+
+      router.post('/autoevaluacion/vincular-cuenta', payloadVincular, {
+        preserveScroll: true,
+        onSuccess: () => {
+          setGuardado(true);
+          setCargando(false);
+        },
+        onError: err => {
+          setCargando(false);
+          setError(Object.values(err)[0] ?? 'No pudimos guardar tu autoevaluación. Inténtalo nuevamente.');
+        },
+      });
     } catch (err) {
       setError(
         err instanceof Error && err.message === 'Failed to fetch'
@@ -147,248 +146,271 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
   };
 
   const classeInput =
-    'w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm font-medium placeholder:text-neutral-400 focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20 outline-none';
+    'w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none';
+
+  const classeBotonEnvio =
+    'flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50';
+
+  /* Contenido de la tarjeta blanca: el shell dark y la mitad institucional
+     los aporta `AuthLayout`, que se reutiliza tal cual en la variante modal. */
+  const contenido = (
+    <>
+      {/* Cabecera */}
+      <div className="mb-5 border-b border-slate-100 pb-4">
+        <h2 id="guardar-progreso-titulo" className="text-lg font-bold text-slate-900">
+          Pausar y guardar mi avance
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">Conserva tu avance y retómalo cuando quieras</p>
+      </div>
+
+      {guardado ? (
+        /* -------- Estado de éxito -------- */
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50">
+            <CheckCircle2 className="h-7 w-7 text-emerald-600" aria-hidden="true" />
+          </div>
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900">Tu autoevaluación se guardó correctamente</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+              Ya puedes continuar tu autoevaluación y consultar tu progreso cuando lo necesites desde
+              &quot;Mis autoevaluaciones&quot;.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Link
+              href="/mis-autoevaluaciones"
+              onClick={onClose}
+              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:outline-none"
+            >
+              Ver mis autoevaluaciones
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-none"
+            >
+              Entendido, continuar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Aclaración: invitado vs cuenta */}
+          <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-700">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+            <p>
+              Puedes completar tu autoevaluación sin crear una cuenta. Si creas o inicias sesión, guardaremos
+              este avance en tu cuenta y podrás retomarlo cuando quieras.
+            </p>
+          </div>
+
+          {establecimiento && (
+            <p className="text-left text-xs text-slate-500">
+              Guardarás el avance de <strong className="text-slate-800">{establecimiento}</strong>. Si
+              continúas como invitado, conserva el enlace de seguimiento de esta autoevaluación.
+            </p>
+          )}
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-left text-red-800"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Pestañas / Selector de Modo */}
+          <div
+            role="group"
+            aria-label="Modo de autenticación para guardar avance"
+            className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"
+          >
+            <button
+              type="button"
+              aria-pressed={pestania === 'crear'}
+              onClick={() => setPestania('crear')}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${
+                pestania === 'crear' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+              Crear cuenta
+            </button>
+            <button
+              type="button"
+              aria-pressed={pestania === 'iniciar'}
+              onClick={() => setPestania('iniciar')}
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none ${
+                pestania === 'iniciar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+              Ya tengo cuenta
+            </button>
+          </div>
+
+          <form onSubmit={manejarEnvio} className="space-y-3">
+            {pestania === 'crear' && (
+              <div>
+                <label
+                  htmlFor="progreso-nombre"
+                  className="mb-1 block text-xs font-bold tracking-wider text-slate-500 uppercase"
+                >
+                  Nombre y apellido
+                </label>
+                <input
+                  id="progreso-nombre"
+                  type="text"
+                  required
+                  value={nombre}
+                  onChange={e => setNombre(e.target.value)}
+                  placeholder="Ej. Ana Quispe"
+                  autoComplete="name"
+                  className={classeInput}
+                />
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="progreso-email"
+                className="mb-1 block text-xs font-bold tracking-wider text-slate-500 uppercase"
+              >
+                Correo electrónico
+              </label>
+              <input
+                id="progreso-email"
+                type="email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="tucorreo@ejemplo.com"
+                autoComplete="email"
+                className={classeInput}
+              />
+            </div>
+
+            {pestania === 'crear' && (
+              <div>
+                <label
+                  htmlFor="progreso-telefono"
+                  className="mb-1 block text-xs font-bold tracking-wider text-slate-500 uppercase"
+                >
+                  Teléfono (opcional)
+                </label>
+                <input
+                  id="progreso-telefono"
+                  type="tel"
+                  value={telefono}
+                  onChange={e => setTelefono(e.target.value)}
+                  placeholder="Ej. 987 654 321"
+                  autoComplete="tel"
+                  className={classeInput}
+                />
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="progreso-password"
+                className="mb-1 block text-xs font-bold tracking-wider text-slate-500 uppercase"
+              >
+                Contraseña
+              </label>
+              <input
+                id="progreso-password"
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                autoComplete={pestania === 'crear' ? 'new-password' : 'current-password'}
+                className={classeInput}
+              />
+            </div>
+
+            <button type="submit" disabled={cargando} className={classeBotonEnvio}>
+              {cargando ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Guardando...
+                </>
+              ) : pestania === 'crear' ? (
+                <>
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
+                  Crear cuenta y guardar progreso
+                </>
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4" aria-hidden="true" />
+                  Iniciar sesión y guardar progreso
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="pt-1 text-center">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 rounded-md text-sm font-semibold text-slate-500 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-none"
+            >
+              Continuar como invitado
+            </button>
+          </div>
+
+          <p className="text-center text-xs leading-relaxed text-slate-400">
+            Al crear tu cuenta, tus autoevaluaciones se conservan de forma segura y podrás retomarlas
+            cuando desees.
+          </p>
+
+          {/* El acceso a la cuenta también vive en rutas canónicas: quien prefiera
+              una pantalla completa, con URL propia y navegación de navegador, las
+              tiene disponibles sin perder el enlace de seguimiento del local. */}
+          <p className="border-t border-slate-100 pt-3 text-center text-xs text-slate-500">
+            ¿Prefieres la pantalla completa?{' '}
+            <Link
+              href="/login"
+              onClick={onClose}
+              className="rounded font-semibold text-emerald-700 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+            >
+              Iniciar sesión
+            </Link>{' '}
+            o{' '}
+            <Link
+              href="/registro"
+              onClick={onClose}
+              className="rounded font-semibold text-emerald-700 underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+            >
+              crear una cuenta
+            </Link>
+            .
+          </p>
+        </div>
+      )}
+    </>
+  );
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-0 backdrop-blur-sm sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="guardar-progreso-titulo"
     >
-      <div className="bg-white w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-7 shadow-2xl border border-neutral-100 text-left">
-
-        {/* Cabecera */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-100 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-primary-50 text-primary-600 rounded-xl border border-primary-100">
-              <Save className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 id="guardar-progreso-titulo" className="text-base font-bold text-neutral-900">
-                Guardar mi progreso
-              </h3>
-              <span className="text-xs text-neutral-500">
-                {uuid ? 'Conserva tu avance y retómalo cuando quieras' : 'Crea o inicia tu cuenta'}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 flex items-center justify-center text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-            aria-label="Cerrar"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {guardado ? (
-          /* -------- Estado de éxito -------- */
-          <div className="space-y-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-success-50 border border-success-200 flex items-center justify-center text-success-600">
-              <CheckCircle2 className="w-7 h-7" />
-            </div>
-            <div>
-              <h4 className="text-base font-extrabold text-neutral-900">
-                {uuid ? 'Tu autoevaluación se guardó correctamente' : 'Sesión iniciada correctamente'}
-              </h4>
-              <p className="text-sm text-neutral-600 mt-1.5 leading-relaxed">
-                {uuid
-                  ? 'Ahora puedes continuar y consultar tu progreso cuando lo necesites desde "Mis autoevaluaciones".'
-                  : 'Tus autoevaluaciones quedarán guardadas en tu cuenta.'}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <a
-                href="/mis-autoevaluaciones"
-                className="w-full py-3 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              >
-                Ver mis autoevaluaciones
-              </a>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-3 rounded-2xl bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-200 text-sm font-semibold transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              >
-                Entendido, continuar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Aclaración: invitado vs cuenta */}
-            <div className="rounded-2xl bg-info-50/70 border border-info-100 p-3.5 text-sm text-neutral-700 leading-relaxed flex items-start gap-2">
-              <Info className="w-4 h-4 text-info-600 shrink-0 mt-0.5" />
-              <p>
-                {uuid
-                  ? 'Puedes completar tu autoevaluación sin crear una cuenta. Si creas o inicias sesión, guardaremos este avance en tu cuenta y podrás retomarlo cuando quieras.'
-                  : 'Puedes usar CheckITSE sin registrarte. Si creas o inicias sesión, tus autoevaluaciones quedarán guardadas en tu cuenta.'}
-              </p>
-            </div>
-
-            {establecimiento && (
-              <p className="text-xs text-neutral-500 text-left">
-                Guardarás el avance de <strong className="text-neutral-800">{establecimiento}</strong>.
-                Si continúas como invitado, conserva el enlace de seguimiento de esta autoevaluación.
-              </p>
-            )}
-
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 p-3 rounded-2xl bg-danger-50 border border-danger-200 text-sm text-danger-800 font-medium text-left"
-              >
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Pestañas / Selector de Modo */}
-            <div
-              role="group"
-              aria-label="Modo de autenticación para guardar avance"
-              className="grid grid-cols-2 gap-2 p-1 bg-neutral-100 rounded-2xl"
-            >
-              <button
-                type="button"
-                aria-pressed={pestania === 'crear'}
-                onClick={() => setPestania('crear')}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                  pestania === 'crear'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-neutral-500 hover:text-neutral-700'
-                }`}
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                Crear cuenta
-              </button>
-              <button
-                type="button"
-                aria-pressed={pestania === 'iniciar'}
-                onClick={() => setPestania('iniciar')}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                  pestania === 'iniciar'
-                    ? 'bg-white text-primary-700 shadow-xs'
-                    : 'text-neutral-500 hover:text-neutral-700'
-                }`}
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                Ya tengo cuenta
-              </button>
-            </div>
-
-            <form onSubmit={manejarEnvio} className="space-y-3">
-              {pestania === 'crear' && (
-                <div>
-                  <label htmlFor="progreso-nombre" className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">
-                    Nombre y apellido
-                  </label>
-                  <input
-                    id="progreso-nombre"
-                    type="text"
-                    required
-                    value={nombre}
-                    onChange={e => setNombre(e.target.value)}
-                    placeholder="Ej. Ana Quispe"
-                    autoComplete="name"
-                    className={classeInput}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="progreso-email" className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">
-                  Correo electrónico
-                </label>
-                <input
-                  id="progreso-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="tucorreo@ejemplo.com"
-                  autoComplete="email"
-                  className={classeInput}
-                />
-              </div>
-
-              {pestania === 'crear' && (
-                <div>
-                  <label htmlFor="progreso-telefono" className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">
-                    Teléfono (opcional)
-                  </label>
-                  <input
-                    id="progreso-telefono"
-                    type="tel"
-                    value={telefono}
-                    onChange={e => setTelefono(e.target.value)}
-                    placeholder="Ej. 987 654 321"
-                    autoComplete="tel"
-                    className={classeInput}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="progreso-password" className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">
-                  Contraseña
-                </label>
-                <input
-                  id="progreso-password"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
-                  autoComplete={pestania === 'crear' ? 'new-password' : 'current-password'}
-                  className={classeInput}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={cargando}
-                className="w-full py-3 rounded-2xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold transition active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-              >
-                {cargando ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Guardando...
-                  </>
-                ) : pestania === 'crear' ? (
-                  <>
-                    <UserPlus className="w-4 h-4" />
-                    Crear cuenta y guardar progreso
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    Iniciar sesión y guardar progreso
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="pt-1 text-center">
-              <button
-                type="button"
-                onClick={onClose}
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-500 hover:text-neutral-700 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-md"
-              >
-                {uuid ? 'Continuar como invitado' : 'Continuar sin cuenta'}
-              </button>
-            </div>
-
-            <p className="text-xs text-neutral-400 text-center leading-relaxed">
-              Al crear tu cuenta, tus autoevaluaciones se conservan de forma segura y podrás
-              retomarlas cuando desees.
-            </p>
-          </div>
-        )}
-      </div>
+      <AuthLayout
+        variant="modal"
+        onCerrar={onClose}
+        badge="Guarda tu avance sin costo"
+        titulo="Gestiona el diagnóstico preventivo de tu negocio"
+        subtitulo="Accede a tus evaluaciones guardadas, genera borradores oficiales de Anexos ITSE y prepara tu local antes de la diligencia municipal."
+      >
+        <div className="mx-auto max-h-[85vh] overflow-y-auto sm:max-h-[80vh]">{contenido}</div>
+      </AuthLayout>
     </div>,
     document.body,
   );

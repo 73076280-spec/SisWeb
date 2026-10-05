@@ -15,8 +15,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Si una ejecución anterior quedó incompleta (SQLite no revierte DDL), se
-        // descartan las copias parciales; las tablas originales siguen siendo la fuente.
+        // Si una ejecución anterior quedó incompleta, se descartan las copias
+        // parciales; las tablas originales siguen siendo la fuente.
         Schema::dropIfExists('subsanaciones');
         Schema::dropIfExists('simulaciones_revision');
         Schema::dropIfExists('autoevaluaciones');
@@ -151,13 +151,9 @@ return new class extends Migration
                 ->toArray()
         );
 
-        $this->sincronizarSecuencias();
-
-        // Normaliza códigos heredados del formato "ACTA-ITSE-..." al formato
-        // preventivo "PREV-ITSE-..." para que ningún registro parezca un acta oficial.
         DB::statement(
             "UPDATE simulaciones_revision
-             SET codigo_revision = 'PREV-ITSE-' || substr(codigo_revision, 11)
+             SET codigo_revision = CONCAT('PREV-ITSE-', SUBSTRING(codigo_revision, 11))
              WHERE codigo_revision LIKE 'ACTA-ITSE-%'"
         );
 
@@ -260,24 +256,8 @@ return new class extends Migration
                 ->get()->map(fn ($row) => (array) $row)->toArray()
         );
 
-        $this->sincronizarSecuencias();
-
         Schema::dropIfExists('subsanaciones');
         Schema::dropIfExists('simulaciones_revision');
         Schema::dropIfExists('autoevaluaciones');
-    }
-
-    private function sincronizarSecuencias(): void
-    {
-        foreach (['autoevaluaciones', 'simulaciones_revision', 'subsanaciones'] as $tabla) {
-            DB::statement(
-                "UPDATE sqlite_sequence SET seq = (SELECT COALESCE(MAX(id), 0) FROM {$tabla}) WHERE name = '{$tabla}'"
-            );
-            DB::statement(
-                "INSERT INTO sqlite_sequence (name, seq)
-                 SELECT '{$tabla}', (SELECT COALESCE(MAX(id), 0) FROM {$tabla})
-                 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = '{$tabla}')"
-            );
-        }
     }
 };

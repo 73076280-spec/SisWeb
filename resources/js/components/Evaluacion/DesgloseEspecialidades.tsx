@@ -1,6 +1,7 @@
 import React from 'react';
+import { Link } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
-import { Building2, Flame, Layers, Zap } from 'lucide-react';
+import { Building2, Flame, Layers, Wrench, Zap } from 'lucide-react';
 
 import type { DesgloseEspecialidades, EspecialidadDesglose } from '@/types/contrato';
 
@@ -97,11 +98,24 @@ export function DesgloseEspecialidades({
               </span>
             )}
 
-            <span
-              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${enOrden ? BADGE_EN_ORDEN : BADGE_ALERTA}`}
-            >
-              {enOrden ? 'En orden' : mensajeAlerta(grupo.alertas)}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${enOrden ? BADGE_EN_ORDEN : BADGE_ALERTA}`}
+              >
+                {enOrden ? 'En orden' : mensajeAlerta(grupo.alertas)}
+              </span>
+
+              {!enOrden && (
+                <Link
+                  href={route('directorio.index', { especialidad: clave })}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors shadow-2xs"
+                  title={`Ver especialistas de ${grupo.nombre} en el Directorio Cívico`}
+                >
+                  <Wrench className="h-3 w-3 text-slate-500" />
+                  <span>Especialistas</span>
+                </Link>
+              )}
+            </div>
           </li>
         );
       })}

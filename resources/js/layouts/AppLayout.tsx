@@ -1,5 +1,5 @@
 ﻿import { Navbar } from '@/components/Navbar';
-import { FooterLegal } from '@/components/FooterLegal';
+import Footer from '@/components/Footer';
 
 interface AppLayoutProps {
     children: React.ReactNode;
@@ -27,8 +27,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {children}
             </main>
 
+            {/* Pie único de la aplicación. Las páginas no deben renderizar su
+                propio `Footer`: el marco normativo y el deslinde legal ya viven
+                aquí, de modo que no se dupliquen entre Home y Directorio. */}
             <div className="print:hidden">
-                <FooterLegal />
+                <Footer />
             </div>
         </div>
     );

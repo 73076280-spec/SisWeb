@@ -42,6 +42,7 @@ Route::post('/autoevaluacion/reevaluar/{uuid}', [EvaluacionController::class, 's
 
 // Informe preventivo orientativo (descargable / imprimible)
 Route::get('/autoevaluacion/informe/{uuid}', [EvaluacionController::class, 'informe'])->name('autoevaluacion.informe');
+Route::get('/autoevaluacion/anexo/{uuid}', [EvaluacionController::class, 'anexoOficial'])->name('autoevaluacion.anexo');
 
 // Cuenta ciudadana opcional (registro/conversión de invitado sin fricción)
 Route::post('/autoevaluacion/vincular-cuenta', [EvaluacionController::class, 'vincularCuenta'])
@@ -52,8 +53,13 @@ Route::get('/mis-autoevaluaciones', [EvaluacionController::class, 'misEvaluacion
     ->name('mis-autoevaluaciones');
 
 // Autenticación liviana
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login');
-Route::post('/registro', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('registro');
+// Autenticación liviana
+Route::get('/login', fn () => inertia('Auth/Login'))->name('login');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+
+Route::get('/registro', fn () => inertia('Auth/Register'))->name('register');
+Route::post('/registro', [AuthController::class, 'register'])->middleware('throttle:5,1');
+
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/usuario', [AuthController::class, 'user'])->name('usuario');
 
