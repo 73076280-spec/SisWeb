@@ -1,11 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
-import { LogOut, Menu, ShieldCheck, Sparkles, Store, UserRound, X } from 'lucide-react';
+import {
+    LayoutDashboard,
+    LogOut,
+    Menu,
+    PlusCircle,
+    ShieldCheck,
+    Sparkles,
+    Store,
+    UserRound,
+    X,
+} from 'lucide-react';
 
 interface Usuario {
-    id: number;
-    name: string;
-    email: string;
+    readonly id: number;
+    readonly name: string;
+    readonly email: string;
 }
 
 /**
@@ -15,6 +25,7 @@ interface Usuario {
  * navegación Inertia hacia la portada.
  */
 const ANCLAS_PORTADA = [
+    { id: 'que-es', etiqueta: '¿Qué es?' },
     { id: 'como-funciona', etiqueta: 'Cómo funciona' },
     { id: 'beneficios', etiqueta: 'Beneficios' },
     { id: 'normativa', etiqueta: 'Normativa' },
@@ -52,13 +63,37 @@ export const Navbar: React.FC = () => {
         setMenuAbierto(false);
     };
 
-    const esInicio = url === '/' || url.startsWith('/autoevaluacion');
-    const esPortada = url === '/';
+    // Determinación de estado activo mediante Ziggy
+    const esInicio = Boolean(route().current('autoevaluacion.index'));
+    const esNuevoLocal = Boolean(route().current('autoevaluacion.nueva'));
+    const esAliados = Boolean(route().current('directorio.index') || route().current('directorio.*'));
+    const esPanel = Boolean(route().current('dashboard') || route().current('mis-autoevaluaciones*'));
+    const esMiCuenta = Boolean(route().current('perfil.show') || route().current('perfil.*'));
 
-    const hrefAncla = (id: string) => (esPortada ? `#${id}` : `/#${id}`);
+    const hrefAncla = (id: string) => (esInicio ? `#${id}` : `/#${id}`);
+
+    let claseInicio = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
+    if (esInicio) {
+        claseInicio = 'bg-primary-50 text-primary-700';
+    }
+
+    let claseNuevoLocal = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
+    if (esNuevoLocal) {
+        claseNuevoLocal = 'bg-primary-50 text-primary-700';
+    }
+
+    let claseAliados = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
+    if (esAliados) {
+        claseAliados = 'bg-primary-50 text-primary-700';
+    }
+
+    let clasePanel = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
+    if (esPanel) {
+        clasePanel = 'bg-primary-50 text-primary-700';
+    }
 
     return (
-        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/70 shadow-sm">
+        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/70 shadow-sm print:hidden">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 sm:gap-4">
                 <Link
                     href={route('autoevaluacion.index')}
@@ -71,7 +106,7 @@ export const Navbar: React.FC = () => {
                     <div className="flex items-baseline gap-1.5">
                         <span className="text-base sm:text-lg font-bold tracking-tight text-neutral-900">CheckITSE</span>
                         <span className="hidden sm:inline-flex text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-100">
-                            Huancayo
+                            Ciudadano
                         </span>
                     </div>
                 </Link>
@@ -80,49 +115,60 @@ export const Navbar: React.FC = () => {
                 <nav className="hidden lg:flex items-center gap-1" aria-label="Navegación principal">
                     <Link
                         href={route('autoevaluacion.index')}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                            esInicio
-                                ? 'bg-primary-50 text-primary-700'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                        }`}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseInicio}`}
                     >
                         Inicio
                     </Link>
-                    {ANCLAS_PORTADA.map(ancla => (
-                        <a
-                            key={ancla.id}
-                            href={hrefAncla(ancla.id)}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    {esInicio &&
+                        ANCLAS_PORTADA.map(ancla => (
+                            <a
+                                key={ancla.id}
+                                href={hrefAncla(ancla.id)}
+                                className="px-3 py-2 rounded-xl text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            >
+                                {ancla.etiqueta}
+                            </a>
+                        ))}
+
+                    {usuario && (
+                        <Link
+                            href={route('dashboard')}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${clasePanel}`}
                         >
-                            {ancla.etiqueta}
-                        </a>
-                    ))}
+                            Mi Panel
+                        </Link>
+                    )}
+
+                    <Link
+                        href={route('directorio.index')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseAliados}`}
+                    >
+                        Aliados Técnicos
+                    </Link>
+
+                    <Link
+                        href={route('autoevaluacion.nueva')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseNuevoLocal}`}
+                    >
+                        Nuevo Local
+                    </Link>
                 </nav>
 
                 {usuario ? (
-                    <div className="hidden lg:flex items-center gap-3">
+                    <div className="hidden lg:flex items-center gap-2.5">
                         <Link
-                            href={route('directorio.index')}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            href={route('perfil.show')}
+                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                                esMiCuenta
+                                    ? 'bg-primary-100 text-primary-800 border-primary-300'
+                                    : 'text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border-primary-100'
+                            }`}
                         >
-                            <Store className="w-3.5 h-3.5" />
-                            Directorio Técnico
-                        </Link>
-
-                        <Link
-                            href={route('mis-autoevaluaciones')}
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-100 px-3 py-2 rounded-xl transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                        >
-                            <UserRound className="w-3.5 h-3.5" />
-                            Mis Autoevaluaciones
-                        </Link>
-
-                        <span className="flex items-center gap-1.5 text-xs font-semibold text-neutral-600 max-w-[140px] truncate">
-                            <span className="w-6 h-6 shrink-0 rounded-full bg-primary-700 text-white text-[10px] font-bold flex items-center justify-center">
+                            <span className="w-5 h-5 shrink-0 rounded-full bg-primary-700 text-white text-[10px] font-bold flex items-center justify-center">
                                 {usuario.name.charAt(0).toUpperCase()}
                             </span>
-                            {usuario.name}
-                        </span>
+                            <span>Mi Cuenta</span>
+                        </Link>
 
                         <button
                             type="button"
@@ -158,8 +204,8 @@ export const Navbar: React.FC = () => {
                     onClick={cerraMenu}
                     className="lg:hidden inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2.5 text-[11px] font-bold text-white shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Empezar
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    Nuevo Local
                 </Link>
 
                 {/* Botón de menú colapsable */}
@@ -186,59 +232,64 @@ export const Navbar: React.FC = () => {
                     <Link
                         href={route('autoevaluacion.index')}
                         onClick={cerraMenu}
-                        className={`block px-3.5 py-2.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
-                            esInicio
-                                ? 'bg-primary-50 text-primary-700'
-                                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
-                        }`}
+                        className={`block px-3.5 py-2.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseInicio}`}
                     >
                         Inicio
                     </Link>
-                    {ANCLAS_PORTADA.map(ancla => (
-                        <a
-                            key={ancla.id}
-                            href={hrefAncla(ancla.id)}
+                    {esInicio &&
+                        ANCLAS_PORTADA.map(ancla => (
+                            <a
+                                key={ancla.id}
+                                href={hrefAncla(ancla.id)}
+                                onClick={cerraMenu}
+                                className="block px-3.5 py-2.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            >
+                                {ancla.etiqueta}
+                            </a>
+                        ))}
+
+                    {usuario && (
+                        <Link
+                            href={route('dashboard')}
                             onClick={cerraMenu}
-                            className="block px-3.5 py-2.5 rounded-xl text-xs font-bold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${clasePanel}`}
                         >
-                            {ancla.etiqueta}
-                        </a>
-                    ))}
+                            <LayoutDashboard className="w-4 h-4 text-slate-500" />
+                            Mi Panel
+                        </Link>
+                    )}
 
                     <Link
                         href={route('directorio.index')}
                         onClick={cerraMenu}
-                        className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseAliados}`}
                     >
                         <Store className="w-4 h-4" />
-                        Directorio Técnico
-                    </Link>
-
-                    <Link
-                        href={route('autoevaluacion.nueva')}
-                        onClick={cerraMenu}
-                        className="mt-1 flex items-center justify-center gap-2 w-full px-3.5 py-3 rounded-xl text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                        Simular mi local gratis
+                        Aliados Técnicos
                     </Link>
 
                     {usuario ? (
                         <>
-                            <div className="flex items-center gap-2 px-3.5 py-2">
-                                <span className="w-7 h-7 shrink-0 rounded-full bg-primary-700 text-white text-[11px] font-bold flex items-center justify-center">
-                                    {usuario.name.charAt(0).toUpperCase()}
-                                </span>
-                                <span className="text-xs font-semibold text-neutral-700 truncate">{usuario.name}</span>
+                            <div className="border-t border-slate-100 my-2 pt-2">
+                                <Link
+                                    href={route('perfil.show')}
+                                    onClick={cerraMenu}
+                                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition"
+                                >
+                                    <span className="w-7 h-7 shrink-0 rounded-full bg-primary-700 text-white text-[11px] font-bold flex items-center justify-center">
+                                        {usuario.name.charAt(0).toUpperCase()}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <span className="block text-xs font-bold text-neutral-900 truncate">
+                                            {usuario.name}
+                                        </span>
+                                        <span className="block text-[10px] text-primary-700 font-semibold">
+                                            Mi Cuenta
+                                        </span>
+                                    </div>
+                                </Link>
                             </div>
-                            <Link
-                                href={route('mis-autoevaluaciones')}
-                                onClick={cerraMenu}
-                                className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold text-primary-700 hover:bg-primary-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                            >
-                                <UserRound className="w-4 h-4" />
-                                Mis Autoevaluaciones
-                            </Link>
+
                             <button
                                 type="button"
                                 onClick={cerrarSesion}
@@ -250,22 +301,24 @@ export const Navbar: React.FC = () => {
                         </>
                     ) : (
                         <>
-                            <Link
-                                href={route('login')}
-                                onClick={cerraMenu}
-                                className="flex w-full items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                            >
-                                <UserRound className="w-4 h-4" />
-                                Iniciar Sesión
-                            </Link>
-                            <Link
-                                href={route('register')}
-                                onClick={cerraMenu}
-                                className="flex w-full items-center gap-2 rounded-xl bg-primary-600 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                            >
-                                <Sparkles className="w-4 h-4" />
-                                Crear Cuenta
-                            </Link>
+                            <div className="border-t border-slate-100 my-2 pt-2 space-y-2">
+                                <Link
+                                    href={route('login')}
+                                    onClick={cerraMenu}
+                                    className="flex w-full items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                >
+                                    <UserRound className="w-4 h-4" />
+                                    Iniciar Sesión
+                                </Link>
+                                <Link
+                                    href={route('register')}
+                                    onClick={cerraMenu}
+                                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                >
+                                    <Sparkles className="w-4 h-4" />
+                                    Crear Cuenta
+                                </Link>
+                            </div>
                         </>
                     )}
                 </nav>
@@ -273,3 +326,5 @@ export const Navbar: React.FC = () => {
         </header>
     );
 };
+
+export default Navbar;
