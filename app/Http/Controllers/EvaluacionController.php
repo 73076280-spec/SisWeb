@@ -164,11 +164,13 @@ class EvaluacionController extends Controller
         ]);
     }
 
-    public function simulacionRevision(string $uuid): Response
+    public function simulacionRevision(Request $request, string $uuid): Response
     {
         $autoevaluacion = Autoevaluacion::with(['simulaciones.subsanaciones'])
             ->where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
+
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
 
         return Inertia::render('Evaluacion/SimulacionRevision', [
             'autoevaluacion' => $autoevaluacion,
@@ -178,6 +180,7 @@ class EvaluacionController extends Controller
     public function guardarSimulacion(Request $request, string $uuid): RedirectResponse
     {
         $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
 
         $validated = $request->validate([
             'verificaciones' => 'required|array',
