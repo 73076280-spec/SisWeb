@@ -1,4 +1,3 @@
-import { Navbar } from '@/components/Navbar';
 import { CryptoSealBadge } from '@/components/shared/CryptoSealBadge';
 import { CATEGORIA_LABELS, CHECKLIST_CATALOGO_OFICIAL, type CategoriaChecklist } from '@/data/checklistCatalogo';
 import { Head, Link } from '@inertiajs/react';
@@ -21,7 +20,6 @@ import {
     Layers,
     MapPin,
     MinusCircle,
-    Printer,
     Ruler,
     Scale,
     ShieldCheck,
@@ -285,50 +283,37 @@ export default function InformePreventivo({
     const tieneSubsanaciones = matrizSubsanaciones.length > 0;
 
     return (
-        <div className="flex min-h-screen flex-col justify-between bg-slate-100 font-sans text-slate-900 antialiased print:bg-white print:py-0">
+        <div className="mx-auto w-full max-w-3xl space-y-6">
             <Head
                 title={`${
                     esReevaluacion ? 'Informe Preventivo Reevaluación' : 'Informe de Autoevaluación Preventiva ITSE'
                 } - ${autoevaluacion.nombre_comercio}`}
             />
 
-            {/* Barra de navegación — oculta al imprimir */}
-            <div className="print:hidden">
-                <Navbar />
+            {/* Acciones de pantalla */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Link
+                    href={urlSeguimiento}
+                    className="flex items-center gap-1 text-xs font-bold text-slate-600 transition-colors hover:text-slate-900"
+                >
+                    <ArrowLeft className="h-4 w-4" /> Volver al Resultado
+                </Link>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <a
+                        href={urlSeguimiento}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
+                    >
+                        <span>Gestionar subsanaciones en la plataforma</span>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                </div>
             </div>
 
-            <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-10 print:max-w-none print:p-0">
-                {/* Acciones de pantalla — ocultas al imprimir */}
-                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-                    <Link
-                        href={urlSeguimiento}
-                        className="flex items-center gap-1 text-xs font-bold text-slate-600 transition-colors hover:text-slate-900"
-                    >
-                        <ArrowLeft className="h-4 w-4" /> Volver al Resultado
-                    </Link>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        <a
-                            href={urlSeguimiento}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
-                        >
-                            <span>Gestionar subsanaciones en la plataforma</span>
-                            <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-
-                        <button
-                            onClick={() => window.print()}
-                            className="flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-emerald-700"
-                        >
-                            <Printer className="h-4 w-4" /> Imprimir / Guardar como PDF
-                        </button>
-                    </div>
-                </div>
-
-                {/* Hoja del informe (formato A4) */}
-                <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg print:rounded-none print:border-none print:p-0 print:shadow-none">
+            {/* Hoja del informe */}
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
                     {/* Marca de agua */}
                     <div
                         className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] select-none"
@@ -338,9 +323,9 @@ export default function InformePreventivo({
                     </div>
 
                     {/* Contenido de la hoja */}
-                    <div className="relative space-y-5 p-6 sm:p-10 md:p-12 print:space-y-4 print:p-8">
+                    <div className="relative space-y-5 p-6 sm:p-10 md:p-12">
                         {/* 1. Encabezado + aviso legal */}
-                        <header className="border-b-2 border-double border-emerald-600/80 pb-5 print:pb-4">
+                        <header className="border-b-2 border-double border-emerald-600/80 pb-5">
                             <div className="mb-3 flex justify-center">
                                 <span className="rounded-xl bg-emerald-600 p-2.5 text-white">
                                     <ShieldCheck className="h-7 w-7" />
@@ -358,7 +343,7 @@ export default function InformePreventivo({
 
                             {/* Nota contextual si es reevaluación */}
                             {esReevaluacion && (
-                                <div className="mt-3 rounded-xl border border-sky-300 bg-sky-50/80 p-3 text-left print:break-inside-avoid">
+                                <div className="mt-3 rounded-xl border border-sky-300 bg-sky-50/80 p-3 text-left">
                                     <div className="flex items-start gap-2">
                                         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                                         <div className="text-[11px] leading-relaxed text-sky-900">
@@ -394,7 +379,7 @@ export default function InformePreventivo({
                             </div>
 
                             {/* Código de informe y fecha */}
-                            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 print:break-inside-avoid">
+                            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                                 <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-50/70 px-3 py-1.5">
                                     <FileText className="h-3.5 w-3.5 text-emerald-600" />
                                     <span className="text-[10px] font-bold text-emerald-600 uppercase">
@@ -415,7 +400,7 @@ export default function InformePreventivo({
 
                             {/* Sello Criptográfico SHA-256 e Integridad */}
                             {(hashIntegridad || hashFinal) && (
-                                <div className="mt-3 flex justify-center print:break-inside-avoid">
+                                <div className="mt-3 flex justify-center">
                                     <CryptoSealBadge
                                         hash={hashIntegridad || hashFinal}
                                         fecha={fechaEmision}
@@ -425,7 +410,7 @@ export default function InformePreventivo({
                             )}
 
                             {/* Descargo legal de no-oficialidad prominente */}
-                            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 text-left print:break-inside-avoid">
+                            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 text-left">
                                 <div className="flex items-start gap-2">
                                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                                     <div className="text-[10px] leading-relaxed text-amber-950">
@@ -437,8 +422,8 @@ export default function InformePreventivo({
                                         del responsable del establecimiento.{' '}
                                         <strong>
                                             No constituye certificado de ITSE, no otorga aprobación ni autorización
-                                            municipal, y no convalida condiciones de seguridad ante ninguna autoridad u
-                                            órgano ejecutante.
+                                             municipal, y no convalida condiciones de seguridad ante ninguna autoridad u
+                                             órgano ejecutante.
                                         </strong>
                                     </div>
                                 </div>
@@ -446,7 +431,7 @@ export default function InformePreventivo({
                         </header>
 
                         {/* 2. Datos generales declarados del establecimiento */}
-                        <section className="print:break-inside-avoid">
+                        <section>
                             <div className="mb-2.5 flex items-center gap-2">
                                 <FileCheck className="h-4 w-4 text-emerald-600" />
                                 <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
@@ -476,7 +461,7 @@ export default function InformePreventivo({
                         </section>
 
                         {/* 3. Resumen de diagnóstico */}
-                        <section className="print:break-inside-avoid">
+                        <section>
                             <div className="mb-2.5 flex items-center gap-2">
                                 <Gauge className="h-4 w-4 text-emerald-600" />
                                 <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
@@ -553,7 +538,7 @@ export default function InformePreventivo({
                         </section>
 
                         {/* 4. Matriz Completa de Condiciones Evaluadas (Checklist Integral) */}
-                        <section className="print:break-inside-avoid">
+                        <section>
                             <div className="mb-2.5 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <ClipboardList className="h-4 w-4 text-emerald-600" />
@@ -561,7 +546,7 @@ export default function InformePreventivo({
                                         Matriz Completa de Condiciones Evaluadas ({conteo.total})
                                     </h2>
                                 </div>
-                                <span className="text-[10px] font-semibold text-slate-500 print:hidden">
+                                <span className="text-[10px] font-semibold text-slate-500">
                                     Diagnóstico Integral por Condición
                                 </span>
                             </div>
@@ -610,7 +595,7 @@ export default function InformePreventivo({
                                     return (
                                         <div
                                             key={`${item.codigo}-${idx}`}
-                                            className="rounded-xl border border-slate-200 bg-white p-3 print:break-inside-avoid"
+                                            className="rounded-xl border border-slate-200 bg-white p-3"
                                         >
                                             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                                                 <div className="flex flex-wrap items-center gap-2">
@@ -650,7 +635,7 @@ export default function InformePreventivo({
                         </section>
 
                         {/* 5. Matriz de trazabilidad de subsanaciones */}
-                        <section className="print:break-inside-avoid">
+                        <section>
                             <div className="mb-2.5 flex items-center gap-2">
                                 <Layers className="h-4 w-4 text-emerald-600" />
                                 <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
@@ -661,7 +646,7 @@ export default function InformePreventivo({
                             <div
                                 role="note"
                                 aria-label="Naturaleza preventiva de las evidencias declaradas"
-                                className="mb-2.5 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] leading-relaxed text-sky-900 print:hidden"
+                                className="mb-2.5 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[10px] leading-relaxed text-sky-900"
                             >
                                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                                 <p>
@@ -681,7 +666,7 @@ export default function InformePreventivo({
                                     {matrizSubsanaciones.map((fila) => (
                                         <div
                                             key={fila.codigo_item}
-                                            className="overflow-hidden rounded-2xl border border-slate-200 print:break-inside-avoid"
+                                            className="overflow-hidden rounded-2xl border border-slate-200"
                                         >
                                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-2">
                                                 <span className="font-mono text-xs font-black text-danger-900">
@@ -692,7 +677,7 @@ export default function InformePreventivo({
                                                     {fila.fecha_subsanacion ?? 'Sin fecha'}
                                                 </span>
                                             </div>
-                                            <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-[1fr_1.4fr_1fr] print:grid-cols-[1fr_1.4fr_1fr]">
+                                            <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-[1fr_1.4fr_1fr]">
                                                 <div>
                                                     <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                         Deficiencia Inicial
@@ -723,7 +708,7 @@ export default function InformePreventivo({
                         </section>
 
                         {/* Cuerpo del informe */}
-                        <div className="space-y-3 text-justify text-xs leading-relaxed text-slate-700 sm:text-sm print:space-y-2">
+                        <div className="space-y-3 text-justify text-xs leading-relaxed text-slate-700 sm:text-sm">
                             <p>
                                 El titular del establecimiento <strong>"{autoevaluacion.nombre_comercio}"</strong>,
                                 identificado con <strong>RUC N° {autoevaluacion.ruc}</strong>, ubicado en el sector
@@ -747,7 +732,7 @@ export default function InformePreventivo({
                         </div>
 
                         {/* Declaración del responsable del establecimiento */}
-                        <div className="flex flex-col items-center justify-center pt-6 text-center print:break-inside-avoid print:pt-4">
+                        <div className="flex flex-col items-center justify-center pt-6 text-center">
                             <div className="w-72 border-t border-slate-400 pt-2">
                                 <span className="block text-[10px] font-bold text-slate-800 uppercase">
                                     Declaración del responsable del establecimiento
@@ -764,7 +749,7 @@ export default function InformePreventivo({
                         </div>
 
                         {/* 6. Pie de página pericial preventivo: huella criptográfica */}
-                        <section className="rounded-2xl border border-slate-200 p-4 print:break-inside-avoid">
+                        <section className="rounded-2xl border border-slate-200 p-4">
                             <div className="mb-3 flex items-center gap-2">
                                 <Hash className="h-4 w-4 text-emerald-600" />
                                 <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
@@ -807,7 +792,7 @@ export default function InformePreventivo({
                             </div>
 
                             <div className="mt-3 space-y-2">
-                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300 print:bg-slate-900">
+                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300">
                                     <div className="mb-1 flex items-center gap-1.5">
                                         <Hash className="h-3.5 w-3.5 text-emerald-400" />
                                         <span className="text-[10px] tracking-wider text-slate-400 uppercase">
@@ -816,7 +801,7 @@ export default function InformePreventivo({
                                     </div>
                                     <p className="text-[10px] leading-relaxed break-all select-all">{hashIntegridad}</p>
                                 </div>
-                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300 print:bg-slate-900">
+                                <div className="rounded-xl bg-slate-900 p-3 font-mono text-slate-300">
                                     <div className="mb-1 flex items-center gap-1.5">
                                         <Fingerprint className="h-3.5 w-3.5 text-emerald-400" />
                                         <span className="text-[10px] tracking-wider text-slate-400 uppercase">
@@ -839,12 +824,6 @@ export default function InformePreventivo({
                         </div>
                     </div>
                 </div>
-
-                {/* Pie de página web — oculto al imprimir */}
-                <footer className="mt-6 text-center text-[11px] text-slate-400 print:hidden">
-                    CheckITSE Huancayo · Plataforma Cívica de Autoevaluación y Preparación ITSE
-                </footer>
-            </main>
-        </div>
-    );
+            </div>
+        );
 }

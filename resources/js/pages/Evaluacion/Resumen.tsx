@@ -24,7 +24,6 @@ import {
     Layers,
     Loader2,
     Lock,
-    Printer,
     RefreshCw,
     RotateCcw,
     Save,
@@ -684,7 +683,7 @@ function AccionesSolucionCriterio({
     const especialidadSlug = obtenerEspecialidadDirectorio(codigoCriterio || '', tituloCriterio || '', queObservar);
 
     return (
-        <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
             {tieneAliados && asistencia && (
                 <button
                     type="button"
@@ -707,83 +706,6 @@ function AccionesSolucionCriterio({
     );
 }
 
-interface EncabezadoImpresionResumenProps {
-    autoevaluacion: ResumenProps['autoevaluacion'];
-    esRegistrada: boolean;
-}
-
-function EncabezadoImpresionResumen({ autoevaluacion, esRegistrada }: Readonly<EncabezadoImpresionResumenProps>) {
-    return (
-        <div className="mb-4 hidden border-b border-slate-300 pb-3 print:block">
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-lg font-bold tracking-tight text-slate-900 uppercase">
-                        RESUMEN PREVENTIVO DE AUTOEVALUACIÓN CÍVICA
-                    </h1>
-                    <p className="text-xs font-medium text-slate-600">
-                        Herramienta Ciudadana de Prevención y Orientación Técnica — CheckITSE Huancayo
-                    </p>
-                </div>
-                {autoevaluacion.registrada_at && (
-                    <div className="text-right text-xs text-slate-700">
-                        <span className="font-semibold">Fecha y hora de registro:</span>
-                        <br />
-                        {autoevaluacion.registrada_at}
-                    </div>
-                )}
-            </div>
-
-            {/* Ficha del Establecimiento en Impresión */}
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-200 pt-2 text-xs">
-                <div>
-                    <span className="font-semibold text-slate-700">Establecimiento: </span>
-                    <span className="text-slate-900">{autoevaluacion?.nombre_comercio || 'No declarado'}</span>
-                </div>
-                <div>
-                    <span className="font-semibold text-slate-700">Giro o Actividad: </span>
-                    <span className="text-slate-900">{autoevaluacion?.funcion_economica || 'No declarada'}</span>
-                </div>
-                {autoevaluacion?.ruc && (
-                    <div>
-                        <span className="font-semibold text-slate-700">RUC: </span>
-                        <span className="font-mono text-slate-900">{autoevaluacion.ruc}</span>
-                    </div>
-                )}
-                {autoevaluacion?.direccion && (
-                    <div>
-                        <span className="font-semibold text-slate-700">Dirección: </span>
-                        <span className="text-slate-900">{autoevaluacion.direccion}</span>
-                    </div>
-                )}
-                {autoevaluacion?.codigo_acceso && (
-                    <div>
-                        <span className="font-semibold text-slate-700">Código de acceso CheckITSE: </span>
-                        <span className="font-mono font-bold text-slate-900">{autoevaluacion.codigo_acceso}</span>
-                    </div>
-                )}
-                <div>
-                    <span className="font-semibold text-slate-700">Estado: </span>
-                    <span className="font-medium text-slate-900">
-                        {esRegistrada ? 'REGISTRADA (Protegida contra modificaciones)' : 'INICIADA (En edición)'}
-                    </span>
-                </div>
-            </div>
-
-            <div className="mt-3 rounded border border-slate-400 bg-white p-2.5 text-[10.5px] leading-relaxed text-slate-800">
-                <p className="mb-1 font-bold text-black uppercase">
-                    DECLARACIÓN CIUDADANA PREVENTIVA — NO CONSTITUYE INSPECCIÓN MUNICIPAL
-                </p>
-                <p>
-                    Este documento refleja única y exclusivamente las condiciones de seguridad declaradas por el responsable del
-                    establecimiento a través de la plataforma comunitaria CheckITSE Huancayo. No acredita el cumplimiento de la normativa
-                    ITSE, no otorga autorización, licencia ni habilitación municipal alguna, y no reemplaza la inspección técnica oficial
-                    de la Municipalidad Provincial de Huancayo.
-                </p>
-            </div>
-        </div>
-    );
-}
-
 function obtenerClasesPasoFlujo(activo: boolean, completado: boolean): string {
     if (activo) return 'bg-emerald-600 text-white shadow-2xs';
     if (completado) return 'border border-emerald-200 bg-emerald-50 text-emerald-800';
@@ -797,7 +719,7 @@ interface BarraFlujoSuperiorResumenProps {
 
 function BarraFlujoSuperiorResumen({ mostrarBotonGuardar, onAbrirGuardar }: Readonly<BarraFlujoSuperiorResumenProps>) {
     return (
-        <div className="flex flex-col gap-3 border-b border-slate-200/80 pb-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-200/80 pb-3 sm:flex-row sm:items-center sm:justify-between">
             <Link
                 href={route('autoevaluacion.index')}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 transition-colors hover:text-slate-900"
@@ -840,14 +762,6 @@ function BarraFlujoSuperiorResumen({ mostrarBotonGuardar, onAbrirGuardar }: Read
                         <span>Guardar en mi cuenta</span>
                     </button>
                 )}
-                <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50"
-                >
-                    <Printer className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Imprimir</span>
-                </button>
             </div>
         </div>
     );
@@ -871,7 +785,7 @@ function SeccionSaludTecnica({
     return (
         <section
             aria-labelledby="salud-tecnica-title"
-            className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-7 print:border-slate-300 print:p-4 print:shadow-none"
+            className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-7"
         >
             <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -986,7 +900,7 @@ function TarjetaCriterioPendiente({
     );
 
     return (
-        <div className="space-y-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 print:border-slate-300 print:p-3 print:shadow-none">
+        <div className="space-y-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
             {/* Cabecera del Criterio con Tag de Especialista */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1101,7 +1015,7 @@ function SeccionPlanSubsanacion({
     return (
         <section
             aria-labelledby="subsanacion-title"
-            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-slate-300 print:p-4"
+            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
         >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -1123,7 +1037,7 @@ function SeccionPlanSubsanacion({
                     </span>
                     <Link
                         href={route('directorio.index')}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100 print:hidden"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100"
                     >
                         <Store className="h-3.5 w-3.5 text-slate-500" />
                         <span>Directorio</span>
@@ -1168,7 +1082,7 @@ function SeccionEstimadorEconomico({
     return (
         <section
             aria-labelledby="estimador-economico-title"
-            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-slate-300 print:p-4"
+            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
         >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -1318,7 +1232,7 @@ function TarjetaCriterioPorRevisar({
     const tag = obtenerTagEspecialista(item.codigo, item.titulo, item.que_observar);
 
     return (
-        <div className="space-y-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 print:border-slate-300 print:p-3">
+        <div className="space-y-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-1 font-mono text-xs font-bold text-slate-900">
@@ -1396,7 +1310,7 @@ function SeccionPorRevisar({
     return (
         <section
             aria-labelledby="por-revisar-title"
-            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-slate-300 print:p-4"
+            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
         >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -1418,7 +1332,7 @@ function SeccionPorRevisar({
                     </span>
                     <Link
                         href={route('directorio.index')}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100 print:hidden"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100"
                     >
                         <Store className="h-3.5 w-3.5 text-slate-500" />
                         <span>Directorio</span>
@@ -1459,7 +1373,7 @@ function SeccionPuntosFuertes({
     return (
         <section
             aria-labelledby="cumple-title"
-            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm print:border-slate-300 print:p-4"
+            className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
         >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -1534,7 +1448,7 @@ function SeccionModalidadTramite({
     return (
         <section
             aria-labelledby="modalidad-tramite-title"
-            className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 print:border-slate-300 print:p-4 print:shadow-none"
+            className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6"
         >
             <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
                 <div
@@ -1764,8 +1678,8 @@ function SeccionModalidadTramite({
                     href={route('autoevaluacion.informe', { uuid })}
                     className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800"
                 >
-                    <Printer className="h-3.5 w-3.5" />
-                    <span>Informe Preventivo Imprimible</span>
+                    <FileText className="h-3.5 w-3.5" />
+                    <span>Ver Informe Preventivo</span>
                 </Link>
             </div>
         </section>
@@ -1781,7 +1695,7 @@ function SeccionPronosticoDiligencia({ esApto, tipoTramite }: Readonly<SeccionPr
     return (
         <section
             aria-label="Pronóstico de diligencia municipal"
-            className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs print:hidden"
+            className="space-y-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs"
         >
             <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
                 <Scale className="h-4 w-4 text-slate-600" />
@@ -1829,7 +1743,7 @@ function SeccionCaracteristicasDeclaradas({
     if (caracteristicasDeclaradas.length === 0) return null;
 
     return (
-        <section aria-label="Ficha de características declaradas" className="print:hidden">
+        <section aria-label="Ficha de características declaradas">
             <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="caracteristicas" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
                     <AccordionTrigger className="px-5 py-4 text-left hover:no-underline">
@@ -1876,7 +1790,7 @@ function SeccionCondicionesNoAplicables({
     if (noAplica.length === 0) return null;
 
     return (
-        <section aria-label="Condiciones no aplicables" className="print:hidden">
+        <section aria-label="Condiciones no aplicables">
             <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="no-aplica" className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
                     <AccordionTrigger className="px-5 py-4 text-left hover:no-underline">
@@ -1931,7 +1845,7 @@ function PieSelloValidezCivica({
     return (
         <footer
             aria-label="Sello de validez cívica y acciones finales"
-            className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 text-slate-100 shadow-xl sm:p-8 print:hidden"
+            className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 text-slate-100 shadow-xl sm:p-8"
         >
             <div className="flex flex-col items-center justify-between gap-6 border-b border-slate-800 pb-6 lg:flex-row">
                 <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
@@ -1978,14 +1892,13 @@ function PieSelloValidezCivica({
                             <ArrowRight className="h-4 w-4" />
                         </button>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={() => window.print()}
+                        <Link
+                            href={route('autoevaluacion.informe', { uuid: autoevaluacion.uuid })}
                             className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-md transition hover:bg-emerald-600"
                         >
-                            <Printer className="h-4 w-4" />
-                            <span>Imprimir Diagnóstico / Guardar PDF</span>
-                        </button>
+                            <FileText className="h-4 w-4" />
+                            <span>Ver Informe Preventivo</span>
+                        </Link>
                     )}
 
                     <div className="flex flex-wrap items-center justify-center gap-2">
@@ -2063,7 +1976,7 @@ function ModalConfirmacionRegistro({
         <dialog
             open
             aria-labelledby="modal-confirmar-titulo"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs transition-opacity print:hidden border-0 max-w-none max-h-none w-full h-full m-0"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs transition-opacity border-0 max-w-none max-h-none w-full h-full m-0"
         >
             <div
                 ref={modalRef}
@@ -2327,17 +2240,12 @@ export default function Resumen({
                 {/* Capa de textura cuadriculada sutil */}
                 <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--color-slate-200)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-slate-200)_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000_15%,transparent_100%)] print:hidden"
+                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--color-slate-200)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-slate-200)_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000_15%,transparent_100%)]"
                 />
 
-                <div className="relative mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8 print:max-w-none print:space-y-4 print:p-0">
+                <div className="relative mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                     {/* ========================================================================= */}
-                    {/* ENCABEZADO EXCLUSIVO PARA IMPRESIÓN (A4)                                  */}
-                    {/* ========================================================================= */}
-                    <EncabezadoImpresionResumen autoevaluacion={autoevaluacion} esRegistrada={esRegistrada} />
-
-                    {/* ========================================================================= */}
-                    {/* BARRA SUPERIOR DE FLUJO CÍVICO (Oculta en Impresión)                      */}
+                    {/* BARRA SUPERIOR DE FLUJO CÍVICO                                            */}
                     {/* ========================================================================= */}
                     <BarraFlujoSuperiorResumen
                         mostrarBotonGuardar={!auth?.user}
@@ -2392,101 +2300,72 @@ export default function Resumen({
                     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
                         {/* COLUMNA IZQUIERDA (60% - Ancha): PLAN DE SUBSANACIÓN, REVISIÓN Y CUMPLIMIENTO */}
                         <div className="space-y-6 lg:col-span-7">
-                            {/* Vista interactiva de pestañas en pantalla */}
-                            <div className="print:hidden">
-                                <Tabs defaultValue="pendientes" className="w-full space-y-5">
-                                    <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1.5 rounded-2xl border border-slate-200 bg-slate-100/70 p-1.5">
-                                        <TabsTrigger
-                                            value="pendientes"
-                                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
-                                        >
-                                            <AlertTriangle className="h-3.5 w-3.5 text-[#FF9500]" />
-                                            <span>Por Subsanar ({resumen?.total_pendiente_atender ?? 0})</span>
-                                        </TabsTrigger>
-                                        <TabsTrigger
-                                            value="por-revisar"
-                                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
-                                        >
-                                            <HelpCircle className="h-3.5 w-3.5 text-sky-600" />
-                                            <span>Por Verificar ({resumen?.total_por_revisar ?? 0})</span>
-                                        </TabsTrigger>
-                                        <TabsTrigger
-                                            value="conformes"
-                                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
-                                        >
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
-                                            <span>Conformes ({resumen?.total_cumple_declarado ?? 0})</span>
-                                        </TabsTrigger>
-                                        <TabsTrigger
-                                            value="economico"
-                                            className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
-                                        >
-                                            <Coins className="h-3.5 w-3.5 text-amber-600" />
-                                            <span>Inversión vs Multas</span>
-                                        </TabsTrigger>
-                                    </TabsList>
+                            <Tabs defaultValue="pendientes" className="w-full space-y-5">
+                                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1.5 rounded-2xl border border-slate-200 bg-slate-100/70 p-1.5">
+                                    <TabsTrigger
+                                        value="pendientes"
+                                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
+                                    >
+                                        <AlertTriangle className="h-3.5 w-3.5 text-[#FF9500]" />
+                                        <span>Por Subsanar ({resumen?.total_pendiente_atender ?? 0})</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="por-revisar"
+                                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
+                                    >
+                                        <HelpCircle className="h-3.5 w-3.5 text-sky-600" />
+                                        <span>Por Verificar ({resumen?.total_por_revisar ?? 0})</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="conformes"
+                                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
+                                    >
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-[#34C759]" />
+                                        <span>Conformes ({resumen?.total_cumple_declarado ?? 0})</span>
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value="economico"
+                                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs"
+                                    >
+                                        <Coins className="h-3.5 w-3.5 text-amber-600" />
+                                        <span>Inversión vs Multas</span>
+                                    </TabsTrigger>
+                                </TabsList>
 
-                                    <TabsContent value="pendientes" className="space-y-5 focus-visible:outline-hidden">
-                                        <SeccionPlanSubsanacion
-                                            pendienteAtender={pendiente_atender}
-                                            totalPendienteAtender={resumen?.total_pendiente_atender ?? 0}
-                                            uuid={autoevaluacion?.uuid}
-                                            onAbrirRecurso={abrirRecurso}
-                                            onAbrirAsistencia={abrirAsistencia}
-                                        />
-                                    </TabsContent>
+                                <TabsContent value="pendientes" className="space-y-5 focus-visible:outline-hidden">
+                                    <SeccionPlanSubsanacion
+                                        pendienteAtender={pendiente_atender}
+                                        totalPendienteAtender={resumen?.total_pendiente_atender ?? 0}
+                                        uuid={autoevaluacion?.uuid}
+                                        onAbrirRecurso={abrirRecurso}
+                                        onAbrirAsistencia={abrirAsistencia}
+                                    />
+                                </TabsContent>
 
-                                    <TabsContent value="por-revisar" className="space-y-5 focus-visible:outline-hidden">
-                                        <SeccionPorRevisar
-                                            porRevisar={por_revisar}
-                                            totalPorRevisar={resumen?.total_por_revisar ?? 0}
-                                            uuid={autoevaluacion?.uuid}
-                                            onAbrirRecurso={abrirRecurso}
-                                            onAbrirAsistencia={abrirAsistencia}
-                                        />
-                                    </TabsContent>
+                                <TabsContent value="por-revisar" className="space-y-5 focus-visible:outline-hidden">
+                                    <SeccionPorRevisar
+                                        porRevisar={por_revisar}
+                                        totalPorRevisar={resumen?.total_por_revisar ?? 0}
+                                        uuid={autoevaluacion?.uuid}
+                                        onAbrirRecurso={abrirRecurso}
+                                        onAbrirAsistencia={abrirAsistencia}
+                                    />
+                                </TabsContent>
 
-                                    <TabsContent value="conformes" className="space-y-5 focus-visible:outline-hidden">
-                                        <SeccionPuntosFuertes
-                                            cumpleDeclarado={cumple_declarado}
-                                            totalCumpleDeclarado={resumen?.total_cumple_declarado ?? 0}
-                                        />
-                                    </TabsContent>
+                                <TabsContent value="conformes" className="space-y-5 focus-visible:outline-hidden">
+                                    <SeccionPuntosFuertes
+                                        cumpleDeclarado={cumple_declarado}
+                                        totalCumpleDeclarado={resumen?.total_cumple_declarado ?? 0}
+                                    />
+                                </TabsContent>
 
-                                    <TabsContent value="economico" className="space-y-5 focus-visible:outline-hidden">
-                                        <SeccionEstimadorEconomico
-                                            pendienteAtenderCount={pendiente_atender.length}
-                                            estimacionEconomica={estimacionEconomica}
-                                        />
-                                    </TabsContent>
-                                </Tabs>
-                            </div>
-
-                            {/* Versión secuencial para impresión */}
-                            <div className="hidden space-y-6 print:block">
-                                <SeccionPlanSubsanacion
-                                    pendienteAtender={pendiente_atender}
-                                    totalPendienteAtender={resumen?.total_pendiente_atender ?? 0}
-                                    uuid={autoevaluacion?.uuid}
-                                    onAbrirRecurso={abrirRecurso}
-                                    onAbrirAsistencia={abrirAsistencia}
-                                />
-                                <SeccionEstimadorEconomico
-                                    pendienteAtenderCount={pendiente_atender.length}
-                                    estimacionEconomica={estimacionEconomica}
-                                />
-                                <SeccionPorRevisar
-                                    porRevisar={por_revisar}
-                                    totalPorRevisar={resumen?.total_por_revisar ?? 0}
-                                    uuid={autoevaluacion?.uuid}
-                                    onAbrirRecurso={abrirRecurso}
-                                    onAbrirAsistencia={abrirAsistencia}
-                                />
-                                <SeccionPuntosFuertes
-                                    cumpleDeclarado={cumple_declarado}
-                                    totalCumpleDeclarado={resumen?.total_cumple_declarado ?? 0}
-                                />
-                            </div>
+                                <TabsContent value="economico" className="space-y-5 focus-visible:outline-hidden">
+                                    <SeccionEstimadorEconomico
+                                        pendienteAtenderCount={pendiente_atender.length}
+                                        estimacionEconomica={estimacionEconomica}
+                                    />
+                                </TabsContent>
+                            </Tabs>
                         </div>
 
                         {/* COLUMNA DERECHA (40% - Lateral): TRÁMITE, ESPECIALIDADES Y DESGLOSE */}
@@ -2503,7 +2382,7 @@ export default function Resumen({
                             {desglose_especialidades && (
                                 <section
                                     aria-labelledby="especialidades-title"
-                                    className="space-y-3.5 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6 print:border-slate-300 print:p-4 print:shadow-none"
+                                    className="space-y-3.5 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs sm:p-6"
                                 >
                                     <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
                                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">

@@ -35,9 +35,7 @@ createInertiaApp({
         const pageModule = await resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx'));
         const page = pageModule as { default: { layout?: PageLayout } };
 
-        if (name !== 'Evaluacion/InformePreventivo') {
-            page.default.layout = page.default.layout ?? ((children: React.ReactNode) => <AppLayout>{children}</AppLayout>);
-        }
+        page.default.layout = page.default.layout ?? ((children: React.ReactNode) => <AppLayout>{children}</AppLayout>);
 
         return pageModule;
     },
