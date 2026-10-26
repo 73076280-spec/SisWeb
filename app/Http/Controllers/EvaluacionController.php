@@ -657,6 +657,40 @@ class EvaluacionController extends Controller
     }
 
     /**
+     * Clasifica un local comercial en una de tres categorías mutuamente excluyentes:
+     * - CONFORME: finalizado (REGISTRADA) y con cumplimiento al 100% (sin subsanaciones pendientes).
+     * - OBSERVADO: finalizado (REGISTRADA) con cumplimiento menor al 100% o con condiciones por subsanar.
+     * - EN_PROCESO: iniciado y no finalizado (INICIADA u otro distinto de REGISTRADA).
+     *
+     * @param  array<string, mixed>|Autoevaluacion  $item
+     * @return string 'CONFORME'|'OBSERVADO'|'EN_PROCESO'
+     */
+    public static function clasificarEstadoLocal(array|Autoevaluacion $item): string
+    {
+        $estado = $item instanceof Autoevaluacion
+            ? ($item->estado ?? Autoevaluacion::ESTADO_INICIADA)
+            : ($item['estado'] ?? Autoevaluacion::ESTADO_INICIADA);
+
+        if ($estado !== Autoevaluacion::ESTADO_REGISTRADA) {
+            return 'EN_PROCESO';
+        }
+
+        $porcentaje = $item instanceof Autoevaluacion
+            ? (float) ($item->porcentaje_cumplimiento ?? 0)
+            : (float) ($item['porcentaje_cumplimiento'] ?? 0);
+
+        $pendientes = $item instanceof Autoevaluacion
+            ? (int) ($item->simulaciones->flatMap->subsanaciones->where('estado', 'PENDIENTE')->count())
+            : (int) ($item['resumen_subsanaciones']['pendientes'] ?? 0);
+
+        if ($porcentaje >= 100.0 && $pendientes === 0) {
+            return 'CONFORME';
+        }
+
+        return 'OBSERVADO';
+    }
+
+    /**
      * Calcula los KPIs consolidados del dashboard ciudadano.
      *
      * @param  Collection<int, array<string, mixed>>  $records
@@ -667,18 +701,15 @@ class EvaluacionController extends Controller
         $totalLocales = $records->count();
 
         $aprobados = $records->filter(function (array $r): bool {
-            return ($r['semaforo'] ?? '') === 'VERDE'
-                || (float) ($r['porcentaje_cumplimiento'] ?? 0) >= 100.0;
+            return ($r['clasificacion_estado'] ?? self::clasificarEstadoLocal($r)) === 'CONFORME';
         })->count();
 
         $observados = $records->filter(function (array $r): bool {
-            return ($r['semaforo'] ?? '') === 'ROJO'
-                || (int) ($r['resumen_subsanaciones']['pendientes'] ?? 0) > 0;
+            return ($r['clasificacion_estado'] ?? self::clasificarEstadoLocal($r)) === 'OBSERVADO';
         })->count();
 
         $enProceso = $records->filter(function (array $r): bool {
-            return ($r['estado'] ?? '') === Autoevaluacion::ESTADO_INICIADA
-                || ($r['semaforo'] ?? '') === 'AMBAR';
+            return ($r['clasificacion_estado'] ?? self::clasificarEstadoLocal($r)) === 'EN_PROCESO';
         })->count();
 
         $riesgos = $records->pluck('nivel_riesgo')->filter()->countBy();
@@ -806,6 +837,19 @@ class EvaluacionController extends Controller
 
         $clasificacionTramite = $this->clasificarModalidadTramite($autoevaluacion);
 
+        $resumenSubsanaciones = [
+            'total' => $subsanaciones->count(),
+            'subsanadas' => $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count(),
+            'en_proceso' => $subsanaciones->where('estado', 'EN_PROCESO')->count(),
+            'pendientes' => $subsanaciones->where('estado', 'PENDIENTE')->count(),
+        ];
+
+        $clasificacionEstado = self::clasificarEstadoLocal([
+            'estado' => $autoevaluacion->estado ?? Autoevaluacion::ESTADO_INICIADA,
+            'porcentaje_cumplimiento' => $porcentaje,
+            'resumen_subsanaciones' => $resumenSubsanaciones,
+        ]);
+
         return [
             'id' => $autoevaluacion->id,
             'uuid_trazabilidad' => $autoevaluacion->uuid_trazabilidad,
@@ -824,6 +868,7 @@ class EvaluacionController extends Controller
             'nivel_riesgo' => $clasificacionTramite['nivel_riesgo'],
             'clasificacion_tramite' => $clasificacionTramite,
             'estado' => $autoevaluacion->estado ?? Autoevaluacion::ESTADO_INICIADA,
+            'clasificacion_estado' => $clasificacionEstado,
             'registrada_at' => $autoevaluacion->registrada_at?->format(self::FORMATO_FECHA_HORA),
             'es_flujo_nuevo' => $esFlujoNuevo,
             'conteos_normativos' => $conteosNormativos,
@@ -835,12 +880,7 @@ class EvaluacionController extends Controller
             'created_at' => $autoevaluacion->created_at?->toIso8601String(),
             'hash_integridad' => $autoevaluacion->hash_integridad,
             'conteo_condiciones' => $conteoCondiciones,
-            'resumen_subsanaciones' => [
-                'total' => $subsanaciones->count(),
-                'subsanadas' => $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count(),
-                'en_proceso' => $subsanaciones->where('estado', 'EN_PROCESO')->count(),
-                'pendientes' => $subsanaciones->where('estado', 'PENDIENTE')->count(),
-            ],
+            'resumen_subsanaciones' => $resumenSubsanaciones,
         ];
     }
 

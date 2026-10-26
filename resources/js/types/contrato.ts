@@ -52,7 +52,7 @@ export interface RecursoEducativoContrato {
     criterio_normativo_id?: number | null;
     titulo: string;
     descripcion_corta: string;
-    tipo: 'VIDEO' | 'GUIA_DIGITAL' | 'ENLACE_EXTERNO' | string;
+    tipo: 'VIDEO' | 'GUIA_DIGITAL' | 'ENLACE_EXTERNO';
     url: string;
     fuente_autor?: string | null;
     duracion_estimada?: string | null;
@@ -139,7 +139,8 @@ export interface ChecklistAutoevaluacion {
     uuid: string;
     nombre_comercio: string;
     direccion?: string | null;
-    estado?: EstadoAutoevaluacion | string;
+    estado?: EstadoAutoevaluacion;
+    clasificacion_estado?: 'CONFORME' | 'OBSERVADO' | 'EN_PROCESO';
     registrada_at?: string | null;
     hash_integridad?: string | null;
     area_m2?: number | null;
@@ -297,7 +298,8 @@ export interface ResumenAutoevaluacion {
     direccion?: string | null;
     codigo_acceso?: string | null;
     caracteristicas_declaradas?: Record<string, unknown> | null;
-    estado?: EstadoAutoevaluacion | string;
+    estado?: EstadoAutoevaluacion;
+    clasificacion_estado?: 'CONFORME' | 'OBSERVADO' | 'EN_PROCESO';
     registrada_at?: string | null;
     hash_integridad?: string | null;
 }
@@ -371,7 +373,7 @@ export interface InformeAutoevaluacion {
     aforo: number | null;
     tipo_tramite: string | null;
     nivel_riesgo: string | null;
-    semaforo: SemaforoRiesgo | string;
+    semaforo: SemaforoRiesgo;
     porcentaje_cumplimiento: number;
     evaluacion_origen_id: number | null;
     hash_integridad: string | null;
@@ -418,7 +420,7 @@ export interface FilaMatriz {
     nombre_condicion: string;
     deficiencia_inicial: string;
     accion_realizada: string;
-    estado: EstadoSubsanacion | string;
+    estado: EstadoSubsanacion;
     evidencia_url: string | null;
     evidencia_archivo: string | null;
     fecha_subsanacion: string | null;
@@ -439,7 +441,7 @@ export interface InformeResumen {
 export interface InformeEvaluacionOrigen {
     uuid_trazabilidad: string;
     fecha: string | null;
-    semaforo: SemaforoRiesgo | string;
+    semaforo: SemaforoRiesgo;
     porcentaje_cumplimiento: number;
 }
 
@@ -495,11 +497,17 @@ export interface AutoevaluacionItem {
     funcion_economica: string;
     ruc?: string | null;
     direccion?: string | null;
+    sector_huancayo?: string | null;
+    usa_glp?: boolean | null;
+    galones_glp?: number | null;
     area_m2?: number | null;
     pisos?: number | null;
     aforo?: number | null;
-    estado?: EstadoAutoevaluacion | string;
+    estado?: EstadoAutoevaluacion;
+    clasificacion_estado?: 'CONFORME' | 'OBSERVADO' | 'EN_PROCESO';
     registrada_at?: string | null;
+    tipo_tramite?: string | null;
+    nivel_riesgo?: string | null;
     es_flujo_nuevo?: boolean;
     conteos_normativos?: ConteosNormativos | null;
     desglose_especialidades?: DesgloseEspecialidades | null;
@@ -513,7 +521,7 @@ export interface AutoevaluacionItem {
      * clasificar» en lugar de asumir una clasificación.
      */
     clasificacion_tramite?: ClasificacionTramiteResumen | null;
-    semaforo: SemaforoRiesgo | string;
+    semaforo: SemaforoRiesgo;
     porcentaje_cumplimiento: number;
     fecha: string;
     fecha_corta?: string;

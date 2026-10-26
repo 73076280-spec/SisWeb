@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ClipboardList,
+  Clock,
   Copy,
   ExternalLink,
   FileSpreadsheet,
@@ -170,7 +171,16 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
   const [copiadoUuid, setCopiadoUuid] = useState(false);
   const [copiadoHash, setCopiadoHash] = useState(false);
 
-  const esConforme = (record.porcentaje_cumplimiento ?? 0) >= 100;
+  const clasificacion = record.clasificacion_estado ?? (
+    record.estado !== 'REGISTRADA'
+      ? 'EN_PROCESO'
+      : ((record.porcentaje_cumplimiento ?? 0) >= 100 ? 'CONFORME' : 'OBSERVADO')
+  );
+
+  const esConforme = clasificacion === 'CONFORME';
+  const esObservado = clasificacion === 'OBSERVADO';
+  const esEnProceso = clasificacion === 'EN_PROCESO';
+
   const nivelRiesgo = record.nivel_riesgo ?? record.clasificacion_tramite?.nivel_riesgo ?? 'MEDIO';
   const claseRiesgo = resolverClaseRiesgo(nivelRiesgo);
   const fotoPortada = resolverFotoLocal(
@@ -205,14 +215,19 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
 
   let badgeEstadoBg = 'bg-emerald-500 text-white';
   let badgeEstadoTexto = 'CONFORME';
-  if (!esConforme) {
+  let badgeIcono = <ShieldCheck className="h-3 w-3" aria-hidden="true" />;
+  let circuloCumplimientoBg = 'bg-emerald-600 text-white border-emerald-400';
+
+  if (esObservado) {
     badgeEstadoBg = 'bg-amber-500 text-white';
     badgeEstadoTexto = 'CON OBSERVACIONES';
-  }
-
-  let circuloCumplimientoBg = 'bg-emerald-600 text-white border-emerald-400';
-  if (!esConforme) {
+    badgeIcono = <AlertTriangle className="h-3 w-3" aria-hidden="true" />;
     circuloCumplimientoBg = 'bg-amber-500 text-white border-amber-300';
+  } else if (esEnProceso) {
+    badgeEstadoBg = 'bg-slate-700 text-white';
+    badgeEstadoTexto = 'EN PROCESO';
+    badgeIcono = <Clock className="h-3 w-3" aria-hidden="true" />;
+    circuloCumplimientoBg = 'bg-slate-700 text-white border-slate-500';
   }
 
   return (
@@ -238,11 +253,7 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black tracking-wider uppercase shadow-xs ${badgeEstadoBg}`}
             >
-              {esConforme ? (
-                <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-              ) : (
-                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-              )}
+              {badgeIcono}
               {badgeEstadoTexto}
             </span>
 
@@ -479,9 +490,9 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
     let filtrados = [...records];
 
     if (filtroEstado === 'conformes') {
-      filtrados = filtrados.filter((r) => (r.porcentaje_cumplimiento ?? 0) >= 100);
+      filtrados = filtrados.filter((r) => (r.clasificacion_estado ?? '') === 'CONFORME');
     } else if (filtroEstado === 'observados') {
-      filtrados = filtrados.filter((r) => (r.porcentaje_cumplimiento ?? 0) < 100);
+      filtrados = filtrados.filter((r) => (r.clasificacion_estado ?? '') === 'OBSERVADO');
     }
 
     if (!busqueda.trim()) {
@@ -587,11 +598,13 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
                 </span>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
-                <p className="leading-relaxed">
-                  <strong>Aviso preventivo:</strong> Requieren atención técnica de extintores, cableado o señalética antes de la inspección.
-                </p>
-              </div>
+              {kpis.observados > 0 && (
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
+                  <p className="leading-relaxed">
+                    <strong>Aviso preventivo:</strong> Tienes {kpis.observados} {kpis.observados === 1 ? 'local que requiere' : 'locales que requieren'} atención técnica o subsanación antes de la inspección.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
