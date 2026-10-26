@@ -98,7 +98,12 @@ function renderBadgeAcreditacion(aliado: AliadoAsistenciaContrato) {
  */
 const WHATSAPP_ALIADOS_NUMERO = import.meta.env.VITE_WHATSAPP_ALIADOS ?? '';
 
-export default function Directorio({ aliados, filtros, categorias, distritos }: DirectorioProps) {
+export default function Directorio({
+  aliados,
+  filtros,
+  categorias,
+  distritos,
+}: Readonly<DirectorioProps>) {
   const [modalAfiliacionAbierto, setModalAfiliacionAbierto] = useState(false);
   const [aliadoSeleccionado, setAliadoSeleccionado] = useState<AliadoAsistenciaContrato | null>(null);
 
@@ -112,8 +117,8 @@ export default function Directorio({ aliados, filtros, categorias, distritos }: 
     const categoria = categorias.find((c) => c.valor === filtroCategoria);
     const distrito = distritos.find((d) => d.valor === filtroDistrito);
 
-    if (categoria && categoria.valor) partes.push(categoria.etiqueta);
-    if (distrito && distrito.valor) partes.push(distrito.etiqueta);
+    if (categoria?.valor) partes.push(categoria.etiqueta);
+    if (distrito?.valor) partes.push(distrito.etiqueta);
 
     return partes;
   }, [categorias, distritos, filtroCategoria, filtroDistrito]);
@@ -406,7 +411,7 @@ export default function Directorio({ aliados, filtros, categorias, distritos }: 
                     <button
                       type="button"
                       onClick={() => setAliadoSeleccionado(aliado)}
-                      className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 active:scale-[0.99]"
+                      className="mt-5 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-xs font-bold text-white shadow-xs transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 active:scale-[0.99]"
                     >
                       <MessageCircle className="h-4 w-4 text-emerald-400" />
                       <span>Solicitar cotización directa</span>

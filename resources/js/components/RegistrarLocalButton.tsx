@@ -13,7 +13,7 @@ export const RegistrarLocalButton: React.FC<RegistrarLocalButtonProps> = ({
     onClick,
 }) => {
     const estiloBase =
-        'inline-flex items-center justify-center font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2';
+        'inline-flex min-h-[44px] items-center justify-center font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2';
 
     const estiloVariante =
         variant === 'large'
