@@ -593,11 +593,11 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
             </div>
           </div>
 
-          {/* Tarjeta 2: Subsanaciones Pendientes */}
+          {/* Tarjeta 2: Locales con observaciones */}
           <div className="flex flex-col justify-between h-full rounded-2xl p-5 border border-amber-200/80 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 shadow-xs hover:shadow-sm transition-all">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                Subsanaciones Pendientes
+                Locales con observaciones
               </span>
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
                 <AlertTriangle className="h-5 w-5" aria-hidden="true" />
@@ -610,16 +610,20 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
                   {kpis.observados}
                 </span>
                 <span className="text-xs font-bold text-slate-500">
-                  {kpis.observados === 1 ? 'local con observaciones' : 'locales con observaciones'}
+                  {kpis.observados === 1 ? 'local por revisar' : 'locales por revisar'}
                 </span>
               </div>
 
-              {kpis.observados > 0 && (
+              {kpis.observados > 0 ? (
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
                   <p className="leading-relaxed">
-                    <strong>Aviso preventivo:</strong> Tienes {kpis.observados} {kpis.observados === 1 ? 'local que requiere' : 'locales que requieren'} atención técnica o subsanación antes de la inspección.
+                    <strong>Aviso preventivo:</strong> Tienes {kpis.observados} {kpis.observados === 1 ? 'local con condiciones por corregir' : 'locales con condiciones por corregir'} antes de solicitar tu inspección.
                   </p>
                 </div>
+              ) : (
+                <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                  Todos tus locales están al día sin observaciones pendientes.
+                </p>
               )}
             </div>
           </div>
