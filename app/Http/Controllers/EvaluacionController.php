@@ -7,7 +7,9 @@ use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Http\Requests\StoreAutoevaluacionRequest;
 use App\Http\Requests\StoreChecklistDeclaracionesRequest;
 use App\Models\Autoevaluacion;
+use App\Models\CriterioNormativo;
 use App\Models\HistorialSubsanacion;
+use App\Models\RespuestaAutoevaluacion;
 use App\Models\SimulacionRevision;
 use App\Models\Subsanacion;
 use App\Services\ApplicabilityEngineService;
@@ -360,6 +362,277 @@ class EvaluacionController extends Controller
 
         return redirect()->route('autoevaluacion.subsanacion', ['uuid' => $uuid])
             ->with('success', 'Plan de subsanación preventiva actualizado.');
+    }
+
+    /**
+     * Muestra la vista limpia de subsanación directa donde SOLO aparecen los criterios observados
+     * o por subsanar (PENDIENTE_ATENDER o POR_REVISAR).
+     */
+    public function subsanarItems(Request $request, string $uuid): Response
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        // Inicializar respuestas si no existen
+        if ($autoevaluacion->respuestas()->count() === 0 && empty($autoevaluacion->detalle_checklist)) {
+            $this->applicabilityEngine->inicializarRespuestas($autoevaluacion);
+        }
+
+        $criteriosNormativos = CriterioNormativo::with('recursosEducativos')->get()->keyBy('codigo_criterio');
+        $criteriosPorId = CriterioNormativo::with('recursosEducativos')->get()->keyBy('id');
+
+        $itemsObservados = collect();
+
+        // 1. Respuestas normativas registradas (V2)
+        $respuestas = $autoevaluacion->respuestas()->with('criterioNormativo.recursosEducativos')->get();
+        if ($respuestas->isNotEmpty()) {
+            foreach ($respuestas as $resp) {
+                if (in_array($resp->estado_respuesta, [
+                    ApplicabilityEngineService::ESTADO_PENDIENTE_ATENDER,
+                    ApplicabilityEngineService::ESTADO_POR_REVISAR,
+                ], true)) {
+                    $criterio = $resp->criterioNormativo ?? $criteriosPorId->get($resp->criterio_id);
+                    $codigo = $criterio?->codigo_criterio ?? "CRIT-{$resp->criterio_id}";
+
+                    $itemsObservados->put($codigo, [
+                        'id' => $resp->id,
+                        'criterio_id' => $resp->criterio_id,
+                        'codigo' => $codigo,
+                        'titulo' => $criterio?->titulo ?? 'Condición ITSE observada',
+                        'categoria' => $criterio?->categoria ?? 'GENERAL',
+                        'norma_base' => $criterio?->norma_base ?? 'D.S. 002-2018-PCM / RNC',
+                        'articulo_referencia' => $criterio?->articulo_referencia,
+                        'pregunta_ciudadana' => $criterio?->pregunta_ciudadana,
+                        'que_observar' => $criterio?->que_observar ?? $criterio?->titulo,
+                        'accion_mejora_orientativa' => $criterio?->accion_mejora_orientativa ?? 'Corregir la condición técnica observada antes de solicitar la inspección.',
+                        'estado' => $resp->estado_respuesta,
+                        'notas' => $resp->notas_ciudadano,
+                        'recursos_educativos' => $criterio?->recursosEducativos->map(fn ($r) => [
+                            'id' => $r->id,
+                            'titulo' => $r->titulo,
+                            'descripcion_corta' => $r->descripcion_corta,
+                            'tipo' => $r->tipo,
+                            'url' => $r->url,
+                        ])->values()->all() ?? [],
+                    ]);
+                }
+            }
+        }
+
+        // 2. Evaluaciones legadas basadas en detalle_checklist
+        if (! empty($autoevaluacion->detalle_checklist) && is_array($autoevaluacion->detalle_checklist)) {
+            foreach ($autoevaluacion->detalle_checklist as $item) {
+                $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
+                if (in_array($estado, ['NO_CUMPLE', 'POR_REVISAR', 'PENDIENTE_ATENDER'], true)) {
+                    $codigo = $item['codigo'] ?? '';
+                    if (! $itemsObservados->has($codigo)) {
+                        $criterio = $criteriosNormativos->get($codigo);
+                        $itemsObservados->put($codigo, [
+                            'id' => null,
+                            'criterio_id' => $criterio?->id,
+                            'codigo' => $codigo,
+                            'titulo' => $criterio?->titulo ?? ($item['nombre'] ?? $item['pregunta'] ?? $codigo),
+                            'categoria' => $criterio?->categoria ?? ($item['categoria'] ?? 'GENERAL'),
+                            'norma_base' => $criterio?->norma_base ?? ($item['norma'] ?? 'D.S. 002-2018-PCM'),
+                            'articulo_referencia' => $criterio?->articulo_referencia ?? ($item['articulo'] ?? null),
+                            'pregunta_ciudadana' => $criterio?->pregunta_ciudadana ?? ($item['pregunta'] ?? null),
+                            'que_observar' => $criterio?->que_observar ?? ($item['descripcion'] ?? $item['observacion'] ?? null),
+                            'accion_mejora_orientativa' => $criterio?->accion_mejora_orientativa ?? 'Corregir la condición técnica observada.',
+                            'estado' => $estado === 'POR_REVISAR' ? 'POR_REVISAR' : 'PENDIENTE_ATENDER',
+                            'notas' => $item['observacion'] ?? null,
+                            'recursos_educativos' => $criterio?->recursosEducativos->map(fn ($r) => [
+                                'id' => $r->id,
+                                'titulo' => $r->titulo,
+                                'descripcion_corta' => $r->descripcion_corta,
+                                'tipo' => $r->tipo,
+                                'url' => $r->url,
+                            ])->values()->all() ?? [],
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // 3. Subsanaciones de simulaciones pendientes
+        $subsanacionesPendientes = $autoevaluacion->simulaciones
+            ->flatMap->subsanaciones
+            ->whereIn('estado', ['PENDIENTE', 'EN_PROCESO']);
+
+        foreach ($subsanacionesPendientes as $sub) {
+            $codigo = $sub->codigo_item;
+            if (! $itemsObservados->has($codigo)) {
+                $criterio = $criteriosNormativos->get($codigo);
+                $itemsObservados->put($codigo, [
+                    'id' => null,
+                    'subsanacion_id' => $sub->id,
+                    'criterio_id' => $criterio?->id,
+                    'codigo' => $codigo,
+                    'titulo' => $criterio?->titulo ?? $codigo,
+                    'categoria' => $criterio?->categoria ?? 'GENERAL',
+                    'norma_base' => $criterio?->norma_base ?? 'D.S. 002-2018-PCM',
+                    'articulo_referencia' => $criterio?->articulo_referencia,
+                    'pregunta_ciudadana' => $criterio?->pregunta_ciudadana,
+                    'que_observar' => $sub->descripcion ?? $criterio?->que_observar,
+                    'accion_mejora_orientativa' => $criterio?->accion_mejora_orientativa ?? 'Corregir la condición técnica observada.',
+                    'estado' => 'PENDIENTE_ATENDER',
+                    'notas' => $sub->observacion,
+                    'recursos_educativos' => $criterio?->recursosEducativos->map(fn ($r) => [
+                        'id' => $r->id,
+                        'titulo' => $r->titulo,
+                        'descripcion_corta' => $r->descripcion_corta,
+                        'tipo' => $r->tipo,
+                        'url' => $r->url,
+                    ])->values()->all() ?? [],
+                ]);
+            }
+        }
+
+        return Inertia::render('Evaluacion/SubsanacionDirecta', [
+            'autoevaluacion' => [
+                'id' => $autoevaluacion->id,
+                'uuid' => $autoevaluacion->uuid_trazabilidad,
+                'nombre_comercio' => $autoevaluacion->nombre_comercio,
+                'funcion_economica' => $autoevaluacion->funcion_economica,
+                'ruc' => $autoevaluacion->ruc,
+                'direccion' => $autoevaluacion->direccion,
+                'sector_huancayo' => $autoevaluacion->sector_huancayo,
+                'estado' => $autoevaluacion->estado,
+                'porcentaje_cumplimiento' => (float) ($autoevaluacion->porcentaje_cumplimiento ?? 0),
+                'semaforo' => $autoevaluacion->semaforo,
+            ],
+            'items' => $itemsObservados->values()->all(),
+            'total_observaciones' => $itemsObservados->count(),
+        ]);
+    }
+
+    /**
+     * Declara una condición subsanada y conforme, actualizando el estado de la respuesta
+     * a CUMPLE_DECLARADO y recalculando el porcentaje de cumplimiento y contadores.
+     */
+    public function declararSubsanado(Request $request, string $uuid): JsonResponse|RedirectResponse
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        $validated = $request->validate([
+            'criterio_id' => 'nullable|integer',
+            'codigo_criterio' => 'nullable|string',
+            'nota' => 'nullable|string|max:1000',
+        ]);
+
+        $criterioId = $validated['criterio_id'] ?? null;
+        $codigoCriterio = $validated['codigo_criterio'] ?? null;
+        $nota = $validated['nota'] ?? null;
+
+        if (! $criterioId && ! $codigoCriterio) {
+            return response()->json([
+                'error' => 'parametro_requerido',
+                'mensaje' => 'Se requiere criterio_id o codigo_criterio.',
+            ], 422);
+        }
+
+        $criterio = null;
+        if ($criterioId) {
+            $criterio = CriterioNormativo::find($criterioId);
+        }
+        if (! $criterio && $codigoCriterio) {
+            $criterio = CriterioNormativo::where('codigo_criterio', $codigoCriterio)->first();
+        }
+
+        $codigo = $criterio?->codigo_criterio ?? $codigoCriterio;
+        $idCriterio = $criterio?->id ?? $criterioId;
+
+        // 1. Actualizar respuesta en respuestas_autoevaluacion
+        if ($idCriterio) {
+            RespuestaAutoevaluacion::updateOrCreate(
+                [
+                    'autoevaluacion_id' => $autoevaluacion->id,
+                    'criterio_id' => $idCriterio,
+                ],
+                [
+                    'estado_respuesta' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
+                    'notas_ciudadano' => $nota ?: 'Subsanado y declarado en regla por el titular.',
+                ]
+            );
+        }
+
+        // 2. Si tiene detalle_checklist (legacy o snapshot), actualizar el ítem
+        if (! empty($autoevaluacion->detalle_checklist) && is_array($autoevaluacion->detalle_checklist)) {
+            $checklistActualizada = collect($autoevaluacion->detalle_checklist)->map(function ($item) use ($codigo) {
+                if (($item['codigo'] ?? '') === $codigo) {
+                    $item['cumple'] = true;
+                    $item['estado'] = 'CUMPLE';
+                }
+
+                return $item;
+            })->values()->all();
+
+            $autoevaluacion->detalle_checklist = $checklistActualizada;
+        }
+
+        // 3. Si existen subsanaciones de simulaciones, marcarlas como declaradas
+        foreach ($autoevaluacion->simulaciones as $simulacion) {
+            $simulacion->subsanaciones()
+                ->where('codigo_item', $codigo)
+                ->update([
+                    'estado' => 'SUBSANADO_DECLARADO',
+                    'fecha_subsanacion' => now(),
+                    'notas_ciudadano' => $nota ?: 'Subsanado directamente por el titular.',
+                ]);
+        }
+
+        // 4. Recalcular métricas
+        $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
+        $conteos = $resumenData['conteos'];
+        $totalAplicables = (int) ($conteos['total_criterios_aplicables'] ?? 0);
+        $totalCumple = (int) ($conteos['total_cumple_declarado'] ?? 0);
+        $pendientes = (int) ($conteos['total_pendiente_atender'] ?? 0);
+        $porRevisar = (int) ($conteos['total_por_revisar'] ?? 0);
+
+        if ($totalAplicables > 0) {
+            if ($pendientes === 0 && $porRevisar === 0) {
+                $porcentaje = 100.0;
+                $semaforo = 'VERDE';
+            } else {
+                $metricas = $this->riskService->calcularMetricasCumplimiento($totalAplicables, $totalCumple);
+                $porcentaje = $metricas['porcentaje'];
+                $semaforo = $metricas['semaforo'];
+            }
+        } else {
+            // Evaluación con detalle_checklist legado
+            $checklist = $autoevaluacion->detalle_checklist ?? [];
+            $totalItems = count($checklist);
+            $cumplen = count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE'));
+            $porcentaje = $totalItems > 0 ? round(($cumplen / $totalItems) * 100, 1) : 100.0;
+            $semaforo = $porcentaje >= 100.0 ? 'VERDE' : ($porcentaje >= 75.0 ? 'AMARILLO' : 'ROJO');
+            $pendientes = $totalItems - $cumplen;
+            $porRevisar = 0;
+            $totalCumple = $cumplen;
+            $totalAplicables = $totalItems;
+        }
+
+        $autoevaluacion->total_condiciones_evaluadas = $totalAplicables;
+        $autoevaluacion->total_cumple_declarado = $totalCumple;
+        $autoevaluacion->total_pendiente_atender = $pendientes;
+        $autoevaluacion->total_por_revisar = $porRevisar;
+        $autoevaluacion->total_no_aplica = (int) ($conteos['total_no_aplica'] ?? 0);
+        $autoevaluacion->porcentaje_cumplimiento = $porcentaje;
+        $autoevaluacion->semaforo = $semaforo;
+        $autoevaluacion->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'mensaje' => 'Condición técnica subsanada y declarada conforme.',
+                'codigo' => $codigo,
+                'estado' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
+                'porcentaje_cumplimiento' => $porcentaje,
+                'pendientes_restantes' => $pendientes + $porRevisar,
+                'es_conforme' => ($porcentaje >= 100.0 && $pendientes === 0 && $porRevisar === 0),
+            ]);
+        }
+
+        return back()->with('success', 'Condición subsanada y declarada como conforme.');
     }
 
     /**

@@ -7,80 +7,100 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| CheckITSE Huancayo — Rutas Ciudadanas Definitivas (Fase 6)
+| CheckITSE Huancayo — Rutas Ciudadanas
 |--------------------------------------------------------------------------
 | Flujo cívico preventivo: ingreso anónimo opcional, formulario de datos
 | básicos, autoevaluación guiada, resultado orientativo, reevaluación
 | estrella (A -> B, C), informe descargable y conversión opcional de cuenta.
 */
 
-// Portada pública y Asistente ciudadano preventivo (UX-02)
+// Portada pública y directorio
 Route::get('/', [EvaluacionController::class, 'index'])->name('autoevaluacion.index');
 Route::get('/directorio', [DirectorioController::class, 'index'])->name('directorio.index');
-Route::get('/autoevaluacion', fn () => redirect()->route('autoevaluacion.nueva'));
-Route::get('/autoevaluacion/nueva', [EvaluacionController::class, 'nueva'])->name('autoevaluacion.nueva');
-Route::post('/autoevaluacion', [EvaluacionController::class, 'store'])->name('autoevaluacion.store');
-// Desacoplado en UX-06.2: Las evaluaciones V2 redirigen dinámicamente (302) a resumen;
-// las evaluaciones legacy conservan acceso controlado para trazabilidad y compatibilidad de suite.
-Route::get('/autoevaluacion/resultado/{uuid}', [EvaluacionController::class, 'resultado'])->name('autoevaluacion.resultado');
+Route::post('/directorio/afiliarse', [DirectorioController::class, 'solicitarAfiliacion'])->name('directorio.afiliarse');
 
-// Checklist dinámico normativo (Bloque 3 — Paso 3)
-Route::get('/autoevaluacion/{uuid}/checklist', [EvaluacionController::class, 'checklistDinamico'])->name('autoevaluacion.checklist');
-Route::post('/autoevaluacion/{uuid}/checklist', [EvaluacionController::class, 'guardarDeclaracionesChecklist'])->name('autoevaluacion.checklist.store');
-Route::get('/api/autoevaluaciones/{uuid}/checklist', [EvaluacionController::class, 'checklistDinamico'])->name('api.autoevaluaciones.checklist');
-Route::post('/api/autoevaluaciones/{uuid}/checklist', [EvaluacionController::class, 'guardarDeclaracionesChecklist'])->name('api.autoevaluaciones.checklist.store');
+// Flujo de Autoevaluación Ciudadana
+Route::prefix('autoevaluacion')->name('autoevaluacion.')->group(function () {
+    Route::redirect('/', '/autoevaluacion/nueva');
+    Route::get('/nueva', [EvaluacionController::class, 'nueva'])->name('nueva');
+    Route::post('/', [EvaluacionController::class, 'store'])->name('store');
 
-// Resumen descriptivo y orientativo (Bloque 3 — Paso 5)
-Route::get('/autoevaluacion/{uuid}/resumen', [EvaluacionController::class, 'resumen'])->name('autoevaluacion.resumen');
+    // Rutas asociadas a una autoevaluación específica (UUID)
+    Route::where(['uuid' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'])->group(function () {
+        // Redirección dinámica 302 a resumen (legacy compatible)
+        Route::get('/resultado/{uuid}', [EvaluacionController::class, 'resultado'])->name('resultado');
 
-// Cierre formal de autoevaluación (Bloque 3 — Paso 8)
-Route::post('/autoevaluacion/{uuid}/finalizar', [EvaluacionController::class, 'finalizar'])->name('autoevaluacion.finalizar');
+        // Checklist dinámico normativo (Bloque 3 — Paso 3)
+        Route::get('/{uuid}/checklist', [EvaluacionController::class, 'checklistDinamico'])->name('checklist');
+        Route::post('/{uuid}/checklist', [EvaluacionController::class, 'guardarDeclaracionesChecklist'])->name('checklist.store');
 
-// Reevaluación preventiva ciudadana (Modelo estrella inmutable A -> B, C)
-Route::get('/autoevaluacion/reevaluar/{uuid}', [EvaluacionController::class, 'iniciarReevaluacion'])->name('autoevaluacion.reevaluar');
-Route::post('/autoevaluacion/reevaluar/{uuid}', [EvaluacionController::class, 'storeReevaluacion'])->name('autoevaluacion.reevaluar.store');
+        // Resumen descriptivo y orientativo (Bloque 3 — Paso 5)
+        Route::get('/{uuid}/resumen', [EvaluacionController::class, 'resumen'])->name('resumen');
 
-// Informe preventivo orientativo (descargable / imprimible)
-Route::get('/autoevaluacion/informe/{uuid}', [EvaluacionController::class, 'informe'])->name('autoevaluacion.informe');
-Route::get('/autoevaluacion/anexo/{uuid}', [EvaluacionController::class, 'anexoOficial'])->name('autoevaluacion.anexo');
+        // Cierre formal de autoevaluación (Bloque 3 — Paso 8)
+        Route::post('/{uuid}/finalizar', [EvaluacionController::class, 'finalizar'])->name('finalizar');
 
-// Cuenta ciudadana opcional (registro/conversión de invitado sin fricción)
-Route::post('/autoevaluacion/vincular-cuenta', [EvaluacionController::class, 'vincularCuenta'])
-    ->middleware('throttle:30,1')
-    ->name('autoevaluacion.vincular-cuenta');
-Route::get('/mis-autoevaluaciones', [EvaluacionController::class, 'misEvaluaciones'])
-    ->middleware('auth')
-    ->name('mis-autoevaluaciones');
+        // Reevaluación preventiva ciudadana (Modelo estrella inmutable A -> B, C)
+        Route::get('/reevaluar/{uuid}', [EvaluacionController::class, 'iniciarReevaluacion'])->name('reevaluar');
+        Route::post('/reevaluar/{uuid}', [EvaluacionController::class, 'storeReevaluacion'])->name('reevaluar.store');
 
-// Autenticación liviana
-// Autenticación liviana
-Route::get('/login', fn () => inertia('Auth/Login'))->name('login');
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+        // Informes preventivos y anexos oficiales
+        Route::get('/informe/{uuid}', [EvaluacionController::class, 'informe'])->name('informe');
+        Route::get('/anexo/{uuid}', [EvaluacionController::class, 'anexoOficial'])->name('anexo');
 
-Route::get('/registro', fn () => inertia('Auth/Register'))->name('register');
-Route::post('/registro', [AuthController::class, 'register'])->middleware('throttle:5,1');
+        // Subsanación directa limpia de criterios observados
+        Route::get('/{uuid}/subsanar-items', [EvaluacionController::class, 'subsanarItems'])->name('subsanar_items');
+        Route::post('/{uuid}/declarar-subsanado', [EvaluacionController::class, 'declararSubsanado'])->name('declarar_subsanado');
 
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+        /*
+        | Transición: Mantenidas para compatibilidad de tests (Bloques 7 y 10)
+        */
+        Route::get('/revision/{uuid}', [EvaluacionController::class, 'simulacionRevision'])->name('simulacion');
+        Route::post('/revision/{uuid}', [EvaluacionController::class, 'guardarSimulacion'])->name('simulacion.store');
+        Route::get('/subsanacion/{uuid}', [EvaluacionController::class, 'panelSubsanacion'])->name('subsanacion');
+        Route::post('/subsanacion/{uuid}', [EvaluacionController::class, 'guardarSubsanacion'])->name('subsanacion.store');
+        Route::get('/subsanacion/{uuid}/evidencia/{subsanacion}', [EvaluacionController::class, 'descargarEvidencia'])->name('evidencia');
+    });
+
+    // Rutas sin restricción de UUID
+    Route::get('/recursos-cercanos/{codigo}', [EvaluacionController::class, 'recursosCercanos'])->name('recursos-cercanos');
+
+    // Conversión de cuenta ciudadana (registro de invitado)
+    Route::post('/vincular-cuenta', [EvaluacionController::class, 'vincularCuenta'])
+        ->middleware('throttle:30,1')
+        ->name('vincular-cuenta');
+});
+
+// Alias compatibles con especificación de navegación
+Route::get('/evaluacion/create', [EvaluacionController::class, 'nueva'])->name('evaluacion.create');
+Route::get('/evaluacion/{uuid}', [EvaluacionController::class, 'resultado'])->name('evaluacion.show');
+
+// APIs internas consumidas por componentes interactivos
+Route::prefix('api/autoevaluaciones')->name('api.autoevaluaciones.')->whereUuid('uuid')->group(function () {
+    Route::get('/{uuid}/checklist', [EvaluacionController::class, 'checklistDinamico'])->name('checklist');
+    Route::post('/{uuid}/checklist', [EvaluacionController::class, 'guardarDeclaracionesChecklist'])->name('checklist.store');
+});
+
+// Área personal del ciudadano registrado (requiere sesión activa)
+Route::middleware('auth')->group(function () {
+    Route::get('/panel-ciudadano', [EvaluacionController::class, 'dashboard'])->name('dashboard');
+    Route::get('/mi-cuenta', [EvaluacionController::class, 'perfil'])->name('perfil.show');
+    Route::put('/mi-cuenta', [EvaluacionController::class, 'updatePerfil'])->name('perfil.update');
+
+    Route::get('/mis-autoevaluaciones', [EvaluacionController::class, 'misEvaluaciones'])->name('mis-autoevaluaciones');
+    Route::get('/api/autoevaluaciones/mis-evaluaciones', [EvaluacionController::class, 'misEvaluaciones'])->name('api.autoevaluaciones.mis-evaluaciones');
+    Route::get('/mis-autoevaluaciones/{uuid}/expediente', [EvaluacionController::class, 'resumen'])->name('mis-autoevaluaciones.expediente');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+});
+
+// Autenticación liviana (Inertia + Throttle preventivo)
+Route::middleware('guest')->group(function () {
+    Route::get('/login', fn () => inertia('Auth/Login'))->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1')->name('login.store');
+
+    Route::get('/registro', fn () => inertia('Auth/Register'))->name('register');
+    Route::post('/registro', [AuthController::class, 'register'])->middleware('throttle:5,1')->name('register.store');
+});
+
+// Identidad híbrida (PÚBLICA: devuelve null para invitados o el usuario si hay sesión)
 Route::get('/usuario', [AuthController::class, 'user'])->name('usuario');
-
-/*
-|--------------------------------------------------------------------------
-| Rutas en Transición Segura (Programadas para retiro en Bloques 7 y 10)
-|--------------------------------------------------------------------------
-| Mantenidas temporalmente para conservar estabilidad de la suite de pruebas
-| preexistente mientras se despliegan los bloques del motor y UI definitiva.
-*/
-
-// @deprecated Transición: Simulación in situ (Será retirada en Bloque 7/10)
-Route::get('/autoevaluacion/revision/{uuid}', [EvaluacionController::class, 'simulacionRevision'])->name('autoevaluacion.simulacion');
-Route::post('/autoevaluacion/revision/{uuid}', [EvaluacionController::class, 'guardarSimulacion'])->name('autoevaluacion.simulacion.store');
-
-// @deprecated Transición: Subsanaciones con evidencia física (Será retirada en Bloque 7/10)
-Route::get('/autoevaluacion/subsanacion/{uuid}', [EvaluacionController::class, 'panelSubsanacion'])->name('autoevaluacion.subsanacion');
-Route::post('/autoevaluacion/subsanacion/{uuid}', [EvaluacionController::class, 'guardarSubsanacion'])->name('autoevaluacion.subsanacion.store');
-Route::get('/autoevaluacion/subsanacion/{uuid}/evidencia/{subsanacion}', [EvaluacionController::class, 'descargarEvidencia'])
-    ->name('autoevaluacion.evidencia');
-
-// @deprecated Transición: Proveedores comerciales cercanos (Será retirada en Bloque 7/10)
-Route::get('/autoevaluacion/recursos-cercanos/{codigo}', [EvaluacionController::class, 'recursosCercanos'])
-    ->name('autoevaluacion.recursos-cercanos');

@@ -472,9 +472,9 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
               <ExternalLink className="h-3 w-3 text-slate-400" aria-hidden="true" />
             </a>
 
-            {!esConforme && (
+            {!esConforme && totalObservaciones > 0 && (
               <Link
-                href={route('autoevaluacion.subsanacion', { uuid: record.uuid_trazabilidad })}
+                href={route('autoevaluacion.subsanar_items', { uuid: record.uuid_trazabilidad })}
                 className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 transition hover:bg-amber-100 active:scale-95"
               >
                 <Wrench className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
