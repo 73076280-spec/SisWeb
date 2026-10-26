@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Traits\EvaluacionHelperTrait;
+use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Http\Requests\StoreAutoevaluacionRequest;
 use App\Http\Requests\StoreChecklistDeclaracionesRequest;
 use App\Models\Autoevaluacion;
-use App\Models\CriterioNormativo;
 use App\Models\HistorialSubsanacion;
-use App\Models\RecursoEducativo;
 use App\Models\SimulacionRevision;
 use App\Models\Subsanacion;
 use App\Services\ApplicabilityEngineService;
 use App\Services\DirectorioAliadosService;
 use App\Services\GeoLocationService;
 use App\Services\ItseRiskService;
-use Illuminate\Database\QueryException;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -30,31 +31,18 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EvaluacionController extends Controller
 {
-    public const CODIGO_ACCESO_ALFABETO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+    use EvaluacionHelperTrait;
 
-    public const CODIGO_ACCESO_LONGITUD = 6;
+    public const MSG_NO_AUTORIZADO_EVIDENCIA = 'No autorizado para consultar esta evidencia.';
 
-    public const CODIGO_ACCESO_PREFIJO = 'CHK-';
-
-    protected ItseRiskService $riskService;
-
-    protected GeoLocationService $geoLocationService;
-
-    protected ApplicabilityEngineService $applicabilityEngine;
-
-    protected DirectorioAliadosService $directorioAliados;
+    public const FORMATO_FECHA_HORA = 'd/m/Y H:i';
 
     public function __construct(
-        ItseRiskService $riskService,
-        GeoLocationService $geoLocationService,
-        ApplicabilityEngineService $applicabilityEngine,
-        DirectorioAliadosService $directorioAliados
-    ) {
-        $this->riskService = $riskService;
-        $this->geoLocationService = $geoLocationService;
-        $this->applicabilityEngine = $applicabilityEngine;
-        $this->directorioAliados = $directorioAliados;
-    }
+        protected ItseRiskService $riskService,
+        protected GeoLocationService $geoLocationService,
+        protected ApplicabilityEngineService $applicabilityEngine,
+        protected DirectorioAliadosService $directorioAliados
+    ) {}
 
     public function index(): Response
     {
@@ -63,7 +51,7 @@ class EvaluacionController extends Controller
         ]);
     }
 
-    public function nueva(Request $request): Response
+    public function nueva(): Response
     {
         return Inertia::render('Evaluacion/Nueva', [
             'catalogo' => $this->riskService->getCatalogoChecklist(),
@@ -74,112 +62,30 @@ class EvaluacionController extends Controller
     {
         $evaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
 
-        // Control de autorización estricto:
-        // Si la autoevaluación pertenece a un usuario registrado, solo su titular puede reevaluar.
-        // Si es de invitado, se exige coincidencia estricta con el guest_session_token original.
-        if ($evaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $evaluacion->user_id) {
-                abort(403, 'No autorizado para reevaluar esta autoevaluación.');
-            }
-        } else {
-            $tokenSesion = $request->cookie('guest_session_token');
-            if (! filled($evaluacion->session_token)
-                || ! filled($tokenSesion)
-                || ! hash_equals((string) $evaluacion->session_token, (string) $tokenSesion)) {
-                abort(403, 'No autorizado para reevaluar esta autoevaluación.');
-            }
-        }
+        $this->validarAutorizacionReevaluacion($request, $evaluacion);
 
-        // Control de estado: solo se puede reevaluar una autoevaluación REGISTRADA
-        if (! $evaluacion->estaRegistrada()) {
-            if ($request->expectsJson() || $request->wantsJson()) {
-                return response()->json([
-                    'error' => 'evaluacion_no_registrada',
-                    'mensaje' => 'Solo es posible iniciar una reevaluación a partir de una autoevaluación registrada.',
-                ], 422);
-            }
-
-            return redirect()->route('autoevaluacion.checklist', ['uuid' => $evaluacion->uuid_trazabilidad])
-                ->with('error', 'Solo es posible iniciar una reevaluación a partir de una autoevaluación registrada.');
+        $respuestaEstado = $this->verificarEstadoRegistradaParaReevaluacion($request, $evaluacion);
+        if ($respuestaEstado !== null) {
+            return $respuestaEstado;
         }
 
         // Si se solicita reevaluar sobre una evaluación que ya es una reevaluación,
         // se resuelve la referencia hacia la evaluación original raíz para evitar encadenamiento
         $origenRaiz = $evaluacion->evaluacion_origen_id ? ($evaluacion->evaluacionOrigen ?? $evaluacion) : $evaluacion;
 
-        $reevaluacionDe = [
-            'uuid' => $origenRaiz->uuid_trazabilidad,
-            'nombre_comercio' => $evaluacion->nombre_comercio,
-            'funcion_economica' => $evaluacion->funcion_economica,
-            'ruc' => $evaluacion->ruc,
-            'direccion' => $evaluacion->direccion,
-            'referencia' => $evaluacion->referencia,
-            'area_m2' => $evaluacion->area_m2 !== null ? (string) $evaluacion->area_m2 : null,
-            'pisos' => $evaluacion->pisos !== null ? (int) $evaluacion->pisos : null,
-            'aforo' => $evaluacion->aforo !== null ? (int) $evaluacion->aforo : null,
-            'usa_glp' => $evaluacion->usa_glp !== null ? (bool) $evaluacion->usa_glp : null,
-            'galones_glp' => $evaluacion->galones_glp !== null ? (float) $evaluacion->galones_glp : null,
-            'usa_caldero' => $evaluacion->usa_caldero !== null ? (bool) $evaluacion->usa_caldero : null,
-            'usa_liquidos_inflamables' => $evaluacion->usa_liquidos_inflamables !== null ? (bool) $evaluacion->usa_liquidos_inflamables : null,
-            'tiene_equipos_fritura' => $evaluacion->tiene_equipos_fritura,
-            'tiene_escaleras' => $evaluacion->tiene_escaleras,
-            'tiene_estanterias_altas' => $evaluacion->tiene_estanterias_altas,
-            'fecha_anterior' => $evaluacion->created_at?->format('d/m/Y'),
-            'semaforo_anterior' => $evaluacion->semaforo,
-        ];
-
         return Inertia::render('Evaluacion/Nueva', [
             'catalogo' => $this->riskService->getCatalogoChecklist(),
-            'reevaluacionDe' => $reevaluacionDe,
+            'reevaluacionDe' => $this->construirDatosReevaluacion($evaluacion, $origenRaiz),
         ]);
-    }
-
-    public function storeReevaluacion(StoreAutoevaluacionRequest $request, string $uuid): RedirectResponse|JsonResponse
-    {
-        $request->merge(['evaluacion_origen_uuid' => $uuid]);
-
-        return $this->store($request);
     }
 
     public function store(StoreAutoevaluacionRequest $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validated();
 
-        $evaluacionOrigenId = null;
-        if (! empty($validated['evaluacion_origen_uuid'])) {
-            $evaluacionOrigen = Autoevaluacion::where('uuid_trazabilidad', $validated['evaluacion_origen_uuid'])->firstOrFail();
-
-            if ($evaluacionOrigen->user_id !== null) {
-                $user = $request->user();
-                if ($user === null || (int) $user->id !== (int) $evaluacionOrigen->user_id) {
-                    abort(403, 'No autorizado para reevaluar esta autoevaluación.');
-                }
-            } else {
-                $tokenSesion = $request->cookie('guest_session_token');
-                if (! filled($evaluacionOrigen->session_token)
-                    || ! filled($tokenSesion)
-                    || ! hash_equals((string) $evaluacionOrigen->session_token, (string) $tokenSesion)) {
-                    abort(403, 'No autorizado para reevaluar esta autoevaluación.');
-                }
-            }
-
-            // Bloqueo backend: la evaluación origen debe estar en estado REGISTRADA
-            if (! $evaluacionOrigen->estaRegistrada()) {
-                if ($request->expectsJson() || $request->wantsJson()) {
-                    return response()->json([
-                        'error' => 'evaluacion_no_registrada',
-                        'mensaje' => 'Solo es posible iniciar una reevaluación a partir de una autoevaluación registrada.',
-                    ], 422);
-                }
-
-                return redirect()->route('autoevaluacion.checklist', ['uuid' => $evaluacionOrigen->uuid_trazabilidad])
-                    ->with('error', 'Solo es posible iniciar una reevaluación a partir de una autoevaluación registrada.');
-            }
-
-            // Si la evaluación referenciada ya es una reevaluación, se enlaza directamente a la evaluación original raíz
-            // para evitar el encadenamiento A -> B -> C -> D y mantener el modelo estrella: A -> [B, C, D].
-            $evaluacionOrigenId = $evaluacionOrigen->evaluacion_origen_id ?? $evaluacionOrigen->id;
+        $evaluacionOrigenId = $this->resolverEvaluacionOrigenId($request, $validated);
+        if ($evaluacionOrigenId instanceof RedirectResponse || $evaluacionOrigenId instanceof JsonResponse) {
+            return $evaluacionOrigenId;
         }
 
         // Normalización: los estados declarados son la fuente de verdad; la
@@ -190,14 +96,6 @@ class EvaluacionController extends Controller
 
             return array_merge($item, ['cumple' => $estado === 'CUMPLE']);
         })->values()->all();
-
-        $usaGlp = array_key_exists('usa_glp', $validated) && $validated['usa_glp'] !== null ? (bool) $validated['usa_glp'] : null;
-        $galonesGlp = array_key_exists('galones_glp', $validated) && $validated['galones_glp'] !== null ? (float) $validated['galones_glp'] : null;
-        $usaCaldero = array_key_exists('usa_caldero', $validated) && $validated['usa_caldero'] !== null ? (bool) $validated['usa_caldero'] : null;
-        $usaLiquidosInflamables = array_key_exists('usa_liquidos_inflamables', $validated) && $validated['usa_liquidos_inflamables'] !== null ? (bool) $validated['usa_liquidos_inflamables'] : null;
-        $tieneEquiposFritura = array_key_exists('tiene_equipos_fritura', $validated) && $validated['tiene_equipos_fritura'] !== null ? (bool) $validated['tiene_equipos_fritura'] : null;
-        $tieneEscaleras = array_key_exists('tiene_escaleras', $validated) && $validated['tiene_escaleras'] !== null ? (bool) $validated['tiene_escaleras'] : null;
-        $tieneEstanteriasAltas = array_key_exists('tiene_estanterias_altas', $validated) && $validated['tiene_estanterias_altas'] !== null ? (bool) $validated['tiene_estanterias_altas'] : null;
 
         $porcentajeCumplimiento = 0.0;
         $semaforo = 'PENDIENTE';
@@ -214,110 +112,44 @@ class EvaluacionController extends Controller
         $uuid = (string) Str::uuid();
         $hashIntegridad = ! empty($checklist) ? hash('sha256', $uuid.($validated['ruc'] ?? '').Carbon::now()->timestamp) : null;
 
-        // Estructura de características declaradas (solo las que el ciudadano realmente declaró)
-        $caracteristicasDeclaradas = array_filter([
-            'area_m2' => $validated['area_m2'] ?? null,
-            'pisos' => $validated['pisos'] ?? null,
-            'aforo' => $validated['aforo'] ?? null,
-            'usa_glp' => $usaGlp,
-            'galones_glp' => $galonesGlp,
-            'usa_caldero' => $usaCaldero,
-            'usa_liquidos_inflamables' => $usaLiquidosInflamables,
-            'tiene_equipos_fritura' => $tieneEquiposFritura,
-            'tiene_escaleras' => $tieneEscaleras,
-            'tiene_estanterias_altas' => $tieneEstanteriasAltas,
-        ], fn ($val) => $val !== null);
+        $caracteristicasDeclaradas = $this->extraerCaracteristicasDeclaradas($validated);
 
-        $maxIntentos = 3;
-        $intento = 0;
-        $autoevaluacion = null;
+        $datosCreacion = [
+            'uuid' => $uuid,
+            'hash_integridad' => $hashIntegridad,
+            'caracteristicas_declaradas' => $caracteristicasDeclaradas,
+            'porcentaje_cumplimiento' => $porcentajeCumplimiento,
+            'semaforo' => $semaforo,
+            'checklist' => $checklist,
+        ];
 
-        while ($intento < $maxIntentos) {
-            $intento++;
-            $codigoAcceso = $this->generarCodigoAccesoUnico();
-
-            try {
-                $autoevaluacion = Autoevaluacion::create([
-                    'user_id' => Auth::id(),
-                    'session_token' => $request->cookie('guest_session_token'),
-                    'evaluacion_origen_id' => $evaluacionOrigenId,
-                    'uuid_trazabilidad' => $uuid,
-                    'codigo_acceso' => $codigoAcceso,
-                    'estado' => Autoevaluacion::ESTADO_INICIADA,
-                    'registrada_at' => null,
-                    'hash_integridad' => $hashIntegridad,
-                    'nombre_comercio' => $validated['nombre_comercio'],
-                    'funcion_economica' => $validated['funcion_economica'],
-                    'ruc' => $validated['ruc'] ?? null,
-                    'direccion' => $validated['direccion'] ?? null,
-                    'referencia' => $validated['referencia'] ?? null,
-                    'area_m2' => $validated['area_m2'] ?? null,
-                    'pisos' => $validated['pisos'] ?? null,
-                    'aforo' => $validated['aforo'] ?? null,
-                    'caracteristicas_declaradas' => $caracteristicasDeclaradas,
-                    'usa_glp' => $usaGlp,
-                    'galones_glp' => $galonesGlp,
-                    'usa_caldero' => $usaCaldero,
-                    'usa_liquidos_inflamables' => $usaLiquidosInflamables,
-                    'tiene_equipos_fritura' => $tieneEquiposFritura,
-                    'tiene_escaleras' => $tieneEscaleras,
-                    'tiene_estanterias_altas' => $tieneEstanteriasAltas,
-                    'tipo_tramite' => null,
-                    'nivel_riesgo' => null,
-                    'porcentaje_cumplimiento' => $porcentajeCumplimiento,
-                    'semaforo' => $semaforo,
-                    'detalle_checklist' => $checklist,
-                    'plan_accion_costos' => null,
-                ]);
-                break;
-            } catch (QueryException $e) {
-                if ($this->esColisionCodigoAcceso($e) && $intento < $maxIntentos) {
-                    continue;
-                }
-                throw $e;
-            }
-        }
+        $autoevaluacion = $this->crearAutoevaluacionConReintentos(
+            $request,
+            $validated,
+            $evaluacionOrigenId,
+            $datosCreacion
+        );
 
         $request->session()->put('guest_authorized_uuid', $autoevaluacion->uuid_trazabilidad);
         if ($autoevaluacion->session_token) {
             $request->session()->put('guest_session_token', $autoevaluacion->session_token);
         }
 
-        return redirect()->route('autoevaluacion.checklist', ['uuid' => $autoevaluacion->uuid_trazabilidad]);
+        $mensaje = $evaluacionOrigenId !== null
+            ? 'Reevaluación preventiva iniciada. Actualiza tus declaraciones para el local.'
+            : 'Autoevaluación iniciada correctamente.';
+
+        return redirect()->route('autoevaluacion.checklist', ['uuid' => $autoevaluacion->uuid_trazabilidad])
+            ->with('success', $mensaje);
     }
 
-    public function resultado(Request $request, string $uuid)
+    public function resultado(Request $request, string $uuid): Response|RedirectResponse
     {
         $autoevaluacion = Autoevaluacion::with(['simulaciones.subsanaciones', 'evaluacionOrigen', 'reevaluaciones'])
             ->where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
 
-        // Control de acceso para FASE 15:
-        // Si pertenece a usuario registrado, solo su titular puede consultarla.
-        // Si pertenece a invitado, solo el guest_session_token coincidente o la sesión que la originó.
-        if ($autoevaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
-                abort(403, 'No autorizado para consultar esta autoevaluación.');
-            }
-        } else {
-            if ($request->user() !== null) {
-                abort(403, 'No autorizado para consultar esta autoevaluación.');
-            }
-
-            if (filled($autoevaluacion->session_token)) {
-                $tokenCookie = $request->cookie('guest_session_token');
-                $tokenSesion = $request->session()->get('guest_session_token');
-
-                $esValidoPorCookie = filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie);
-                $esValidoPorSesion = filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion);
-                $esSesionInmediata = $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-
-                if (! $esValidoPorCookie && ! $esValidoPorSesion && ! $esSesionInmediata) {
-                    abort(403, 'No autorizado para consultar esta autoevaluación.');
-                }
-            }
-        }
+        $this->validarAutorizacionConsulta($request, $autoevaluacion);
 
         // Desacoplamiento UX-06.2: Si la autoevaluación pertenece al flujo V2 normativo,
         // se redirige dinámicamente con HTTP 302 hacia la pantalla oficial de resumen descriptivo,
@@ -332,7 +164,7 @@ class EvaluacionController extends Controller
         ]);
     }
 
-    public function simulacionRevision(string $uuid)
+    public function simulacionRevision(string $uuid): Response
     {
         $autoevaluacion = Autoevaluacion::with(['simulaciones.subsanaciones'])
             ->where('uuid_trazabilidad', $uuid)
@@ -343,7 +175,7 @@ class EvaluacionController extends Controller
         ]);
     }
 
-    public function guardarSimulacion(Request $request, string $uuid)
+    public function guardarSimulacion(Request $request, string $uuid): RedirectResponse
     {
         $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
 
@@ -396,13 +228,15 @@ class EvaluacionController extends Controller
         return redirect()->route('autoevaluacion.simulacion', ['uuid' => $uuid]);
     }
 
-    public function panelSubsanacion(string $uuid)
+    public function panelSubsanacion(Request $request, string $uuid): Response
     {
         $autoevaluacion = Autoevaluacion::with(['simulaciones.subsanaciones'])
             ->where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
 
-        $ultimaRevision = $autoevaluacion->simulaciones()->latest()->first();
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        $ultimaRevision = $autoevaluacion->simulaciones->sortByDesc('created_at')->first();
 
         return Inertia::render('Evaluacion/Subsanacion', [
             'autoevaluacion' => $autoevaluacion,
@@ -410,9 +244,10 @@ class EvaluacionController extends Controller
         ]);
     }
 
-    public function guardarSubsanacion(Request $request, string $uuid)
+    public function guardarSubsanacion(Request $request, string $uuid): RedirectResponse
     {
         $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
         $revision = $autoevaluacion->simulaciones()->latest()->firstOrFail();
 
         $validated = $request->validate([
@@ -472,10 +307,12 @@ class EvaluacionController extends Controller
         if ($estadoAnterior !== $estadoSubsanacion) {
             HistorialSubsanacion::create([
                 'subsanacion_id' => $subsanacion->id,
+                'user_id' => Auth::id(),
                 'estado_anterior' => $estadoAnterior,
                 'estado_nuevo' => $estadoSubsanacion,
                 'evidencia_url' => $evidenciaUrl,
                 'comentario' => $validated['descripcion_subsanacion'],
+                'ip_address' => $request->ip(),
             ]);
         }
 
@@ -494,15 +331,27 @@ class EvaluacionController extends Controller
                            empty(array_diff($codigosObservados, $subsanacionesDeclaradas));
 
         if ($todasSubsanadas) {
+            $checklistActualizado = collect($autoevaluacion->detalle_checklist ?? [])->map(function (array $item) use ($subsanacionesDeclaradas): array {
+                if (in_array($item['codigo'] ?? '', $subsanacionesDeclaradas, true)) {
+                    $item['estado'] = 'CUMPLE';
+                    $item['cumple'] = true;
+                }
+
+                return $item;
+            })->values()->all();
+
             $autoevaluacion->update([
                 'semaforo' => 'VERDE',
                 'porcentaje_cumplimiento' => 100.0,
+                'detalle_checklist' => $checklistActualizado,
+                'total_pendiente_atender' => 0,
             ]);
 
             $revision->update([
                 'resultado' => 'SIN_OBSERVACIONES',
                 'porcentaje_revision' => 100.0,
                 'metrica_gap' => 0.0,
+                'total_observaciones' => 0,
             ]);
         }
 
@@ -531,7 +380,7 @@ class EvaluacionController extends Controller
 
         if ($autoevaluacion->user_id !== null) {
             if ($autenticado === null || (int) $autenticado->id !== (int) $autoevaluacion->user_id) {
-                abort(403, 'No autorizado para consultar esta evidencia.');
+                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
             }
         } else {
             $tokenSesion = $request->cookie('guest_session_token');
@@ -539,7 +388,7 @@ class EvaluacionController extends Controller
             if (! filled($autoevaluacion->session_token)
                 || ! filled($tokenSesion)
                 || ! hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion)) {
-                abort(403, 'No autorizado para consultar esta evidencia.');
+                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
             }
         }
 
@@ -549,6 +398,7 @@ class EvaluacionController extends Controller
             abort(404);
         }
 
+        /** @var FilesystemAdapter $disco */
         $disco = Storage::disk('local');
 
         if (! $disco->exists($path)) {
@@ -556,23 +406,6 @@ class EvaluacionController extends Controller
         }
 
         return $disco->response($path);
-    }
-
-    public function recursosCercanos(Request $request, string $codigo): JsonResponse
-    {
-        $validated = $request->validate([
-            'lat' => ['nullable', 'numeric', 'between:-90,90'],
-            'lon' => ['nullable', 'numeric', 'between:-180,180'],
-            'radio' => ['nullable', 'numeric', 'between:1,50'],
-        ]);
-
-        $lat = isset($validated['lat']) ? (float) $validated['lat'] : GeoLocationService::FALLBACK_LAT;
-        $lon = isset($validated['lon']) ? (float) $validated['lon'] : GeoLocationService::FALLBACK_LON;
-        $radio = isset($validated['radio']) ? (float) $validated['radio'] : 5.0;
-
-        return response()->json(
-            $this->geoLocationService->buscarProveedoresPorDeficiencia($codigo, $lat, $lon, $radio)
-        );
     }
 
     /**
@@ -593,32 +426,7 @@ class EvaluacionController extends Controller
             ->where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
 
-        // Control de autorización estricto (FASE 16):
-        // Usuario registrado: solo puede acceder el titular del user_id.
-        // Invitado: solo puede acceder quien posea el guest_session_token legítimo o la sesión inmediata.
-        if ($autoevaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
-                abort(403, 'No autorizado para consultar este informe preventivo.');
-            }
-        } else {
-            if ($request->user() !== null) {
-                abort(403, 'No autorizado para consultar este informe preventivo.');
-            }
-
-            if (filled($autoevaluacion->session_token)) {
-                $tokenCookie = $request->cookie('guest_session_token');
-                $tokenSesion = $request->session()->get('guest_session_token');
-
-                $esValidoPorCookie = filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie);
-                $esValidoPorSesion = filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion);
-                $esSesionInmediata = $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-
-                if (! $esValidoPorCookie && ! $esValidoPorSesion && ! $esSesionInmediata) {
-                    abort(403, 'No autorizado para consultar este informe preventivo.');
-                }
-            }
-        }
+        $this->validarAutorizacionInforme($request, $autoevaluacion);
 
         $revision = $autoevaluacion->simulacionRevision;
 
@@ -626,52 +434,13 @@ class EvaluacionController extends Controller
         $codigosObservados = array_keys(array_filter($verificaciones, fn ($v) => $v === false));
 
         $subsanaciones = collect($revision?->subsanaciones ?? []);
-
-        $declaradas = $subsanaciones
-            ->where('estado', 'SUBSANADO_DECLARADO')
-            ->pluck('codigo_item')
-            ->all();
+        $codigosSubsanados = $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->pluck('codigo_item')->all();
 
         $nombresPorCodigo = collect($this->riskService->getCatalogoChecklist())->keyBy('codigo');
 
-        $categoriaPorCodigo = [
-            'EXTINTOR_PQS' => 'INCENDIOS',
-            'EXTINTOR_K' => 'INCENDIOS',
-            'DETECTORES_HUMO' => 'INCENDIOS',
-            'CAMPANA_EXTRACCION' => 'INCENDIOS',
-            'DIFERENCIAL' => 'ELECTRICIDAD',
-            'TERMOMAGNETICO' => 'ELECTRICIDAD',
-            'TABLERO_MANDIL' => 'ELECTRICIDAD',
-            'POZO_TIERRA' => 'ELECTRICIDAD',
-            'CABLEADO_CANALIZADO' => 'ELECTRICIDAD',
-            'EVACUACION' => 'EVACUACION',
-            'PUERTAS_ESCAPE' => 'EVACUACION',
-            'LUCES_EMERG' => 'EVACUACION',
-            'SENALETICA' => 'EVACUACION',
-            'AFORO_CARTEL' => 'EVACUACION',
-            'BOTIQUIN' => 'ESTRUCTURAL_AUXILIOS',
-            'ANCLAJE_ESTANTERIAS' => 'ESTRUCTURAL_AUXILIOS',
-            'LAMINADO_VIDRIOS' => 'ESTRUCTURAL_AUXILIOS',
-        ];
-
         $checklistRaw = $autoevaluacion->detalle_checklist ?? [];
 
-        // Matriz completa enriquecida de condiciones evaluadas (todas las registradas)
-        $detalleChecklist = collect($checklistRaw)->map(function ($item) use ($nombresPorCodigo, $categoriaPorCodigo) {
-            $codigo = $item['codigo'] ?? '';
-            $catalogoItem = $nombresPorCodigo->get($codigo);
-            $estado = (string) ($item['estado'] ?? ($item['cumple'] ?? true ? 'CUMPLE' : 'NO_CUMPLE'));
-
-            return [
-                'codigo' => $codigo,
-                'nombre' => $item['nombre'] ?? ($catalogoItem['nombre'] ?? $codigo),
-                'categoria' => $item['categoria'] ?? ($categoriaPorCodigo[$codigo] ?? 'GENERAL'),
-                'estado' => $estado,
-                'cumple' => $estado === 'CUMPLE',
-                'es_critico' => (bool) ($item['es_critico'] ?? ($catalogoItem['es_critico'] ?? false)),
-                'norma' => $item['norma'] ?? ($catalogoItem['norma'] ?? 'Normativa ITSE / CENEPRED'),
-            ];
-        })->values()->all();
+        $detalleChecklist = $this->construirDetalleChecklistInforme($checklistRaw, $nombresPorCodigo);
 
         // Resumen cuantitativo por estado de las condiciones
         $totalCondicionesEvaluables = count(array_filter(
@@ -681,7 +450,12 @@ class EvaluacionController extends Controller
 
         $conformesIniciales = count(array_filter(
             $checklistRaw,
-            fn ($item) => ($item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE'
+            function (array $item) use ($codigosSubsanados): bool {
+                $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
+                $codigo = $item['codigo'] ?? '';
+
+                return $estado === 'CUMPLE' && ! in_array($codigo, $codigosSubsanados, true);
+            }
         ));
 
         $conteoEstados = [
@@ -694,9 +468,12 @@ class EvaluacionController extends Controller
 
         $subsanadasDeclaradas = $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count();
         $totalObservadas = count($codigosObservados);
-        $porcentajeSubsanado = $totalObservadas > 0
-            ? (int) round(($subsanadasDeclaradas / $totalObservadas) * 100)
-            : ($totalCondicionesEvaluables > 0 ? 100 : 0);
+        $porcentajeSubsanado = 0;
+        if ($totalObservadas > 0) {
+            $porcentajeSubsanado = (int) round(($subsanadasDeclaradas / $totalObservadas) * 100);
+        } elseif ($totalCondicionesEvaluables > 0) {
+            $porcentajeSubsanado = 100;
+        }
 
         $matriz = $subsanaciones->map(function (Subsanacion $subsanacion) use ($nombresPorCodigo, $uuid): array {
             $item = $nombresPorCodigo->get($subsanacion->codigo_item);
@@ -713,7 +490,7 @@ class EvaluacionController extends Controller
                 'estado' => $subsanacion->estado,
                 'evidencia_url' => $evidenciaUrl,
                 'evidencia_archivo' => $subsanacion->evidencia_url,
-                'fecha_subsanacion' => $subsanacion->fecha_subsanacion?->format('d/m/Y'),
+                'fecha_subsanacion' => $subsanacion->fecha_subsanacion?->format(self::FORMATO_FECHA),
             ];
         })->values();
 
@@ -754,7 +531,7 @@ class EvaluacionController extends Controller
         $esReevaluacion = $autoevaluacion->evaluacion_origen_id !== null;
         $evaluacionOrigen = $autoevaluacion->evaluacionOrigen ? [
             'uuid_trazabilidad' => $autoevaluacion->evaluacionOrigen->uuid_trazabilidad,
-            'fecha' => $autoevaluacion->evaluacionOrigen->created_at?->format('d/m/Y H:i') ?? $autoevaluacion->evaluacionOrigen->created_at?->format('d/m/Y'),
+            'fecha' => $autoevaluacion->evaluacionOrigen->created_at?->format(self::FORMATO_FECHA_HORA) ?? $autoevaluacion->evaluacionOrigen->created_at?->format(self::FORMATO_FECHA),
             'semaforo' => $autoevaluacion->evaluacionOrigen->semaforo,
             'porcentaje_cumplimiento' => $autoevaluacion->evaluacionOrigen->porcentaje_cumplimiento,
         ] : null;
@@ -764,7 +541,7 @@ class EvaluacionController extends Controller
             'esReevaluacion' => $esReevaluacion,
             'evaluacionOrigen' => $evaluacionOrigen,
             'codigoInforme' => $codigoInforme,
-            'fechaEmision' => now()->format('d/m/Y H:i'),
+            'fechaEmision' => now()->format(self::FORMATO_FECHA_HORA),
             'resumen' => $resumen,
             'detalleChecklist' => $detalleChecklist,
             'conteoEstados' => $conteoEstados,
@@ -821,9 +598,17 @@ class EvaluacionController extends Controller
             }
 
             $asociado = DB::transaction(function () use ($autoevaluacion): int {
-                return Autoevaluacion::whereKey($autoevaluacion->id)
-                    ->whereNull('user_id')
-                    ->update(['user_id' => Auth::id()]);
+                $registro = Autoevaluacion::whereKey($autoevaluacion->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $registro || $registro->user_id !== null) {
+                    return 0;
+                }
+
+                $registro->update(['user_id' => Auth::id()]);
+
+                return 1;
             });
 
             if ($asociado === 0) {
@@ -841,102 +626,352 @@ class EvaluacionController extends Controller
     }
 
     /**
+     * Panel Principal del Contribuyente (Dashboard Ciudadano).
+     * Presenta los KPIs de seguridad del negocio y la cartera de locales comerciales.
+     */
+    public function dashboard(Request $request): Response
+    {
+        $user = $request->user();
+        $autoevaluaciones = Autoevaluacion::where('user_id', $user->id)
+            ->with(['simulacionRevision', 'simulaciones.subsanaciones', 'evaluacionOrigen', 'respuestas'])
+            ->latest('id')
+            ->get();
+
+        $records = $autoevaluaciones
+            ->map(function (Autoevaluacion $item): array {
+                $data = $this->formatearItemMisEvaluaciones($item);
+                $data['sector_huancayo'] = $item->sector_huancayo;
+                $data['usa_glp'] = (bool) $item->usa_glp;
+                $data['galones_glp'] = $item->galones_glp;
+
+                return $data;
+            })
+            ->values();
+
+        $kpis = $this->calcularKpisDashboard($records);
+
+        return Inertia::render('Dashboard/Dashboard', [
+            'records' => $records,
+            'kpis' => $kpis,
+        ]);
+    }
+
+    /**
+     * Calcula los KPIs consolidados del dashboard ciudadano.
+     *
+     * @param  Collection<int, array<string, mixed>>  $records
+     * @return array<string, mixed>
+     */
+    private function calcularKpisDashboard(Collection $records): array
+    {
+        $totalLocales = $records->count();
+
+        $aprobados = $records->filter(function (array $r): bool {
+            return ($r['semaforo'] ?? '') === 'VERDE'
+                || (float) ($r['porcentaje_cumplimiento'] ?? 0) >= 100.0;
+        })->count();
+
+        $observados = $records->filter(function (array $r): bool {
+            return ($r['semaforo'] ?? '') === 'ROJO'
+                || (int) ($r['resumen_subsanaciones']['pendientes'] ?? 0) > 0;
+        })->count();
+
+        $enProceso = $records->filter(function (array $r): bool {
+            return ($r['estado'] ?? '') === Autoevaluacion::ESTADO_INICIADA
+                || ($r['semaforo'] ?? '') === 'AMBAR';
+        })->count();
+
+        $riesgos = $records->pluck('nivel_riesgo')->filter()->countBy();
+        $riesgoDominante = $riesgos->sortDesc()->keys()->first() ?? 'MEDIO';
+
+        return [
+            'total_locales' => $totalLocales,
+            'aprobados' => $aprobados,
+            'observados' => $observados,
+            'en_proceso' => $enProceso,
+            'riesgo_dominante' => (string) $riesgoDominante,
+        ];
+    }
+
+    /**
+     * Muestra la vista de perfil de usuario contribuyente.
+     */
+    public function perfil(Request $request): Response
+    {
+        $user = $request->user();
+        $ultima = Autoevaluacion::where('user_id', $user->id)->latest('id')->first();
+
+        $user->setAttribute('razon_social', $ultima?->nombre_comercio ?? '');
+        $user->setAttribute('nombre_comercial', $ultima?->nombre_comercio ?? '');
+        $user->setAttribute('direccion_fiscal', $ultima?->direccion ?? '');
+
+        return Inertia::render('Perfil/PerfilUsuario', [
+            'user' => $user,
+        ]);
+    }
+
+    /**
+     * Actualiza los datos de perfil y contacto del usuario contribuyente.
+     */
+    public function updatePerfil(ProfileUpdateRequest $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $datosValidados = $request->validated();
+        $user->name = $datosValidados['name'];
+        $user->email = $datosValidados['email'];
+
+        if ($request->has('telefono')) {
+            $user->telefono = $request->input('telefono');
+        }
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->input('password'));
+        }
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+
+        $user->save();
+
+        if ($request->hasAny(['nombre_comercial', 'direccion_fiscal', 'razon_social'])) {
+            $ultima = Autoevaluacion::where('user_id', $user->id)->latest('id')->first();
+            if ($ultima !== null && ! $ultima->estaRegistrada()) {
+                $nombre = $request->input('nombre_comercial') ?? $request->input('razon_social');
+                $actualizaciones = array_filter([
+                    'nombre_comercio' => $nombre,
+                    'direccion' => $request->input('direccion_fiscal'),
+                ], fn ($val) => filled($val));
+
+                if (! empty($actualizaciones)) {
+                    $ultima->update($actualizaciones);
+                }
+            }
+        }
+
+        return redirect()->route('perfil.show')->with('success', 'Perfil actualizado correctamente.');
+    }
+
+    /**
      * Panel de retención ciudadana e historial preventivo: lista las autoevaluaciones
      * guardadas por el usuario autenticado con su estado del ciclo de vida, conteos
      * descriptivos normativos, trazabilidad criptográfica y soporte transicional legacy.
      */
-    public function misEvaluaciones(): Response
+    public function misEvaluaciones(Request $request): Response|JsonResponse
     {
         $autoevaluaciones = Autoevaluacion::with(['simulaciones.subsanaciones', 'evaluacionOrigen', 'respuestas'])
             ->where('user_id', Auth::id())
             ->latest('id')
             ->get()
-            ->map(function (Autoevaluacion $autoevaluacion): array {
-                $subsanaciones = $autoevaluacion->simulaciones
-                    ->flatMap(fn ($revision) => $revision->subsanaciones);
-
-                $checklist = $autoevaluacion->detalle_checklist ?? [];
-                $esFlujoNuevo = $autoevaluacion->esFlujoNuevo();
-
-                $conteoCondiciones = [
-                    'total' => count($checklist),
-                    'cumple' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE')),
-                    'no_cumple' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'NO_CUMPLE')),
-                    'por_revisar' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? '') === 'POR_REVISAR')),
-                    'na' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? '') === 'NA')),
-                ];
-
-                $conteosNormativos = null;
-                $desgloseEspecialidades = null;
-
-                if ($esFlujoNuevo) {
-                    // El resumen se genera una sola vez: alimenta tanto los conteos
-                    // como el desglose por especialidad. Para una autoevaluación ya
-                    // registrada los conteos siguen leyéndose de los contadores
-                    // sellados; el desglose se reconstruye porque solo existen
-                    // totales agregados, no el detalle por criterio.
-                    $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
-
-                    if ($autoevaluacion->estaRegistrada() && $autoevaluacion->total_condiciones_evaluadas !== null) {
-                        $conteosNormativos = [
-                            'total_criterios_aplicables' => (int) $autoevaluacion->total_condiciones_evaluadas,
-                            'cumple_declarado' => (int) $autoevaluacion->total_cumple_declarado,
-                            'pendiente_atender' => (int) $autoevaluacion->total_pendiente_atender,
-                            'por_revisar' => (int) $autoevaluacion->total_por_revisar,
-                            'no_aplica' => (int) $autoevaluacion->total_no_aplica,
-                        ];
-                    } else {
-                        $conteos = $resumenData['conteos'];
-                        $conteosNormativos = [
-                            'total_criterios_aplicables' => (int) $conteos['total_criterios_aplicables'],
-                            'cumple_declarado' => (int) $conteos['total_cumple_declarado'],
-                            'pendiente_atender' => (int) $conteos['total_pendiente_atender'],
-                            'por_revisar' => (int) $conteos['total_por_revisar'],
-                            'no_aplica' => (int) $conteos['total_no_aplica'],
-                        ];
-                    }
-
-                    $desgloseEspecialidades = $this->adjuntarDesgloseEspecialidadesAResumen($resumenData)['desglose_especialidades'];
-                }
-
-                return [
-                    'id' => $autoevaluacion->id,
-                    'uuid_trazabilidad' => $autoevaluacion->uuid_trazabilidad,
-                    'codigo_acceso' => $autoevaluacion->codigo_acceso,
-                    'evaluacion_origen_id' => $autoevaluacion->evaluacion_origen_id,
-                    'evaluacion_origen_uuid' => $autoevaluacion->evaluacionOrigen?->uuid_trazabilidad,
-                    'nombre_comercio' => $autoevaluacion->nombre_comercio,
-                    'funcion_economica' => $autoevaluacion->funcion_economica,
-                    'ruc' => $autoevaluacion->ruc,
-                    'direccion' => $autoevaluacion->direccion,
-                    'area_m2' => $autoevaluacion->area_m2,
-                    'pisos' => $autoevaluacion->pisos,
-                    'aforo' => $autoevaluacion->aforo,
-                    'estado' => $autoevaluacion->estado ?? Autoevaluacion::ESTADO_INICIADA,
-                    'registrada_at' => $autoevaluacion->registrada_at?->format('d/m/Y H:i'),
-                    'es_flujo_nuevo' => $esFlujoNuevo,
-                    'conteos_normativos' => $conteosNormativos,
-                    'desglose_especialidades' => $desgloseEspecialidades,
-                    'semaforo' => $autoevaluacion->semaforo,
-                    'porcentaje_cumplimiento' => $autoevaluacion->porcentaje_cumplimiento,
-                    'fecha' => $autoevaluacion->created_at?->format('d/m/Y H:i'),
-                    'fecha_corta' => $autoevaluacion->created_at?->format('d/m/Y'),
-                    'created_at' => $autoevaluacion->created_at?->toIso8601String(),
-                    'hash_integridad' => $autoevaluacion->hash_integridad,
-                    'conteo_condiciones' => $conteoCondiciones,
-                    'resumen_subsanaciones' => [
-                        'total' => $subsanaciones->count(),
-                        'subsanadas' => $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count(),
-                        'en_proceso' => $subsanaciones->where('estado', 'EN_PROCESO')->count(),
-                        'pendientes' => $subsanaciones->where('estado', 'PENDIENTE')->count(),
-                    ],
-                ];
-            })
+            ->map(fn (Autoevaluacion $autoevaluacion): array => $this->formatearItemMisEvaluaciones($autoevaluacion))
             ->values();
+
+        if ($request->wantsJson() || $request->is(self::RUTA_API_PATTERN)) {
+            return response()->json([
+                'autoevaluaciones' => $autoevaluaciones,
+            ], 200, [
+                'Cache-Control' => self::CACHE_CONTROL_NO_STORE,
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ]);
+        }
+
+        $kpis = $this->calcularKpisDashboard($autoevaluaciones);
 
         return Inertia::render('Evaluacion/MisAutoevaluaciones', [
             'autoevaluaciones' => $autoevaluaciones,
+            'records' => $autoevaluaciones,
+            'kpis' => $kpis,
         ]);
+    }
+
+    private function formatearItemMisEvaluaciones(Autoevaluacion $autoevaluacion): array
+    {
+        $subsanaciones = $autoevaluacion->simulaciones
+            ->flatMap(fn ($revision) => $revision->subsanaciones);
+
+        $checklist = $autoevaluacion->detalle_checklist ?? [];
+        $esFlujoNuevo = $autoevaluacion->esFlujoNuevo();
+        $conteoCondiciones = $this->contarCondicionesChecklist($checklist);
+
+        $datosNormativos = $this->resolverConteosYDesglose($autoevaluacion, $esFlujoNuevo, $conteoCondiciones);
+        $conteoCondiciones = $datosNormativos['conteo_condiciones'];
+        $conteosNormativos = $datosNormativos['conteos_normativos'];
+        $desgloseEspecialidades = $datosNormativos['desglose_especialidades'];
+
+        $metricas = $this->resolverMetricasCumplimientoItem($autoevaluacion, $esFlujoNuevo, $conteoCondiciones);
+        $porcentaje = $metricas['porcentaje'];
+        $semaforo = $metricas['semaforo'];
+
+        $clasificacionTramite = $this->clasificarModalidadTramite($autoevaluacion);
+
+        return [
+            'id' => $autoevaluacion->id,
+            'uuid_trazabilidad' => $autoevaluacion->uuid_trazabilidad,
+            'codigo_acceso' => $autoevaluacion->codigo_acceso,
+            'evaluacion_origen_id' => $autoevaluacion->evaluacion_origen_id,
+            'evaluacion_origen_uuid' => $autoevaluacion->evaluacionOrigen?->uuid_trazabilidad,
+            'nombre_comercio' => $autoevaluacion->nombre_comercio,
+            'funcion_economica' => $autoevaluacion->funcion_economica,
+            'ruc' => $autoevaluacion->ruc,
+            'distrito' => $autoevaluacion->distrito,
+            'direccion' => $autoevaluacion->direccion,
+            'area_m2' => $autoevaluacion->area_m2,
+            'pisos' => $autoevaluacion->pisos,
+            'aforo' => $autoevaluacion->aforo,
+            'tipo_tramite' => $clasificacionTramite['tipo_tramite'],
+            'nivel_riesgo' => $clasificacionTramite['nivel_riesgo'],
+            'clasificacion_tramite' => $clasificacionTramite,
+            'estado' => $autoevaluacion->estado ?? Autoevaluacion::ESTADO_INICIADA,
+            'registrada_at' => $autoevaluacion->registrada_at?->format(self::FORMATO_FECHA_HORA),
+            'es_flujo_nuevo' => $esFlujoNuevo,
+            'conteos_normativos' => $conteosNormativos,
+            'desglose_especialidades' => $desgloseEspecialidades,
+            'semaforo' => $semaforo,
+            'porcentaje_cumplimiento' => $porcentaje,
+            'fecha' => $autoevaluacion->created_at?->format(self::FORMATO_FECHA_HORA),
+            'fecha_corta' => $autoevaluacion->created_at?->format(self::FORMATO_FECHA),
+            'created_at' => $autoevaluacion->created_at?->toIso8601String(),
+            'hash_integridad' => $autoevaluacion->hash_integridad,
+            'conteo_condiciones' => $conteoCondiciones,
+            'resumen_subsanaciones' => [
+                'total' => $subsanaciones->count(),
+                'subsanadas' => $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count(),
+                'en_proceso' => $subsanaciones->where('estado', 'EN_PROCESO')->count(),
+                'pendientes' => $subsanaciones->where('estado', 'PENDIENTE')->count(),
+            ],
+        ];
+    }
+
+    private function contarCondicionesChecklist(array $checklist): array
+    {
+        return [
+            'total' => count($checklist),
+            'cumple' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE')),
+            'no_cumple' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'NO_CUMPLE')),
+            'por_revisar' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? '') === 'POR_REVISAR')),
+            'na' => count(array_filter($checklist, fn ($i) => ($i['estado'] ?? '') === 'NA')),
+        ];
+    }
+
+    private function resolverConteosYDesglose(Autoevaluacion $autoevaluacion, bool $esFlujoNuevo, array $conteoCondiciones): array
+    {
+        if ($esFlujoNuevo) {
+            return $this->resolverConteosYDesgloseFlujoNuevo($autoevaluacion);
+        }
+
+        $checklist = $autoevaluacion->detalle_checklist ?? [];
+        if (! empty($checklist)) {
+            return $this->resolverConteosYDesgloseLegacy($checklist, $conteoCondiciones);
+        }
+
+        return [
+            'conteos_normativos' => null,
+            'desglose_especialidades' => null,
+            'conteo_condiciones' => $conteoCondiciones,
+        ];
+    }
+
+    private function resolverConteosYDesgloseFlujoNuevo(Autoevaluacion $autoevaluacion): array
+    {
+        $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
+
+        if ($autoevaluacion->estaRegistrada() && $autoevaluacion->total_condiciones_evaluadas !== null) {
+            $conteosNormativos = [
+                'total_criterios_aplicables' => (int) $autoevaluacion->total_condiciones_evaluadas,
+                'cumple_declarado' => (int) $autoevaluacion->total_cumple_declarado,
+                'pendiente_atender' => (int) $autoevaluacion->total_pendiente_atender,
+                'por_revisar' => (int) $autoevaluacion->total_por_revisar,
+                'no_aplica' => (int) $autoevaluacion->total_no_aplica,
+            ];
+        } else {
+            $conteos = $resumenData['conteos'];
+            $conteosNormativos = [
+                'total_criterios_aplicables' => (int) $conteos['total_criterios_aplicables'],
+                'cumple_declarado' => (int) $conteos['total_cumple_declarado'],
+                'pendiente_atender' => (int) $conteos['total_pendiente_atender'],
+                'por_revisar' => (int) $conteos['total_por_revisar'],
+                'no_aplica' => (int) $conteos['total_no_aplica'],
+            ];
+        }
+
+        $conteoCondiciones = [
+            'total' => $conteosNormativos['total_criterios_aplicables'],
+            'cumple' => $conteosNormativos['cumple_declarado'],
+            'no_cumple' => $conteosNormativos['pendiente_atender'],
+            'por_revisar' => $conteosNormativos['por_revisar'],
+            'na' => $conteosNormativos['no_aplica'],
+        ];
+
+        $desgloseEspecialidades = $this->adjuntarDesgloseEspecialidadesAResumen($resumenData)['desglose_especialidades'];
+
+        return [
+            'conteos_normativos' => $conteosNormativos,
+            'desglose_especialidades' => $desgloseEspecialidades,
+            'conteo_condiciones' => $conteoCondiciones,
+        ];
+    }
+
+    private function resolverConteosYDesgloseLegacy(array $checklist, array $conteoCondiciones): array
+    {
+        $totalAplicables = $conteoCondiciones['total'] - $conteoCondiciones['na'];
+        $conteosNormativos = [
+            'total_criterios_aplicables' => $totalAplicables,
+            'cumple_declarado' => $conteoCondiciones['cumple'],
+            'pendiente_atender' => $conteoCondiciones['no_cumple'],
+            'por_revisar' => $conteoCondiciones['por_revisar'],
+            'no_aplica' => $conteoCondiciones['na'],
+        ];
+
+        $condicionesAdaptadas = [];
+        foreach ($checklist as $item) {
+            $est = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
+            if ($est === 'NA') {
+                continue;
+            }
+            $condicionesAdaptadas[] = [
+                'codigo' => $item['codigo'] ?? '',
+                'estado' => match ($est) {
+                    'CUMPLE' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
+                    'POR_REVISAR' => ApplicabilityEngineService::ESTADO_POR_REVISAR,
+                    default => ApplicabilityEngineService::ESTADO_PENDIENTE_ATENDER,
+                },
+            ];
+        }
+
+        $desgloseEspecialidades = $this->directorioAliados->desglosePorEspecialidad($condicionesAdaptadas);
+
+        return [
+            'conteos_normativos' => $conteosNormativos,
+            'desglose_especialidades' => $desgloseEspecialidades,
+            'conteo_condiciones' => $conteoCondiciones,
+        ];
+    }
+
+    private function resolverMetricasCumplimientoItem(Autoevaluacion $autoevaluacion, bool $esFlujoNuevo, array $conteoCondiciones): array
+    {
+        $porcentaje = (float) $autoevaluacion->porcentaje_cumplimiento;
+        $semaforo = $autoevaluacion->semaforo;
+
+        $debeRecalcular = ! $autoevaluacion->estaRegistrada()
+            || $porcentaje <= 0.0
+            || empty($semaforo)
+            || $semaforo === 'PENDIENTE';
+
+        if ($esFlujoNuevo && $conteoCondiciones['total'] > 0 && $debeRecalcular) {
+            $metricas = $this->riskService->calcularMetricasCumplimiento(
+                $conteoCondiciones['total'],
+                $conteoCondiciones['cumple']
+            );
+            $porcentaje = $metricas['porcentaje'];
+            $semaforo = $metricas['semaforo'];
+        }
+
+        return [
+            'porcentaje' => $porcentaje,
+            'semaforo' => $semaforo,
+        ];
     }
 
     /**
@@ -950,7 +985,7 @@ class EvaluacionController extends Controller
         $checklist = $this->applicabilityEngine->generarChecklistDinamico($autoevaluacion);
         $checklist = $this->adjuntarRecursosEducativosAChecklist($checklist);
 
-        if (! $request->wantsJson() && ! $request->is('api/*')) {
+        if (! $request->wantsJson() && ! $request->is(self::RUTA_API_PATTERN)) {
             return Inertia::render('Evaluacion/Checklist', [
                 'autoevaluacion' => [
                     'id' => $autoevaluacion->id,
@@ -958,14 +993,18 @@ class EvaluacionController extends Controller
                     'nombre_comercio' => $autoevaluacion->nombre_comercio,
                     'direccion' => $autoevaluacion->direccion,
                     'estado' => $autoevaluacion->estado,
-                    'registrada_at' => $autoevaluacion->registrada_at?->format('d/m/Y H:i'),
+                    'registrada_at' => $autoevaluacion->registrada_at?->format(self::FORMATO_FECHA_HORA),
                     'hash_integridad' => $autoevaluacion->hash_integridad,
                 ],
                 'checklist' => $checklist,
             ]);
         }
 
-        return response()->json($checklist);
+        return response()->json($checklist, 200, [
+            'Cache-Control' => self::CACHE_CONTROL_NO_STORE,
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
     /**
@@ -1017,6 +1056,24 @@ class EvaluacionController extends Controller
             ], 422);
         }
 
+        // Actualización inmediata de métricas agregadas en la entidad padre (MySQL)
+        $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
+        $conteos = $resumenData['conteos'];
+        $metricas = $this->riskService->calcularMetricasCumplimiento(
+            (int) ($conteos['total_criterios_aplicables'] ?? 0),
+            (int) ($conteos['total_cumple_declarado'] ?? 0)
+        );
+
+        $autoevaluacion->update([
+            'total_condiciones_evaluadas' => $conteos['total_criterios_aplicables'],
+            'total_cumple_declarado' => $conteos['total_cumple_declarado'],
+            'total_pendiente_atender' => $conteos['total_pendiente_atender'],
+            'total_por_revisar' => $conteos['total_por_revisar'],
+            'total_no_aplica' => $conteos['total_no_aplica'],
+            'porcentaje_cumplimiento' => $metricas['porcentaje'],
+            'semaforo' => $metricas['semaforo'],
+        ]);
+
         $checklistActualizado = $this->applicabilityEngine->generarChecklistDinamico($autoevaluacion);
         $checklistActualizado = $this->adjuntarRecursosEducativosAChecklist($checklistActualizado);
 
@@ -1024,7 +1081,11 @@ class EvaluacionController extends Controller
             'mensaje' => 'Declaraciones registradas exitosamente.',
             'guardadas' => $respuestasGuardadas,
             'checklist' => $checklistActualizado,
-        ], 200);
+        ], 200, [
+            'Cache-Control' => self::CACHE_CONTROL_NO_STORE,
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
     /**
@@ -1039,56 +1100,15 @@ class EvaluacionController extends Controller
 
         // 1. Idempotencia: si ya está registrada, no recalcular ni alterar
         if ($autoevaluacion->estaRegistrada()) {
-            if ($request->wantsJson() || $request->is('api/*')) {
-                return response()->json([
-                    'mensaje' => 'La autoevaluación ya se encuentra registrada y protegida contra modificaciones.',
-                    'estado' => $autoevaluacion->estado,
-                    'registrada_at' => $autoevaluacion->registrada_at?->toIso8601String(),
-                    'hash_integridad' => $autoevaluacion->hash_integridad,
-                    'uuid' => $autoevaluacion->uuid_trazabilidad,
-                ], 200);
-            }
-
-            return redirect()->route('autoevaluacion.resumen', ['uuid' => $autoevaluacion->uuid_trazabilidad])
-                ->with('info', 'La autoevaluación ya se encuentra registrada y protegida contra modificaciones.');
+            return $this->respuestaAutoevaluacionYaRegistrada($request, $autoevaluacion);
         }
 
         // 2. Reconstruir checklist y validar que todos los criterios aplicables tengan declaración
         $checklist = $this->applicabilityEngine->generarChecklistDinamico($autoevaluacion);
-        $criteriosAplicables = $checklist['criterios'];
-        $informacionPendiente = $checklist['informacion_pendiente'];
-
-        $pendientes = [];
-        foreach ($criteriosAplicables as $criterio) {
-            if (! isset($criterio['estado']) || ! in_array($criterio['estado'], ApplicabilityEngineService::RESPUESTAS_CIUDADANAS_PERMITIDAS, true)) {
-                $pendientes[] = [
-                    'codigo' => $criterio['codigo'],
-                    'titulo' => $criterio['titulo'],
-                ];
-            }
-        }
-
-        if (count($informacionPendiente) > 0) {
-            foreach ($informacionPendiente as $criterio) {
-                $pendientes[] = [
-                    'codigo' => $criterio['codigo'],
-                    'titulo' => $criterio['titulo'],
-                    'motivo' => $criterio['mensaje'] ?? 'Información física pendiente',
-                ];
-            }
-        }
+        $pendientes = $this->obtenerCriteriosPendientesParaCierre($checklist);
 
         if (count($pendientes) > 0) {
-            if ($request->wantsJson() || $request->is('api/*')) {
-                return response()->json([
-                    'error' => 'criterios_pendientes',
-                    'mensaje' => 'No es posible registrar la autoevaluación porque existen condiciones aplicables sin declaración.',
-                    'pendientes' => $pendientes,
-                ], 422);
-            }
-
-            return redirect()->route('autoevaluacion.checklist', ['uuid' => $autoevaluacion->uuid_trazabilidad])
-                ->with('error', 'Existen condiciones pendientes de declaración antes de registrar su autoevaluación.');
+            return $this->respuestaCriteriosPendientesCierre($request, $autoevaluacion, $pendientes);
         }
 
         // 3. Generar snapshot canónico normalizado y hash determinístico SHA-256
@@ -1100,13 +1120,22 @@ class EvaluacionController extends Controller
         $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
         $conteos = $resumenData['conteos'];
 
+        $metricas = $this->riskService->calcularMetricasCumplimiento(
+            (int) ($conteos['total_criterios_aplicables'] ?? 0),
+            (int) ($conteos['total_cumple_declarado'] ?? 0)
+        );
+        $porcentajeCumplimiento = $metricas['porcentaje'];
+        $semaforo = $metricas['semaforo'];
+
         // 4. Transacción atómica para sellar la autoevaluación con su snapshot inmutable
-        DB::transaction(function () use ($autoevaluacion, $payloadCanonico, $hashIntegridad, $conteos) {
+        DB::transaction(function () use ($autoevaluacion, $payloadCanonico, $hashIntegridad, $conteos, $porcentajeCumplimiento, $semaforo) {
             $autoevaluacion->update([
                 'estado' => Autoevaluacion::ESTADO_REGISTRADA,
                 'registrada_at' => now(),
                 'hash_integridad' => $hashIntegridad,
                 'payload_canonico' => $payloadCanonico,
+                'porcentaje_cumplimiento' => $porcentajeCumplimiento,
+                'semaforo' => $semaforo,
                 'total_condiciones_evaluadas' => $conteos['total_criterios_aplicables'],
                 'total_cumple_declarado' => $conteos['total_cumple_declarado'],
                 'total_pendiente_atender' => $conteos['total_pendiente_atender'],
@@ -1115,18 +1144,25 @@ class EvaluacionController extends Controller
             ]);
         });
 
-        if ($request->wantsJson() || $request->is('api/*')) {
-            return response()->json([
+        if ($request->wantsJson() || $request->is(self::RUTA_API_PATTERN)) {
+            $resultado = response()->json([
                 'mensaje' => 'Autoevaluación registrada correctamente y protegida contra modificaciones.',
                 'estado' => Autoevaluacion::ESTADO_REGISTRADA,
                 'registrada_at' => $autoevaluacion->fresh()->registrada_at?->toIso8601String(),
                 'hash_integridad' => $hashIntegridad,
                 'uuid' => $autoevaluacion->uuid_trazabilidad,
+                'porcentaje_cumplimiento' => $porcentajeCumplimiento,
+                'semaforo' => $semaforo,
             ], 200);
+        } elseif (Auth::check()) {
+            $resultado = redirect()->route('mis-autoevaluaciones')
+                ->with('success', 'Autoevaluación actualizada correctamente');
+        } else {
+            $resultado = redirect()->route('autoevaluacion.resumen', ['uuid' => $autoevaluacion->uuid_trazabilidad])
+                ->with('success', 'Autoevaluación registrada correctamente y protegida contra modificaciones.');
         }
 
-        return redirect()->route('autoevaluacion.resumen', ['uuid' => $autoevaluacion->uuid_trazabilidad])
-            ->with('success', 'Autoevaluación registrada correctamente y protegida contra modificaciones.');
+        return $resultado;
     }
 
     /**
@@ -1150,11 +1186,12 @@ class EvaluacionController extends Controller
             'nombre_comercio' => $autoevaluacion->nombre_comercio,
             'funcion_economica' => $autoevaluacion->funcion_economica,
             'ruc' => $autoevaluacion->ruc,
+            'distrito' => $autoevaluacion->distrito,
             'direccion' => $autoevaluacion->direccion,
             'codigo_acceso' => $autoevaluacion->codigo_acceso,
             'caracteristicas_declaradas' => $autoevaluacion->caracteristicas_declaradas,
             'estado' => $autoevaluacion->estado,
-            'registrada_at' => $autoevaluacion->registrada_at?->format('d/m/Y H:i'),
+            'registrada_at' => $autoevaluacion->registrada_at?->format(self::FORMATO_FECHA_HORA),
             'hash_integridad' => $autoevaluacion->hash_integridad,
         ];
 
@@ -1169,367 +1206,23 @@ class EvaluacionController extends Controller
             'clasificacion_tramite' => $this->clasificarModalidadTramite($autoevaluacion),
         ];
 
-        if (! $request->wantsJson() && ! $request->is('api/*')) {
+        if (! $request->wantsJson() && ! $request->is(self::RUTA_API_PATTERN)) {
             return Inertia::render('Evaluacion/Resumen', $payload);
         }
 
-        return response()->json($payload);
+        return response()->json($payload, 200, [
+            'Cache-Control' => self::CACHE_CONTROL_NO_STORE,
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ]);
     }
 
-    /**
-     * Modalidad de trámite que tendría la evaluación ante la ITSE, según el
-     * D.S. N° 002-2018-PCM y la R.J. N° 016-2018-CENEPRED/J.
-     *
-     * Respeta el par `tipo_tramite`/`nivel_riesgo` ya persistido. Como el
-     * clasificador heredado dejó de ejecutarse en el paso 1, las evaluaciones
-     * nuevas lo tienen en NULL; en ese caso se recalcula aquí con
-     * `ItseRiskService::clasificarTramite()`, que es la única implementación de
-     * esa regla normativa, para no inventar una segunda en el frontend.
-     *
-     * Es informativo y no altera el expediente: no escribe en la base de datos,
-     * no participa del semáforo de cumplimiento y no se registra como
-     * clasificación oficial, porque esa solo corresponde al órgano competente.
-     */
-    protected function clasificarModalidadTramite(Autoevaluacion $autoevaluacion): array
+    public function anexoOficial(string $uuid, Request $request): Response
     {
-        if ($autoevaluacion->tipo_tramite && $autoevaluacion->nivel_riesgo) {
-            return [
-                'tipo_tramite' => (string) $autoevaluacion->tipo_tramite,
-                'nivel_riesgo' => (string) $autoevaluacion->nivel_riesgo,
-                'es_previa' => $autoevaluacion->tipo_tramite === 'EX_ANTE',
-                'motivos' => [],
-                'fuente' => 'registro',
-            ];
-        }
-
-        $clasificacion = $this->riskService->clasificarTramite(
-            (string) ($autoevaluacion->funcion_economica ?: 'Comercio'),
-            $autoevaluacion->area_m2 !== null ? (float) $autoevaluacion->area_m2 : null,
-            $autoevaluacion->pisos !== null ? (int) $autoevaluacion->pisos : null,
-            $autoevaluacion->aforo !== null ? (int) $autoevaluacion->aforo : null,
-            (bool) $autoevaluacion->usa_glp,
-            (float) ($autoevaluacion->galones_glp ?? 0),
-            (bool) $autoevaluacion->usa_caldero,
-            (bool) $autoevaluacion->usa_liquidos_inflamables,
-        );
-
-        return [
-            'tipo_tramite' => (string) $clasificacion['tipo_tramite'],
-            'nivel_riesgo' => (string) $clasificacion['nivel_riesgo'],
-            'es_previa' => (bool) $clasificacion['es_bloqueante'],
-            'motivos' => array_values((array) $clasificacion['motivos']),
-            'fuente' => 'recalculado',
-        ];
-    }
-
-    /**
-     * Resuelve una autoevaluación por su UUID de trazabilidad o ID numérico.
-     */
-    protected function resolverAutoevaluacion(string $uuid): Autoevaluacion
-    {
-        return Autoevaluacion::with(['respuestas'])
-            ->where('uuid_trazabilidad', $uuid)
-            ->when(is_numeric($uuid), fn ($query) => $query->orWhere('id', (int) $uuid))
+        $evaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
-    }
 
-    /**
-     * Control de autorización estricto y consistente para acceso a la autoevaluación.
-     */
-    protected function autorizarAccesoAutoevaluacion(Request $request, Autoevaluacion $autoevaluacion): void
-    {
-        if ($autoevaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
-                abort(403, 'No autorizado para acceder a esta autoevaluación.');
-            }
-
-            return;
-        }
-
-        // Evaluación de invitado (user_id === null): exige credencial legítima de invitado
-        if (filled($autoevaluacion->session_token)) {
-            $tokenCookie = $request->cookie('guest_session_token');
-            $tokenSesion = $request->hasSession() ? $request->session()->get('guest_session_token') : null;
-            $esSesionInmediata = $request->hasSession() && $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-
-            $esValido = (filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie))
-                || (filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion))
-                || $esSesionInmediata;
-
-            if (! $esValido) {
-                abort(403, 'No autorizado para acceder a esta autoevaluación.');
-            }
-        }
-    }
-
-    /**
-     * Mapea un modelo RecursoEducativo al contrato esperado por los componentes React.
-     *
-     * @return array<string, mixed>
-     */
-    private function formatearRecursoEducativo(RecursoEducativo $recurso): array
-    {
-        return [
-            'id' => $recurso->id,
-            'criterio_normativo_id' => $recurso->criterio_normativo_id,
-            'titulo' => $recurso->titulo,
-            'descripcion_corta' => $recurso->descripcion_corta,
-            'tipo' => $recurso->tipo,
-            'url' => $recurso->url,
-            'fuente_autor' => $recurso->fuente_autor,
-            'duracion_estimada' => $recurso->duracion_estimada,
-        ];
-    }
-
-    /**
-     * Obtiene los recursos educativos activos agrupados por ID de criterio normativo.
-     *
-     * @param  Collection<int, int>  $criterioIds
-     * @return Collection<int, Collection<int, RecursoEducativo>>
-     */
-    private function obtenerRecursosPorCriterioIds($criterioIds)
-    {
-        if ($criterioIds->isEmpty()) {
-            return collect();
-        }
-
-        return RecursoEducativo::activos()
-            ->whereIn('criterio_normativo_id', $criterioIds)
-            ->orderBy('id')
-            ->get()
-            ->groupBy('criterio_normativo_id');
-    }
-
-    /**
-     * Adjunta los recursos educativos activos al checklist dinámico para la interfaz ciudadana.
-     *
-     * @param  array<string, mixed>  $checklist
-     * @return array<string, mixed>
-     */
-    private function adjuntarRecursosEducativosAChecklist(array $checklist): array
-    {
-        if (empty($checklist['criterios'])) {
-            return $checklist;
-        }
-
-        $criterioIds = collect($checklist['criterios'])
-            ->pluck('criterio_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        $recursosPorCriterio = $this->obtenerRecursosPorCriterioIds($criterioIds);
-
-        foreach ($checklist['criterios'] as &$criterio) {
-            $criterioId = $criterio['criterio_id'] ?? null;
-            $recursos = $recursosPorCriterio->get($criterioId, collect());
-
-            $criterio['recursos_educativos'] = $recursos->map(
-                fn (RecursoEducativo $r) => $this->formatearRecursoEducativo($r)
-            )->values()->all();
-        }
-        unset($criterio);
-
-        return $checklist;
-    }
-
-    /**
-     * Agrega el desglose de condiciones por disciplina técnica ITSE al resumen.
-     *
-     * Es puramente aditivo: no toca ninguna clave existente. El estado de cada
-     * condición se deduce de la colección de la que proviene, porque
-     * `generarResumenDescriptivo()` no expone `estado` dentro de cada ítem.
-     * Las condiciones `NO_APLICA` quedan fuera del desglose por definición: no
-     * son condiciones evaluadas.
-     *
-     * @param  array<string, mixed>  $resumenData
-     * @return array<string, mixed>
-     */
-    private function adjuntarDesgloseEspecialidadesAResumen(array $resumenData): array
-    {
-        $estadoPorColeccion = [
-            'pendiente_atender' => ApplicabilityEngineService::ESTADO_PENDIENTE_ATENDER,
-            'por_revisar' => ApplicabilityEngineService::ESTADO_POR_REVISAR,
-            'cumple_declarado' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
-        ];
-
-        $condiciones = [];
-        foreach ($estadoPorColeccion as $coleccion => $estado) {
-            foreach ($resumenData[$coleccion] ?? [] as $item) {
-                $codigo = $item['codigo'] ?? null;
-
-                if ($codigo === null || $codigo === '') {
-                    continue;
-                }
-
-                $condiciones[] = ['codigo' => $codigo, 'estado' => $estado];
-            }
-        }
-
-        $resumenData['desglose_especialidades'] = $this->directorioAliados->desglosePorEspecialidad($condiciones);
-
-        return $resumenData;
-    }
-
-    /**
-     * Adjunta los recursos educativos activos al resumen descriptivo para la interfaz ciudadana.
-     * Los recursos se asignan exclusivamente a pendiente_atender, por_revisar y cumple_declarado.
-     * no_aplica se mantiene estrictamente sin recursos educativos.
-     *
-     * @param  array<string, mixed>  $resumenData
-     * @return array<string, mixed>
-     */
-    private function adjuntarRecursosEducativosAResumen(array $resumenData): array
-    {
-        $coleccionesConRecursos = ['pendiente_atender', 'por_revisar', 'cumple_declarado'];
-
-        $codigos = collect($coleccionesConRecursos)
-            ->flatMap(fn ($col) => collect($resumenData[$col] ?? [])->pluck('codigo'))
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($codigos->isEmpty()) {
-            return $resumenData;
-        }
-
-        $criteriosNormativos = CriterioNormativo::whereIn('codigo_criterio', $codigos)
-            ->pluck('id', 'codigo_criterio');
-
-        $recursosPorCriterio = $this->obtenerRecursosPorCriterioIds($criteriosNormativos->values());
-
-        foreach ($coleccionesConRecursos as $coleccion) {
-            if (empty($resumenData[$coleccion])) {
-                continue;
-            }
-
-            foreach ($resumenData[$coleccion] as &$item) {
-                $codigo = $item['codigo'] ?? null;
-                $criterioId = $criteriosNormativos->get($codigo);
-                $recursos = $criterioId ? $recursosPorCriterio->get($criterioId, collect()) : collect();
-
-                $item['recursos_educativos'] = $recursos->map(
-                    fn (RecursoEducativo $r) => $this->formatearRecursoEducativo($r)
-                )->values()->all();
-            }
-            unset($item);
-        }
-
-        return $resumenData;
-    }
-
-    /**
-     * Adjunta el bloque de asistencia técnica de DirectorioAliadosService al resumen
-     * descriptivo. Es el gemelo de adjuntarRecursosEducativosAResumen(): comparte las
-     * mismas colecciones (pendiente_atender, por_revisar y cumple_declarado) y respeta
-     * la regla de no_aplica estrictamente sin contenido.
-     *
-     * El payload viaja embebido en la página porque el directorio es un catálogo estático
-     * en memoria: no justifica un endpoint adicional ni una consulta por criterio.
-     *
-     * @param  array<string, mixed>  $resumenData
-     * @return array<string, mixed>
-     */
-    private function adjuntarAsistenciaTecnicaAResumen(array $resumenData): array
-    {
-        $coleccionesConAsistencia = ['pendiente_atender', 'por_revisar', 'cumple_declarado'];
-
-        foreach ($coleccionesConAsistencia as $coleccion) {
-            if (empty($resumenData[$coleccion])) {
-                continue;
-            }
-
-            foreach ($resumenData[$coleccion] as &$item) {
-                $item['asistencia_tecnica'] = $this->construirAsistenciaTecnica(
-                    $item['codigo'] ?? null,
-                    $item['titulo'] ?? null,
-                    $item['norma_base'] ?? null,
-                );
-            }
-            unset($item);
-        }
-
-        return $resumenData;
-    }
-
-    /**
-     * Traduce un criterio del checklist al contrato que consume
-     * NubeAsistenciaModal: guía de autoayuda, rango de costo y aliados sugeridos.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function construirAsistenciaTecnica(?string $codigo, ?string $titulo, ?string $norma): ?array
-    {
-        if (blank($codigo)) {
-            return null;
-        }
-
-        // El código que viaja al frontend es el del catálogo normativo (CRIT-xx) para
-        // que el modal muestre el mismo identificador que el resto del resumen;
-        // el servicio internamente lo traduce al código técnico ITSE.
-        $codigoOriginal = $codigo;
-        $resumen = $this->directorioAliados->obtenerPorCriterio($codigo);
-
-        // Un criterio sin equivalente en el directorio (p. ej. GLP o calderas) igual
-        // puede mostrar su guía de autoayuda, por lo que no se descarta el bloque.
-        if (! $resumen['criterio_conocido']) {
-            return [
-                'codigo' => $codigoOriginal,
-                'titulo' => $titulo ?? $codigoOriginal,
-                'norma' => $norma,
-                'guia_autoayuda' => [],
-                'rango_costo' => null,
-                'aliados' => [],
-            ];
-        }
-
-        return [
-            'codigo' => $codigoOriginal,
-            'titulo' => $titulo ?? $resumen['criterio'],
-            'norma' => $norma ?? $resumen['norma'],
-            'guia_autoayuda' => $resumen['guia_autoayuda'],
-            'rango_costo' => $resumen['rango_costo'],
-            'aliados' => array_merge([$resumen['aliado']], $resumen['alternativas']),
-        ];
-    }
-
-    /**
-     * Genera un identificador ciudadano único CHK-XXXXXX usando un alfabeto legible de 31 caracteres
-     * con entropía criptográfica (random_int) y verificación previa de existencia.
-     */
-    private function generarCodigoAccesoUnico(): string
-    {
-        $alfabeto = self::CODIGO_ACCESO_ALFABETO;
-        $maxIndex = strlen($alfabeto) - 1;
-
-        do {
-            $sufijo = '';
-            for ($i = 0; $i < self::CODIGO_ACCESO_LONGITUD; $i++) {
-                $sufijo .= $alfabeto[random_int(0, $maxIndex)];
-            }
-            $codigo = self::CODIGO_ACCESO_PREFIJO.$sufijo;
-        } while (Autoevaluacion::where('codigo_acceso', $codigo)->exists());
-
-        return $codigo;
-    }
-
-    /**
-     * Determina si una QueryException corresponde a una violación de unicidad de codigo_acceso.
-     */
-    private function esColisionCodigoAcceso(QueryException $e): bool
-    {
-        $mensaje = $e->getMessage();
-
-        return str_contains($mensaje, 'codigo_acceso')
-            || str_contains($mensaje, 'autoevaluaciones_codigo_acceso_unique');
-    }
-
-    public function anexoOficial(string $uuid, Request $request)
-    {
-        $evaluacion = Autoevaluacion::with(['respuestas'])
-            ->where('uuid_trazabilidad', $uuid)
-            ->firstOrFail();
+        $this->autorizarAccesoAutoevaluacion($request, $evaluacion);
 
         $numero = $request->query('numero', '4');
         $esExAnte = in_array(strtoupper($evaluacion->nivel_riesgo ?? ''), ['ALTO', 'MUY ALTO', 'MUY_ALTO']);
@@ -1575,7 +1268,7 @@ class EvaluacionController extends Controller
                 'porcentaje' => (float) ($evaluacion->porcentaje_cumplimiento ?? 0),
             ],
             'codigoDocumento' => 'ITSE-'.substr($evaluacion->uuid_trazabilidad, 0, 8),
-            'fechaEmision' => optional($evaluacion->created_at)->format('d/m/Y') ?? date('d/m/Y'),
+            'fechaEmision' => optional($evaluacion->created_at)->format(self::FORMATO_FECHA) ?? date(self::FORMATO_FECHA),
             'urlResumen' => route('autoevaluacion.resumen', ['uuid' => $uuid]),
         ]);
     }
