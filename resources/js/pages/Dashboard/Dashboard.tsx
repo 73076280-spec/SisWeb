@@ -384,44 +384,51 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
             </p>
           </div>
 
-          {/* Bloque Criptográfico SHA-256 y UUID */}
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-2.5 text-[11px] font-mono text-slate-600">
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 truncate">
-                <Hash className="h-3 w-3 text-slate-400 shrink-0" aria-hidden="true" />
-                <span className="truncate">UUID: {record.uuid_trazabilidad.slice(0, 8)}...</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => copiarTexto(record.uuid_trazabilidad, setCopiadoUuid)}
-                aria-label="Copiar UUID"
-                className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-700 shadow-2xs hover:bg-slate-100 cursor-pointer"
-              >
-                {copiadoUuid ? <Check className="h-2.5 w-2.5 text-emerald-600" /> : <Copy className="h-2.5 w-2.5" />}
-                {copiadoUuid ? 'Copiado' : 'Copiar'}
-              </button>
-            </div>
+          {/* Detalles técnicos plegados */}
+          <details className="group rounded-2xl border border-slate-200/60 bg-slate-50/80 p-2.5 text-[11px] font-mono text-slate-600 transition">
+            <summary className="flex cursor-pointer items-center justify-between font-sans text-xs font-bold text-slate-600 hover:text-slate-900 select-none">
+              <span>Detalles técnicos</span>
+              <span className="text-[10px] font-normal text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
 
-            {record.hash_integridad && (
-              <div className="mt-1.5 flex items-center justify-between gap-1 border-t border-slate-200/60 pt-1.5 text-emerald-800">
+            <div className="mt-2 space-y-1.5 border-t border-slate-200/60 pt-2 font-mono">
+              <div className="flex items-center justify-between gap-1">
                 <div className="flex items-center gap-1 truncate">
-                  <Fingerprint className="h-3 w-3 text-emerald-600 shrink-0" aria-hidden="true" />
-                  <span className="truncate font-semibold">
-                    SHA-256: {record.hash_integridad.slice(0, 10)}...
-                  </span>
+                  <Hash className="h-3 w-3 text-slate-400 shrink-0" aria-hidden="true" />
+                  <span className="truncate">Código: {record.uuid_trazabilidad.slice(0, 8)}...</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => copiarTexto(record.hash_integridad!, setCopiadoHash)}
-                  aria-label="Copiar Hash SHA-256"
-                  className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 shadow-2xs hover:bg-emerald-50 cursor-pointer"
+                  onClick={() => copiarTexto(record.uuid_trazabilidad, setCopiadoUuid)}
+                  aria-label="Copiar código de expediente"
+                  className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-700 shadow-2xs hover:bg-slate-100 cursor-pointer"
                 >
-                  {copiadoHash ? <Check className="h-2.5 w-2.5 text-emerald-600" /> : <Copy className="h-2.5 w-2.5" />}
-                  {copiadoHash ? 'Copiado' : 'Copiar'}
+                  {copiadoUuid ? <Check className="h-2.5 w-2.5 text-emerald-600" /> : <Copy className="h-2.5 w-2.5" />}
+                  {copiadoUuid ? 'Copiado' : 'Copiar'}
                 </button>
               </div>
-            )}
-          </div>
+
+              {record.hash_integridad && (
+                <div className="flex items-center justify-between gap-1 text-slate-700">
+                  <div className="flex items-center gap-1 truncate">
+                    <Fingerprint className="h-3 w-3 text-slate-400 shrink-0" aria-hidden="true" />
+                    <span className="truncate">
+                      Firma: {record.hash_integridad.slice(0, 12)}...
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copiarTexto(record.hash_integridad!, setCopiadoHash)}
+                    aria-label="Copiar firma"
+                    className="inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-700 shadow-2xs hover:bg-slate-100 cursor-pointer"
+                  >
+                    {copiadoHash ? <Check className="h-2.5 w-2.5 text-emerald-600" /> : <Copy className="h-2.5 w-2.5" />}
+                    {copiadoHash ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
         </div>
 
         {/* 3. Botones de Acción Inferiores */}
@@ -621,27 +628,29 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
             </div>
           </div>
 
-          {/* Tarjeta 3: Trazabilidad SHA-256 */}
-          <div className="flex flex-col justify-between h-full rounded-2xl p-5 border border-slate-800 bg-slate-900 text-white shadow-xs hover:shadow-sm transition-all">
+          {/* Tarjeta 3: Tus expedientes guardados */}
+          <div className="flex flex-col justify-between h-full rounded-2xl p-5 border border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-slate-100/50 shadow-xs hover:shadow-sm transition-all">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Trazabilidad Criptográfica SHA-256
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                Tus expedientes guardados
               </span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-800 text-emerald-400">
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                <FileText className="h-5 w-5" aria-hidden="true" />
               </div>
             </div>
 
             <div className="mt-4">
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black tracking-tight text-emerald-400">
+                <span className="text-4xl font-black tracking-tight text-slate-900">
                   {expedientesSellados.length}
                 </span>
-                <span className="text-xs font-bold text-slate-300">expedientes sellados</span>
+                <span className="text-xs font-bold text-slate-500">
+                  {expedientesSellados.length === 1 ? 'expediente guardado' : 'expedientes guardados'}
+                </span>
               </div>
 
-              <p className="mt-3 text-xs leading-relaxed text-slate-300">
-                Total de expedientes protegidos con hash SHA-256 inmutable para respaldo legal e inspección oficial.
+              <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                Tu información está guardada y protegida para respaldo de tu negocio.
               </p>
             </div>
           </div>
@@ -674,7 +683,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
               }`}
             >
               <Fingerprint className="h-4 w-4" aria-hidden="true" />
-              <span>Registro de Seguridad y Trazabilidad ({expedientesSellados.length})</span>
+              <span>Expedientes Guardados ({expedientesSellados.length})</span>
             </button>
           </div>
 
@@ -767,20 +776,20 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
           </div>
         )}
 
-        {/* Pestaña Alternativa: Registro de Seguridad y Trazabilidad */}
+        {/* Pestaña: Expedientes Guardados */}
         {pestanaActiva === 'trazabilidad' && (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div>
                 <h3 className="text-base font-black text-slate-900">
-                  Expedientes con Sello Criptográfico Inmutable
+                  Expedientes Guardados con Respaldo Digital
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Auditoría completa de trazabilidad con algoritmo SHA-256 según D.S. N° 002-2018-PCM.
+                  Registro seguro y protegido de tus autoevaluaciones según normativa ITSE.
                 </p>
               </div>
               <span className="rounded-full bg-slate-900 px-3 py-1 font-mono text-xs font-bold text-white">
-                {expedientesSellados.length} Registros Sellados
+                {expedientesSellados.length} {expedientesSellados.length === 1 ? 'Expediente' : 'Expedientes'}
               </span>
             </div>
 
