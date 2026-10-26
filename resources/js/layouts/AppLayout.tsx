@@ -1,11 +1,11 @@
-﻿import { Navbar } from '@/components/Navbar';
+import { Navbar } from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 interface AppLayoutProps {
-    children: React.ReactNode;
+    readonly children: React.ReactNode;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
+export default function AppLayout({ children }: Readonly<AppLayoutProps>) {
     return (
         <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 font-sans antialiased print:bg-white">
             <a
@@ -22,7 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <main
                 id="main-content"
                 tabIndex={-1}
-                className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 print:max-w-none print:p-0"
+                className="mx-auto w-full max-w-7xl flex-1 px-6 py-10 outline-none focus:outline-none print:max-w-none print:p-0"
             >
                 {children}
             </main>
