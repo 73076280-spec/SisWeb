@@ -551,15 +551,11 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={route('perfil.show')}
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95"
-            >
-              Mi Perfil
-            </Link>
-            <RegistrarLocalButton variant="large" />
-          </div>
+          {records.length === 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <RegistrarLocalButton variant="large" />
+            </div>
+          )}
         </div>
 
         {/* 1. Métricas Superiores (3 Tarjetas KPI) */}
@@ -665,7 +661,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
               onClick={() => setPestanaActiva('locales')}
               className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
                 pestanaActiva === 'locales'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
@@ -678,7 +674,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
               onClick={() => setPestanaActiva('trazabilidad')}
               className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-bold transition cursor-pointer ${
                 pestanaActiva === 'trazabilidad'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
