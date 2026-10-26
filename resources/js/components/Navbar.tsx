@@ -11,6 +11,7 @@ import {
     UserRound,
     X,
 } from 'lucide-react';
+import { RegistrarLocalButton } from './RegistrarLocalButton';
 
 interface Usuario {
     readonly id: number;
@@ -65,7 +66,6 @@ export const Navbar: React.FC = () => {
 
     // Determinación de estado activo mediante Ziggy
     const esInicio = Boolean(route().current('autoevaluacion.index'));
-    const esNuevoLocal = Boolean(route().current('autoevaluacion.nueva'));
     const esAliados = Boolean(route().current('directorio.index') || route().current('directorio.*'));
     const esPanel = Boolean(route().current('dashboard') || route().current('mis-autoevaluaciones*'));
     const esMiCuenta = Boolean(route().current('perfil.show') || route().current('perfil.*'));
@@ -75,11 +75,6 @@ export const Navbar: React.FC = () => {
     let claseInicio = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
     if (esInicio) {
         claseInicio = 'bg-primary-50 text-primary-700';
-    }
-
-    let claseNuevoLocal = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
-    if (esNuevoLocal) {
-        claseNuevoLocal = 'bg-primary-50 text-primary-700';
     }
 
     let claseAliados = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50';
@@ -146,12 +141,7 @@ export const Navbar: React.FC = () => {
                         Aliados Técnicos
                     </Link>
 
-                    <Link
-                        href={route('autoevaluacion.nueva')}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${claseNuevoLocal}`}
-                    >
-                        Nuevo Local
-                    </Link>
+                    <RegistrarLocalButton variant="compact" />
                 </nav>
 
                 {usuario ? (
@@ -199,14 +189,11 @@ export const Navbar: React.FC = () => {
                 )}
 
                 {/* Acceso rápido a la acción principal en celular y tableta */}
-                <Link
-                    href={route('autoevaluacion.nueva')}
+                <RegistrarLocalButton
+                    variant="compact"
                     onClick={cerraMenu}
-                    className="lg:hidden inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary-600 px-3 py-2.5 text-[11px] font-bold text-white shadow-xs transition active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    Nuevo Local
-                </Link>
+                    className="lg:hidden"
+                />
 
                 {/* Botón de menú colapsable */}
                 <button
