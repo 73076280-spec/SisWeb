@@ -713,16 +713,16 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
         {pestanaActiva === 'locales' && (
           <div>
             {localesFiltrados.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-12 text-center">
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white/70 p-8 sm:p-12 text-center">
                 <Store className="mx-auto h-12 w-12 text-slate-300" aria-hidden="true" />
                 <h3 className="mt-4 text-base font-bold text-slate-800">
                   {records.length === 0
-                    ? 'No tienes locales registrados aún'
+                    ? 'Aún no tienes locales guardados en tu panel'
                     : 'No se encontraron locales que coincidan con la búsqueda'}
                 </h3>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-2 text-xs sm:text-sm text-slate-500 max-w-lg mx-auto leading-relaxed">
                   {records.length === 0
-                    ? 'Registra tu primer comercio para verificar el cumplimiento normativo ITSE.'
+                    ? 'Al registrar un local podrás retomar tu autoevaluación y subsanar observaciones sin empezar de cero. Si ya realizaste una autoevaluación como invitado, puedes guardarla en tu panel iniciando sesión desde tu avance.'
                     : 'Prueba modificando los filtros o el texto de búsqueda.'}
                 </p>
                 {records.length === 0 && (
