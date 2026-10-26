@@ -1,4 +1,5 @@
 import { Navbar } from '@/components/Navbar';
+import { CryptoSealBadge } from '@/components/shared/CryptoSealBadge';
 import { CATEGORIA_LABELS, CHECKLIST_CATALOGO_OFICIAL, type CategoriaChecklist } from '@/data/checklistCatalogo';
 import { Head, Link } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
@@ -28,9 +29,11 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { etiquetaEstado } from '@/data/estados';
+import { formatearNivelRiesgo } from '@/lib/riesgo';
 import type {
     CondicionChecklist,
     ConteoEstados,
+    FilaMatriz,
     InformePreventivoProps,
 } from '@/types/contrato';
 
@@ -88,13 +91,11 @@ export default function InformePreventivo({
     matrizSubsanaciones,
     hashFinal,
     hashIntegridad,
-}: InformePreventivoProps) {
+}: Readonly<InformePreventivoProps>) {
     const urlSeguimiento = `/autoevaluacion/resultado/${autoevaluacion.uuid_trazabilidad}`;
 
     const esExAnte = autoevaluacion.tipo_tramite === 'EX_ANTE';
-    const nivelRiesgoLegible = autoevaluacion.nivel_riesgo
-        ? autoevaluacion.nivel_riesgo.split('_').join(' ')
-        : 'Preventivo';
+    const nivelRiesgoLegible = formatearNivelRiesgo(autoevaluacion.nivel_riesgo);
     const gapFinal = `${resumen.gap_final.toFixed(1)}%`;
 
     const esImagenEvidencia = (archivo?: string | null) => !!archivo && /\.(png|jpe?g|webp)$/i.test(archivo);
@@ -169,6 +170,52 @@ export default function InformePreventivo({
         conteo.no_cumple === 0 &&
         conteo.por_revisar === 0;
 
+    const resolverSubtipoTramite = (tipoTramite?: string | null, exAnte?: boolean): string => {
+        if (!tipoTramite) {
+            return 'Evaluación preventiva';
+        }
+        return exAnte ? 'ITSE Previa (Ex-Ante)' : 'ITSE Posterior (Ex-Post)';
+    };
+
+    const renderEvidenciaAdjunta = (fila: FilaMatriz) => {
+        if (!fila.evidencia_url) {
+            return (
+                <span className="mt-1 block text-[10px] text-slate-400">
+                    Sin evidencia declarada
+                </span>
+            );
+        }
+
+        if (esImagenEvidencia(fila.evidencia_archivo)) {
+            return (
+                <a
+                    href={fila.evidencia_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block"
+                >
+                    <img
+                        src={fila.evidencia_url}
+                        alt={`Evidencia declarada de ${fila.codigo_item}`}
+                        className="max-h-20 w-full rounded-md border border-slate-200 object-contain break-inside-avoid"
+                    />
+                </a>
+            );
+        }
+
+        return (
+            <a
+                href={fila.evidencia_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-800 hover:underline break-inside-avoid"
+            >
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">Ver documento</span>
+            </a>
+        );
+    };
+
     const datosGenerales: Array<{ icon: LucideIcon; label: string; value: string; sub?: string }> = [
         {
             icon: Building2,
@@ -204,7 +251,7 @@ export default function InformePreventivo({
             icon: Scale,
             label: 'Riesgo Declarado',
             value: nivelRiesgoLegible,
-            sub: autoevaluacion.tipo_tramite ? (esExAnte ? 'ITSE Previa (Ex-Ante)' : 'ITSE Posterior (Ex-Post)') : 'Evaluación preventiva',
+            sub: resolverSubtipoTramite(autoevaluacion.tipo_tramite, esExAnte),
         }] : []),
     ];
 
@@ -315,9 +362,9 @@ export default function InformePreventivo({
                                     <div className="flex items-start gap-2">
                                         <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                                         <div className="text-[11px] leading-relaxed text-sky-900">
-                                            <strong className="font-bold">Nota contextual de reevaluación: </strong>
-                                            Este informe corresponde a una <strong>reevaluación preventiva</strong> del
-                                            establecimiento.
+                                            <strong className="font-bold">Nota contextual de reevaluación:</strong>{' '}
+                                            Este informe corresponde a una <strong>reevaluación preventiva</strong>{' '}
+                                            del establecimiento.
                                             {evaluacionOrigen?.uuid_trazabilidad && (
                                                 <span>
                                                     {' '}
@@ -365,6 +412,17 @@ export default function InformePreventivo({
                                     </span>
                                 </div>
                             </div>
+
+                            {/* Sello Criptográfico SHA-256 e Integridad */}
+                            {(hashIntegridad || hashFinal) && (
+                                <div className="mt-3 flex justify-center print:break-inside-avoid">
+                                    <CryptoSealBadge
+                                        hash={hashIntegridad || hashFinal}
+                                        fecha={fechaEmision}
+                                        esInmutable={true}
+                                    />
+                                </div>
+                            )}
 
                             {/* Descargo legal de no-oficialidad prominente */}
                             <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50/80 p-3.5 text-left print:break-inside-avoid">
@@ -655,36 +713,7 @@ export default function InformePreventivo({
                                                     <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">
                                                         Evidencia Adjunta
                                                     </span>
-                                                    {fila.evidencia_url ? (
-                                                        esImagenEvidencia(fila.evidencia_archivo) ? (
-                                                            <a
-                                                                href={fila.evidencia_url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="mt-1 block"
-                                                            >
-                                                                <img
-                                                                    src={fila.evidencia_url}
-                                                                    alt={`Evidencia declarada de ${fila.codigo_item}`}
-                                                                    className="max-h-20 w-full rounded-md border border-slate-200 object-contain break-inside-avoid"
-                                                                />
-                                                            </a>
-                                                        ) : (
-                                                            <a
-                                                                href={fila.evidencia_url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-800 hover:underline break-inside-avoid"
-                                                            >
-                                                                <FileText className="h-3 w-3 shrink-0" />
-                                                                <span className="truncate">Ver documento</span>
-                                                            </a>
-                                                        )
-                                                    ) : (
-                                                        <span className="mt-1 block text-[10px] text-slate-400">
-                                                            Sin evidencia declarada
-                                                        </span>
-                                                    )}
+                                                    {renderEvidenciaAdjunta(fila)}
                                                 </div>
                                             </div>
                                         </div>

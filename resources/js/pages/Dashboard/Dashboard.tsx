@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import type { AutoevaluacionItem } from '@/types/contrato';
 import { RegistrarLocalButton } from '@/components/RegistrarLocalButton';
+import { formatearNivelRiesgo } from '@/lib/riesgo';
 
 export interface DashboardKpis {
   readonly total_locales: number;
@@ -265,7 +266,7 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold backdrop-blur-xs ${claseRiesgo}`}
             >
-              Riesgo {nivelRiesgo}
+              {formatearNivelRiesgo(nivelRiesgo)}
             </span>
           </div>
 
@@ -285,9 +286,21 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
             <h3 className="truncate text-lg font-black tracking-tight text-white">
               {record.nombre_comercio}
             </h3>
-            <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-200">
-              {record.funcion_economica} • {record.area_m2 ?? 0} m² • {record.aforo ?? 0} pers.
-            </p>
+            {(() => {
+              const tieneDatosFisicos = (record.area_m2 ?? 0) > 0 || (record.aforo ?? 0) > 0;
+              const datosFisicosTexto = tieneDatosFisicos
+                ? [
+                    (record.area_m2 ?? 0) > 0 ? `${record.area_m2} m²` : null,
+                    (record.aforo ?? 0) > 0 ? `${record.aforo} pers.` : null,
+                  ].filter(Boolean).join(' • ')
+                : 'Datos del local por completar';
+
+              return (
+                <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-200">
+                  {record.funcion_economica} • {datosFisicosTexto}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Círculo flotante de porcentaje */}
@@ -520,7 +533,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200/60">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-                Panel Ciudadano CheckITSE
+                Autoevaluación ITSE Huancayo
               </span>
             </div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
@@ -572,7 +585,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
               </div>
 
               <p className="mt-2 text-xs font-semibold text-emerald-900">
-                {kpis.aprobados} de {kpis.total_locales} Conformes para trámite ITSE
+                {kpis.aprobados} de {kpis.total_locales} {kpis.total_locales === 1 ? 'conforme' : 'conformes'} para trámite ITSE
               </p>
             </div>
           </div>
