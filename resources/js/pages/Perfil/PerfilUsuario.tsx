@@ -156,19 +156,19 @@ export default function PerfilUsuario({ user }: Readonly<PerfilUsuarioProps>) {
         )}
 
         {/* Nota Informativa sobre Locales Comerciales */}
-        <div className="flex items-start gap-3.5 rounded-2xl border border-blue-200/80 bg-blue-50/60 p-4 text-blue-950 shadow-2xs">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+        <div className="flex items-start gap-3.5 rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4 text-emerald-950 shadow-2xs">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
             <Store className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="text-xs leading-relaxed">
-            <p className="font-bold text-blue-900">
+            <p className="font-bold text-emerald-900">
               ¿Deseas editar el RUC, nombre comercial o dirección de un local?
             </p>
-            <p className="mt-0.5 text-blue-800">
+            <p className="mt-0.5 text-emerald-800">
               Como contribuyente puedes gestionar múltiples sucursales o establecimientos. Los datos comerciales, giro, área y condiciones físicas de cada local se configuran y evalúan de manera individual desde tu{' '}
               <Link
                 href={route('dashboard')}
-                className="font-bold text-blue-900 underline underline-offset-2 hover:text-blue-950"
+                className="font-bold text-emerald-900 underline underline-offset-2 hover:text-emerald-950"
               >
                 Panel Ciudadano
               </Link>.
@@ -181,7 +181,7 @@ export default function PerfilUsuario({ user }: Readonly<PerfilUsuarioProps>) {
           {/* Bloque 1: Datos Personales y de Contacto */}
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-8">
             <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <UserIcon className="h-5 w-5" />
               </div>
               <div>
