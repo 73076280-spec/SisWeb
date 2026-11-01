@@ -73,7 +73,7 @@ Route::prefix('autoevaluacion')->name('autoevaluacion.')->group(function () {
 
 // Alias compatibles con especificación de navegación
 Route::get('/evaluacion/create', [EvaluacionController::class, 'nueva'])->name('evaluacion.create');
-Route::get('/evaluacion/{uuid}', [EvaluacionController::class, 'resultado'])->name('evaluacion.show');
+Route::get('/evaluacion/{uuid}', [EvaluacionController::class, 'resultado'])->name('evaluacion.show')->whereUuid('uuid');
 
 // APIs internas consumidas por componentes interactivos
 Route::prefix('api/autoevaluaciones')->name('api.autoevaluaciones.')->whereUuid('uuid')->group(function () {
@@ -89,7 +89,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/mis-autoevaluaciones', [EvaluacionController::class, 'misEvaluaciones'])->name('mis-autoevaluaciones');
     Route::get('/api/autoevaluaciones/mis-evaluaciones', [EvaluacionController::class, 'misEvaluaciones'])->name('api.autoevaluaciones.mis-evaluaciones');
-    Route::get('/mis-autoevaluaciones/{uuid}/expediente', [EvaluacionController::class, 'resumen'])->name('mis-autoevaluaciones.expediente');
+    Route::get('/mis-autoevaluaciones/{uuid}/expediente', [EvaluacionController::class, 'expediente'])->name('mis-autoevaluaciones.expediente')->whereUuid('uuid');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });
 

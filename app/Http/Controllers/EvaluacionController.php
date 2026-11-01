@@ -132,9 +132,11 @@ class EvaluacionController extends Controller
             $datosCreacion
         );
 
-        $request->session()->put('guest_authorized_uuid', $autoevaluacion->uuid_trazabilidad);
-        if ($autoevaluacion->session_token) {
-            $request->session()->put('guest_session_token', $autoevaluacion->session_token);
+        if (Auth::guest()) {
+            $request->session()->put('guest_authorized_uuid', $autoevaluacion->uuid_trazabilidad);
+            if ($autoevaluacion->session_token) {
+                $request->session()->put('guest_session_token', $autoevaluacion->session_token);
+            }
         }
 
         $mensaje = $evaluacionOrigenId !== null
@@ -652,21 +654,7 @@ class EvaluacionController extends Controller
             abort(404);
         }
 
-        $autenticado = $request->user();
-
-        if ($autoevaluacion->user_id !== null) {
-            if ($autenticado === null || (int) $autenticado->id !== (int) $autoevaluacion->user_id) {
-                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
-            }
-        } else {
-            $tokenSesion = $request->cookie('guest_session_token');
-
-            if (! filled($autoevaluacion->session_token)
-                || ! filled($tokenSesion)
-                || ! hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion)) {
-                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
-            }
-        }
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion, self::MSG_NO_AUTORIZADO_EVIDENCIA);
 
         $path = $subsanacion->evidencia_url;
 
@@ -890,6 +878,8 @@ class EvaluacionController extends Controller
             if ($asociado === 0) {
                 abort(403, 'Esta autoevaluación ya fue vinculada o pertenece a otra cuenta.');
             }
+
+            $request->session()->forget('guest_authorized_uuid');
 
             return $resolverRedireccion('Tu autoevaluación ha sido guardada en tu cuenta exitosamente.');
         }
@@ -1459,6 +1449,8 @@ class EvaluacionController extends Controller
                 'total_no_aplica' => $conteos['total_no_aplica'],
             ]);
         });
+
+        $request->session()->forget('guest_authorized_uuid');
 
         if ($request->wantsJson() || $request->is(self::RUTA_API_PATTERN)) {
             $resultado = response()->json([

@@ -191,39 +191,54 @@ trait EvaluacionHelperTrait
     {
         return Autoevaluacion::with(['respuestas'])
             ->where('uuid_trazabilidad', $uuid)
-            ->when(is_numeric($uuid), fn ($query) => $query->orWhere('id', (int) $uuid))
             ->firstOrFail();
     }
 
     /**
      * Control de autorización estricto y consistente para acceso a la autoevaluación.
      */
-    protected function autorizarAccesoAutoevaluacion(Request $request, Autoevaluacion $autoevaluacion): void
+    protected function autorizarAccesoAutoevaluacion(Request $request, Autoevaluacion $autoevaluacion, ?string $mensaje = null): void
     {
+        $mensajeDenegado = $mensaje ?? self::MSG_NO_AUTORIZADO_ACCESO;
+
+        // A. Evaluación vinculada a una cuenta registrada: solo su propietario autenticado puede acceder.
+        // La excepción temporal de sesión inmediata jamás debe anular la propiedad de una cuenta.
         if ($autoevaluacion->user_id !== null) {
             $user = $request->user();
-            $esSesionInmediata = $request->hasSession() && $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-            if (($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) && ! $esSesionInmediata) {
-                abort(403, self::MSG_NO_AUTORIZADO_ACCESO);
+            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
+                abort(403, $mensajeDenegado);
             }
 
             return;
         }
 
-        // Evaluación de invitado (user_id === null): exige credencial legítima de invitado
+        // B. Evaluación anónima (user_id === null):
+        // 1. Excepción legítima de sesión inmediata: permitida únicamente si la evaluación
+        //    está en estado borrador (INICIADA) y su UUID coincide con el autorizado en sesión.
+        $esSesionInmediata = $request->hasSession()
+            && $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad
+            && $autoevaluacion->estado === Autoevaluacion::ESTADO_INICIADA;
+
+        if ($esSesionInmediata) {
+            return;
+        }
+
+        // 2. Credencial persistida de invitado: exige que session_token esté presente y no vacío,
+        //    y que coincida exactamente vía hash_equals con la cookie o el token en sesión.
         if (filled($autoevaluacion->session_token)) {
             $tokenCookie = $request->cookie('guest_session_token');
             $tokenSesion = $request->hasSession() ? $request->session()->get('guest_session_token') : null;
-            $esSesionInmediata = $request->hasSession() && $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
 
-            $esValido = (filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie))
-                || (filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion))
-                || $esSesionInmediata;
+            $tokenValido = (filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie))
+                || (filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion));
 
-            if (! $esValido) {
-                abort(403, self::MSG_NO_AUTORIZADO_ACCESO);
+            if ($tokenValido) {
+                return;
             }
         }
+
+        // Si session_token es nulo, vacío o no coincide, y no existe sesión inmediata válida, denegar.
+        abort(403, $mensajeDenegado);
     }
 
     /**
@@ -489,23 +504,11 @@ trait EvaluacionHelperTrait
     }
 
     /**
-     * Valida los permisos de reevaluación para usuario autenticado o invitado con cookie.
+     * Valida los permisos de reevaluación para usuario autenticado o invitado con credencial válida.
      */
     private function validarAutorizacionReevaluacion(Request $request, Autoevaluacion $evaluacion): void
     {
-        if ($evaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $evaluacion->user_id) {
-                abort(403, self::MSG_NO_AUTORIZADO_REEVALUACION);
-            }
-        } else {
-            $tokenSesion = $request->cookie('guest_session_token');
-            if (! filled($evaluacion->session_token)
-                || ! filled($tokenSesion)
-                || ! hash_equals((string) $evaluacion->session_token, (string) $tokenSesion)) {
-                abort(403, self::MSG_NO_AUTORIZADO_REEVALUACION);
-            }
-        }
+        $this->autorizarAccesoAutoevaluacion($request, $evaluacion, self::MSG_NO_AUTORIZADO_REEVALUACION);
     }
 
     /**
@@ -680,29 +683,7 @@ trait EvaluacionHelperTrait
      */
     private function validarAutorizacionConsulta(Request $request, Autoevaluacion $autoevaluacion): void
     {
-        if ($autoevaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
-                abort(403, self::MSG_NO_AUTORIZADO_CONSULTAR);
-            }
-        } else {
-            if ($request->user() !== null) {
-                abort(403, self::MSG_NO_AUTORIZADO_CONSULTAR);
-            }
-
-            if (filled($autoevaluacion->session_token)) {
-                $tokenCookie = $request->cookie('guest_session_token');
-                $tokenSesion = $request->session()->get('guest_session_token');
-
-                $esValidoPorCookie = filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie);
-                $esValidoPorSesion = filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion);
-                $esSesionInmediata = $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-
-                if (! $esValidoPorCookie && ! $esValidoPorSesion && ! $esSesionInmediata) {
-                    abort(403, self::MSG_NO_AUTORIZADO_CONSULTAR);
-                }
-            }
-        }
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion, self::MSG_NO_AUTORIZADO_CONSULTAR);
     }
 
     /**
@@ -710,29 +691,7 @@ trait EvaluacionHelperTrait
      */
     private function validarAutorizacionInforme(Request $request, Autoevaluacion $autoevaluacion): void
     {
-        if ($autoevaluacion->user_id !== null) {
-            $user = $request->user();
-            if ($user === null || (int) $user->id !== (int) $autoevaluacion->user_id) {
-                abort(403, self::MSG_NO_AUTORIZADO_INFORME);
-            }
-        } else {
-            if ($request->user() !== null) {
-                abort(403, self::MSG_NO_AUTORIZADO_INFORME);
-            }
-
-            if (filled($autoevaluacion->session_token)) {
-                $tokenCookie = $request->cookie('guest_session_token');
-                $tokenSesion = $request->session()->get('guest_session_token');
-
-                $esValidoPorCookie = filled($tokenCookie) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie);
-                $esValidoPorSesion = filled($tokenSesion) && hash_equals((string) $autoevaluacion->session_token, (string) $tokenSesion);
-                $esSesionInmediata = $request->session()->get('guest_authorized_uuid') === $autoevaluacion->uuid_trazabilidad;
-
-                if (! $esValidoPorCookie && ! $esValidoPorSesion && ! $esSesionInmediata) {
-                    abort(403, self::MSG_NO_AUTORIZADO_INFORME);
-                }
-            }
-        }
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion, self::MSG_NO_AUTORIZADO_INFORME);
     }
 
     /**
