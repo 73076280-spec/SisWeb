@@ -16,25 +16,25 @@ export interface RecursoEducativoData {
   criterio_normativo_id?: number | null;
   titulo: string;
   descripcion_corta: string;
-  tipo: 'VIDEO' | 'GUIA_DIGITAL' | 'ENLACE_EXTERNO' | string;
+  tipo: 'VIDEO' | 'GUIA_DIGITAL' | 'ENLACE_EXTERNO';
   url: string;
   fuente_autor?: string | null;
   duracion_estimada?: string | null;
 }
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  recursos: RecursoEducativoData[];
-  criterioCodigo?: string;
-  criterioTitulo?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly recursos: RecursoEducativoData[];
+  readonly criterioCodigo?: string;
+  readonly criterioTitulo?: string;
 }
+
+const YOUTUBE_URL_REGEX = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
 
 function extractYouTubeEmbedUrl(url: string): string | null {
   if (!url) return null;
-  const match = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/
-  );
+  const match = YOUTUBE_URL_REGEX.exec(url);
   const id = match ? match[1] : null;
   return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
 }
@@ -54,13 +54,13 @@ const TIPO_ETIQUETAS: Record<string, { label: string; color: string }> = {
   },
 };
 
-export const RecursoEducativoModal: React.FC<Props> = ({
+export const RecursoEducativoModal: React.FC<Readonly<Props>> = ({
   isOpen,
   onClose,
   recursos,
   criterioCodigo,
   criterioTitulo,
-}) => {
+}: Readonly<Props>) => {
   const [indiceActivo, setIndiceActivo] = useState<number>(0);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -80,12 +80,12 @@ export const RecursoEducativoModal: React.FC<Props> = ({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
     closeButtonRef.current?.focus();
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
@@ -101,17 +101,118 @@ export const RecursoEducativoModal: React.FC<Props> = ({
     color: 'bg-neutral-100 text-neutral-800 border-neutral-200',
   };
 
+  const renderContenidoRecurso = () => {
+    if (recursoActivo.tipo === 'VIDEO') {
+      return (
+        <div className="space-y-2">
+          {embedUrl ? (
+            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-200 shadow-inner">
+              <iframe
+                src={embedUrl}
+                title={recursoActivo.titulo}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-center">
+              <p className="text-xs text-neutral-600 mb-2">
+                Este video puede visualizarse directamente en su plataforma externa.
+              </p>
+              <a
+                href={recursoActivo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition cursor-pointer"
+              >
+                <PlayCircle className="w-4 h-4" />
+                <span>Ver video en plataforma externa</span>
+              </a>
+            </div>
+          )}
+
+          {embedUrl && recursoActivo.url && (
+            <div className="flex justify-end">
+              <a
+                href={recursoActivo.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 hover:text-rose-700 transition"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Abrir en YouTube</span>
+              </a>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (recursoActivo.tipo === 'GUIA_DIGITAL') {
+      return (
+        <div className="p-5 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3">
+          <div className="flex items-center gap-2 text-blue-900 font-semibold text-sm">
+            <FileText className="w-4 h-4 text-blue-700" />
+            <span>Documento o guía técnica de consulta</span>
+          </div>
+          <p className="text-xs text-neutral-700 leading-relaxed">
+            {recursoActivo.descripcion_corta}
+          </p>
+          <div className="pt-2">
+            <a
+              href={recursoActivo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-xs cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Abrir guía técnica digital</span>
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-3">
+        <div className="flex items-center gap-2 text-neutral-900 font-semibold text-sm">
+          <ExternalLink className="w-4 h-4 text-neutral-700" />
+          <span>Enlace externo de consulta preventiva</span>
+        </div>
+        <p className="text-xs text-neutral-700 leading-relaxed">
+          {recursoActivo.descripcion_corta}
+        </p>
+        <div className="pt-2">
+          <a
+            href={recursoActivo.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition shadow-xs cursor-pointer"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span>Ir al sitio web orientativo</span>
+          </a>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="recurso-educativo-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-neutral-950/50 backdrop-blur-xs cursor-default"
+      />
       <div
-        className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
-        onClick={(e) => e.stopPropagation()}
+        className="relative z-10 bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
       >
         {/* Encabezado del Modal */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-100 mb-4">
@@ -188,92 +289,7 @@ export const RecursoEducativoModal: React.FC<Props> = ({
           </div>
 
           {/* Visualizador de Contenido según Tipo */}
-          {recursoActivo.tipo === 'VIDEO' ? (
-            <div className="space-y-2">
-              {embedUrl ? (
-                <div className="aspect-video w-full rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-200 shadow-inner">
-                  <iframe
-                    src={embedUrl}
-                    title={recursoActivo.titulo}
-                    className="w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-center">
-                  <p className="text-xs text-neutral-600 mb-2">
-                    Este video puede visualizarse directamente en su plataforma externa.
-                  </p>
-                  <a
-                    href={recursoActivo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition cursor-pointer"
-                  >
-                    <PlayCircle className="w-4 h-4" />
-                    <span>Ver video en plataforma externa</span>
-                  </a>
-                </div>
-              )}
-
-              {embedUrl && recursoActivo.url && (
-                <div className="flex justify-end">
-                  <a
-                    href={recursoActivo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 hover:text-rose-700 transition"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    <span>Abrir en YouTube</span>
-                  </a>
-                </div>
-              )}
-            </div>
-          ) : recursoActivo.tipo === 'GUIA_DIGITAL' ? (
-            <div className="p-5 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3">
-              <div className="flex items-center gap-2 text-blue-900 font-semibold text-sm">
-                <FileText className="w-4 h-4 text-blue-700" />
-                <span>Documento o guía técnica de consulta</span>
-              </div>
-              <p className="text-xs text-neutral-700 leading-relaxed">
-                {recursoActivo.descripcion_corta}
-              </p>
-              <div className="pt-2">
-                <a
-                  href={recursoActivo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-xs cursor-pointer"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Abrir guía técnica digital</span>
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-3">
-              <div className="flex items-center gap-2 text-neutral-900 font-semibold text-sm">
-                <ExternalLink className="w-4 h-4 text-neutral-700" />
-                <span>Enlace externo de consulta preventiva</span>
-              </div>
-              <p className="text-xs text-neutral-700 leading-relaxed">
-                {recursoActivo.descripcion_corta}
-              </p>
-              <div className="pt-2">
-                <a
-                  href={recursoActivo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition shadow-xs cursor-pointer"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Ir al sitio web orientativo</span>
-                </a>
-              </div>
-            </div>
-          )}
+          {renderContenidoRecurso()}
 
           {/* Descripción orientativa */}
           {recursoActivo.tipo === 'VIDEO' && recursoActivo.descripcion_corta && (
@@ -327,6 +343,6 @@ export const RecursoEducativoModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

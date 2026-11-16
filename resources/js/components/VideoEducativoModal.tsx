@@ -11,22 +11,21 @@ export interface RecursoEducativoData {
 }
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  recurso: RecursoEducativoData | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly recurso: RecursoEducativoData | null;
 }
 
+const YOUTUBE_EMBED_REGEX = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)([\w-]{11})|youtu\.be\/([\w-]{11}))/;
+
 function youtubeEmbedUrl(url: string): string | null {
-  const match = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})|youtu\.be\/([\w-]{11})/
-  );
-
+  if (!url) return null;
+  const match = YOUTUBE_EMBED_REGEX.exec(url);
   const id = match ? match[1] || match[2] : null;
-
   return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
 }
 
-export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso }) => {
+export const VideoEducativoModal: React.FC<Readonly<Props>> = ({ isOpen, onClose, recurso }: Readonly<Props>) => {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -38,12 +37,12 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
     closeButtonRef.current?.focus();
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
@@ -53,17 +52,64 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
   const embedUrl = recurso.video_url ? youtubeEmbedUrl(recurso.video_url) : null;
   const esRecursoWeb = Boolean(recurso.video_url) && !embedUrl;
 
+  const renderMediaContent = () => {
+    if (embedUrl) {
+      return (
+        <div className="aspect-video w-full rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-200">
+          <iframe
+            src={embedUrl}
+            title={recurso.titulo}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      );
+    }
+
+    if (esRecursoWeb) {
+      return (
+        <a
+          href={recurso.video_url ?? '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition"
+        >
+          <ExternalLink className="w-4 h-4" />
+          <span>Abrir recurso educativo en una nueva pestaña</span>
+        </a>
+      );
+    }
+
+    if (recurso.descripcion) {
+      return (
+        <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-sm text-neutral-700 leading-relaxed">
+          <strong className="text-xs uppercase tracking-wider text-neutral-500 block mb-1">
+            Recurso sin video
+          </strong>
+          <p>{recurso.descripcion}</p>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="video-educativo-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-neutral-950/50 backdrop-blur-xs cursor-default"
+      />
       <div
-        className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
-        onClick={event => event.stopPropagation()}
+        className="relative z-10 bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
       >
         {/* Cabecera del Modal */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-100 mb-5">
@@ -73,7 +119,7 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-1">
-                Micro-learning Â· GuÃ­a TÃ©cnica RÃ¡pida
+                Micro-learning · Guía Técnica Rápida
               </span>
               <h3 id="video-educativo-titulo" className="text-sm font-bold text-neutral-900 leading-snug">
                 {recurso.titulo}
@@ -84,7 +130,7 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            aria-label="Cerrar guÃ­a o video educativo"
+            aria-label="Cerrar guía o video educativo"
             className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
@@ -93,37 +139,10 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
 
         {/* Reproductor de video YouTube o enlace externo */}
         <div className="mb-5">
-          {embedUrl ? (
-            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-200">
-              <iframe
-                src={embedUrl}
-                title={recurso.titulo}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          ) : esRecursoWeb ? (
-            <a
-              href={recurso.video_url ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>Abrir recurso educativo en una nueva pestaÃ±a</span>
-            </a>
-          ) : recurso.descripcion ? (
-            <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 text-sm text-neutral-700 leading-relaxed">
-              <strong className="text-xs uppercase tracking-wider text-neutral-500 block mb-1">
-                Recurso sin video
-              </strong>
-              <p>{recurso.descripcion}</p>
-            </div>
-          ) : null}
+          {renderMediaContent()}
         </div>
 
-        {/* DescripciÃ³n educativa (alternativa textual al video) */}
+        {/* Descripción educativa (alternativa textual al video) */}
         {recurso.descripcion && (recurso.video_url ? (
           <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200 mb-3 flex items-start gap-2.5 text-xs text-neutral-700 leading-relaxed">
             <BookOpen className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
@@ -143,7 +162,7 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
             <strong className="text-[10px] uppercase tracking-wider text-danger-900 block mb-0.5">
               Base Legal
             </strong>
-            <span className="font-mono text-[11px]">{recurso.base_legal || 'â€”'}</span>
+            <span className="font-mono text-[11px]">{recurso.base_legal || '—'}</span>
           </div>
         </div>
 
@@ -154,14 +173,14 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
             <strong className="text-[10px] uppercase tracking-wider text-emerald-800 block mb-0.5">
               Evidencia orientativa esperada
             </strong>
-            <span>{recurso.evidencia_sugerida || 'â€”'}</span>
+            <span>{recurso.evidencia_sugerida || '—'}</span>
           </div>
         </div>
 
         <p className="text-[11px] text-neutral-500 leading-relaxed mb-4 flex items-start gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-neutral-400" />
           <span>
-            InformaciÃ³n educativa y de orientaciÃ³n. No reemplaza la verificaciÃ³n que realiza la autoridad competente.
+            Información educativa y de orientación. No reemplaza la verificación que realiza la autoridad competente.
           </span>
         </p>
 
@@ -186,6 +205,6 @@ export const VideoEducativoModal: React.FC<Props> = ({ isOpen, onClose, recurso 
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

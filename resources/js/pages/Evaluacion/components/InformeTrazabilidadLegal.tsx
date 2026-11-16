@@ -207,12 +207,12 @@ export function InformeTrazabilidadLegal({
                 </p>
             </div>
 
-            {/* Trazabilidad Pericial Preventiva */}
+            {/* Trazabilidad Digital del Registro Preventivo */}
             <section className="rounded-2xl border border-slate-200 p-4">
                 <div className="mb-3 flex items-center gap-2">
                     <Hash className="h-4 w-4 text-emerald-600" />
                     <h2 className="text-xs font-black tracking-wider text-slate-800 uppercase">
-                        Trazabilidad Pericial Preventiva
+                        Trazabilidad Digital del Registro Preventivo
                     </h2>
                 </div>
 
@@ -279,10 +279,8 @@ export function InformeTrazabilidadLegal({
             {/* Pie de la hoja */}
             <div className="flex items-start gap-2 border-t border-slate-200 pt-3 text-center">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-slate-400" />
-                <p className="text-[9px] text-slate-500">
-                    Informe cívico de autoevaluación generado por el asistente CheckITSE Huancayo. Su
-                    verificación queda respaldada por el bloque de trazabilidad criptográfica. Este
-                    documento es de carácter preventivo e informativo y no constituye un documento oficial.
+                <p className="text-[9px] text-slate-500 leading-relaxed">
+                    Informe preventivo y orientativo generado por la plataforma ciudadana CheckITSE Huancayo. El hash SHA-256 permite comprobar la integridad e inmutabilidad del contenido digital registrado, pero no acredita por sí solo la veracidad de las declaraciones ni la autenticidad física de las condiciones evaluadas. Este documento no constituye una inspección oficial ni reemplaza la evaluación de la autoridad competente.
                 </p>
             </div>
         </>

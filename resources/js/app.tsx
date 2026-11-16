@@ -29,7 +29,7 @@ function buildTitle(title?: string): string {
     return title === appName || title.includes(appName) ? title : `${title} - ${appName}`;
 }
 
-createInertiaApp({
+void createInertiaApp({
     title: buildTitle,
     resolve: async (name) => {
         const pageModule = await resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx'));
@@ -50,4 +50,4 @@ createInertiaApp({
 });
 
 // This will set light / dark mode on load...
-initializeTheme();
+void initializeTheme();

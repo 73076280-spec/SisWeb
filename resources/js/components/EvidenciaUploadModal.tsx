@@ -1,21 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useForm } from '@inertiajs/react';
-import { X, FileText, ImagePlus, Upload, Loader2, CheckCircle2, Info } from 'lucide-react';
+import { X, FileText, ImagePlus, Upload, Loader2, CheckCircle2, Info, Sparkles } from 'lucide-react';
 
 export type EstadoSubsanacionModal = 'PENDIENTE' | 'EN_PROCESO' | 'SUBSANADO_DECLARADO';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  uuid: string;
-  codigoItem: string;
-  nombreItem?: string;
-  estadoInicial?: EstadoSubsanacionModal;
-  accionInicial?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly uuid: string;
+  readonly codigoItem: string;
+  readonly nombreItem?: string;
+  readonly estadoInicial?: EstadoSubsanacionModal;
+  readonly accionInicial?: string;
 }
 
 const MAX_EVIDENCIA_MB = 5;
-const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const TIPOS_PERMITIDOS = new Set<string>([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+]);
 
 const ESTADOS: Array<{
   valor: EstadoSubsanacionModal;
@@ -39,7 +44,7 @@ const ESTADOS: Array<{
   },
 ];
 
-export const EvidenciaUploadModal: React.FC<Props> = ({
+export const EvidenciaUploadModal: React.FC<Readonly<Props>> = ({
   isOpen,
   onClose,
   uuid,
@@ -47,7 +52,7 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
   nombreItem,
   estadoInicial = 'EN_PROCESO',
   accionInicial = '',
-}) => {
+}: Readonly<Props>) => {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const inputFileRef = useRef<HTMLInputElement>(null);
   const elementoPrevioRef = useRef<HTMLElement | null>(null);
@@ -66,10 +71,8 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Conserva el foco del control que abriÃ³ el modal para restaurarlo al cerrar.
-    if (elementoPrevioRef.current === null) {
-      elementoPrevioRef.current = document.activeElement as HTMLElement | null;
-    }
+    // Conserva el foco del control que abrió el modal para restaurarlo al cerrar.
+    elementoPrevioRef.current ??= document.activeElement as HTMLElement | null;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -77,12 +80,12 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
     closeButtonRef.current?.focus();
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
@@ -113,15 +116,15 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
       return;
     }
 
-    if (!TIPOS_PERMITIDOS.includes(file.type)) {
-      setErrorCliente('Solo se permiten imÃ¡genes JPG/PNG/WEBP o documentos PDF.');
+    if (!TIPOS_PERMITIDOS.has(file.type)) {
+      setErrorCliente('Solo se permiten imágenes JPG/PNG/WEBP o documentos PDF.');
       inputFileRef.current?.focus();
 
       return;
     }
 
     if (file.size > MAX_EVIDENCIA_MB * 1024 * 1024) {
-      setErrorCliente(`El archivo supera el lÃ­mite de ${MAX_EVIDENCIA_MB} MB.`);
+      setErrorCliente(`El archivo supera el límite de ${MAX_EVIDENCIA_MB} MB.`);
       inputFileRef.current?.focus();
 
       return;
@@ -139,7 +142,7 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
     event.preventDefault();
 
     if (form.data.descripcion_subsanacion.trim().length < 5) {
-      form.setError('descripcion_subsanacion', 'Describe la acciÃ³n correctiva realizada (mÃ­nimo 5 caracteres).');
+      form.setError('descripcion_subsanacion', 'Describe la acción correctiva realizada (mínimo 5 caracteres).');
 
       return;
     }
@@ -161,16 +164,20 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
   const esImagen = Boolean(preview);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="evidencia-upload-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-neutral-950/50 backdrop-blur-xs cursor-default"
+      />
       <div
-        className="bg-white w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
-        onClick={event => event.stopPropagation()}
+        className="relative z-10 bg-white w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
       >
         {/* Cabecera del Modal */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-100 mb-5">
@@ -180,14 +187,14 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-1">
-                GestiÃ³n de Evidencias Â· Plan Preventivo
+                Gestión de Evidencias · Plan Preventivo
               </span>
               <h3 id="evidencia-upload-titulo" className="text-sm font-bold text-neutral-900 leading-snug">
                 Registrar evidencia y estado
               </h3>
               {nombreItem && (
                 <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                  <span className="font-mono font-bold text-danger-900">{codigoItem}</span> Â· {nombreItem}
+                  <span className="font-mono font-bold text-danger-900">{codigoItem}</span> · {nombreItem}
                 </p>
               )}
             </div>
@@ -206,9 +213,9 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Estado declarado */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
-              Estado Declarado de tu AdecuaciÃ³n
-            </label>
+            <span className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
+              Estado Declarado de tu Adecuación
+            </span>
             <div className="grid grid-cols-3 gap-2">
               {ESTADOS.map(opcion => (
                 <button
@@ -227,16 +234,17 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* AcciÃ³n correctiva realizada */}
+          {/* Acción correctiva realizada */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1">
-              AcciÃ³n correctiva realizada
+            <label htmlFor="descripcion_subsanacion" className="block text-[11px] font-bold uppercase text-neutral-500 mb-1">
+              Acción correctiva realizada
             </label>
             <textarea
+              id="descripcion_subsanacion"
               rows={3}
               value={form.data.descripcion_subsanacion}
               onChange={event => form.setData('descripcion_subsanacion', event.target.value)}
-              placeholder="Describe los trabajos o acciones realizadas, marcas y especificaciones tÃ©cnicas implementadas..."
+              placeholder="Describe los trabajos o acciones realizadas, marcas y especificaciones técnicas implementadas..."
               className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-medium focus:border-danger-900 outline-none"
             />
             {form.errors.descripcion_subsanacion && (
@@ -244,11 +252,11 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
             )}
           </div>
 
-          {/* SelecciÃ³n de archivo */}
+          {/* Selección de archivo */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1">
-              Evidencia (JPG, PNG, WEBP o PDF Â· mÃ¡ximo {MAX_EVIDENCIA_MB} MB)
-            </label>
+            <span className="block text-[11px] font-bold uppercase text-neutral-500 mb-1">
+              Evidencia (JPG, PNG, WEBP o PDF · máximo {MAX_EVIDENCIA_MB} MB)
+            </span>
             <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border-2 border-dashed border-neutral-200 bg-neutral-50 text-neutral-400 hover:bg-neutral-100 hover:border-danger-900/40 transition cursor-pointer text-center">
               <Upload className="w-6 h-6" />
               {archivo ? (
@@ -274,22 +282,32 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
             >
               <Info className="mt-0.5 h-3 w-3 shrink-0" />
               <span>
-                La evidencia es <strong>declarada por el ciudadano</strong> y respalda tu adecuaciÃ³n con fines
+                La evidencia es <strong>declarada por el ciudadano</strong> y respalda tu adecuación con fines
                 preventivos; no es verificada oficialmente por la autoridad competente y se conserva de forma
                 privada, accesible solo para ti.
               </span>
             </p>
 
-            {/* PrevisualizaciÃ³n */}
+            {/* Previsualización */}
             {esImagen && preview && (
-              <div className="mt-3 rounded-2xl overflow-hidden border border-neutral-200 bg-neutral-50">
-                <img src={preview} alt="PrevisualizaciÃ³n de la evidencia" className="max-h-56 w-full object-contain" />
+              <div className="mt-3 space-y-2">
+                <div className="rounded-2xl overflow-hidden border border-neutral-200 bg-neutral-50">
+                  <img src={preview} alt="Previsualización de la evidencia" className="max-h-56 w-full object-contain" />
+                </div>
+                <p className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-xl p-2 flex items-center gap-1.5 font-medium">
+                  <Sparkles className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
+                  <span>
+                    Al registrar esta fotografía, podrás solicitar <strong>orientación visual asistida con IA</strong> desde el panel de subsanación.
+                  </span>
+                </p>
               </div>
             )}
             {archivo && !esImagen && (
-              <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-800 font-medium">
-                <FileText className="w-4 h-4 shrink-0" />
-                Documento PDF seleccionado para respaldar tu declaraciÃ³n.
+              <div className="mt-3 flex items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-medium">
+                <FileText className="w-4 h-4 shrink-0 text-slate-400" />
+                <span>
+                  Documento PDF seleccionado para respaldo documental (las orientaciones visuales automáticas con IA requieren fotografía).
+                </span>
               </div>
             )}
 
@@ -338,6 +356,6 @@ export const EvidenciaUploadModal: React.FC<Props> = ({
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 };

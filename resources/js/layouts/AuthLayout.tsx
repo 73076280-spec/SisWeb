@@ -78,18 +78,20 @@ function CircuitosBackground() {
   );
 }
 
+interface PanelPromesaProps {
+  titulo: string;
+  subtitulo: string;
+  badge: string;
+  compacto: boolean;
+}
+
 /** Panel izquierdo: promesa institucional y garantías cívicas. */
 function PanelPromesa({
   titulo,
   subtitulo,
   badge,
   compacto,
-}: {
-  titulo: string;
-  subtitulo: string;
-  badge: string;
-  compacto: boolean;
-}) {
+}: Readonly<PanelPromesaProps>) {
   return (
     <section className="lg:col-span-7">
       <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-950/60 px-3 py-1 text-xs font-medium text-emerald-400">
@@ -128,7 +130,7 @@ export default function AuthLayout({
   variant = 'pantalla',
   onCerrar,
   enlaceAlterno,
-}: AuthLayoutProps) {
+}: Readonly<AuthLayoutProps>) {
   const esModal = variant === 'modal';
 
   return (

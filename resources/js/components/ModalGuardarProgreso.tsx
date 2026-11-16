@@ -7,14 +7,14 @@ import AuthLayout from '@/layouts/AuthLayout';
 type Pestania = 'crear' | 'iniciar';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
   /** Autoevaluación cuyo avance se quiere conservar. Obligatorio: este modal solo
    *  existe para el contexto de pausar una autoevaluación, no como acceso genérico
    *  a la cuenta. El acceso genérico vive en las rutas `/login` y `/registro`. */
-  uuid: string;
-  establecimiento?: string | null;
-  destino?: 'checklist' | 'resumen' | null;
+  readonly uuid: string;
+  readonly establecimiento?: string | null;
+  readonly destino?: 'checklist' | 'resumen' | null;
 }
 
 function obtenerCsrf(): string {
@@ -37,7 +37,7 @@ function obtenerCsrf(): string {
  * formulario para volver. Quien prefiera la pantalla completa tiene los enlaces
  * visibles al pie.
  */
-export const ModalGuardarProgreso: React.FC<Props> = ({
+export const ModalGuardarProgreso: React.FC<Readonly<Props>> = ({
   isOpen,
   onClose,
   uuid,
@@ -151,6 +151,33 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
   const classeBotonEnvio =
     'flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50';
 
+  const renderBotonTexto = () => {
+    if (cargando) {
+      return (
+        <>
+          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+          Guardando...
+        </>
+      );
+    }
+
+    if (pestania === 'crear') {
+      return (
+        <>
+          <UserPlus aria-hidden="true" className="h-4 w-4" />
+          Crear cuenta y guardar progreso
+        </>
+      );
+    }
+
+    return (
+      <>
+        <LogIn aria-hidden="true" className="h-4 w-4" />
+        Iniciar sesión y guardar progreso
+      </>
+    );
+  };
+
   /* Contenido de la tarjeta blanca: el shell dark y la mitad institucional
      los aporta `AuthLayout`, que se reutiliza tal cual en la variante modal. */
   const contenido = (
@@ -179,9 +206,9 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
 
           <div className="flex flex-col gap-2">
             <Link
-              href="/mis-autoevaluaciones"
+              href={route('mis-autoevaluaciones')}
               onClick={onClose}
-              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:outline-none"
+              className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:outline-none text-center"
             >
               Ver mis autoevaluaciones
             </Link>
@@ -223,11 +250,8 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
           )}
 
           {/* Pestañas / Selector de Modo */}
-          <div
-            role="group"
-            aria-label="Modo de autenticación para guardar avance"
-            className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"
-          >
+          <fieldset className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 border-0 m-0 min-w-0">
+            <legend className="sr-only">Modo de autenticación para guardar avance</legend>
             <button
               type="button"
               aria-pressed={pestania === 'crear'}
@@ -250,7 +274,7 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
               <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
               Ya tengo cuenta
             </button>
-          </div>
+          </fieldset>
 
           <form onSubmit={manejarEnvio} className="space-y-3">
             {pestania === 'crear' && (
@@ -334,22 +358,7 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
             </div>
 
             <button type="submit" disabled={cargando} className={classeBotonEnvio}>
-              {cargando ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Guardando...
-                </>
-              ) : pestania === 'crear' ? (
-                <>
-                  <UserPlus className="h-4 w-4" aria-hidden="true" />
-                  Crear cuenta y guardar progreso
-                </>
-              ) : (
-                <>
-                  <LogIn className="h-4 w-4" aria-hidden="true" />
-                  Iniciar sesión y guardar progreso
-                </>
-              )}
+              {renderBotonTexto()}
             </button>
           </form>
 
@@ -396,11 +405,10 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
   );
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-0 backdrop-blur-sm sm:p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="guardar-progreso-titulo"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 p-0 backdrop-blur-sm sm:p-4 border-0 max-w-none max-h-none w-full h-full m-0"
     >
       <AuthLayout
         variant="modal"
@@ -411,7 +419,7 @@ export const ModalGuardarProgreso: React.FC<Props> = ({
       >
         <div className="mx-auto max-h-[85vh] overflow-y-auto sm:max-h-[80vh]">{contenido}</div>
       </AuthLayout>
-    </div>,
+    </dialog>,
     document.body,
   );
 };

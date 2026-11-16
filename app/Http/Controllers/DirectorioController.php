@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SolicitudAfiliacionRequest;
+use App\Models\SolicitudAfiliacion;
 use App\Services\DirectorioAliadosService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -66,6 +69,16 @@ class DirectorioController extends Controller
                 ['valor' => 'Chilca', 'etiqueta' => 'Chilca'],
             ],
         ]);
+    }
+
+    /**
+     * Procesa y registra la postulación de un nuevo aliado técnico para el directorio cívico.
+     */
+    public function solicitarAfiliacion(SolicitudAfiliacionRequest $request): RedirectResponse
+    {
+        SolicitudAfiliacion::create($request->validated());
+
+        return redirect()->back()->with('success', 'Tu solicitud de afiliación ha sido registrada. La Subgerencia o el equipo técnico se comunicará contigo.');
     }
 
     /**

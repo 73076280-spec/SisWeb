@@ -15,8 +15,11 @@ beforeEach(function () {
 
 function crearEvaluacionTest(array $overrides = []): Autoevaluacion
 {
-    return Autoevaluacion::create(array_merge([
+    $sessionToken = 'token_test_fijo_cierre';
+
+    $eval = Autoevaluacion::create(array_merge([
         'uuid_trazabilidad' => (string) Str::uuid(),
+        'session_token' => $sessionToken,
         'nombre_comercio' => 'Comercio Dinamico Huancayo',
         'ruc' => '20123456789',
         'direccion' => 'Av. Giráldez 321',
@@ -34,6 +37,13 @@ function crearEvaluacionTest(array $overrides = []): Autoevaluacion
         'registrada_at' => null,
         'hash_integridad' => null,
     ], $overrides));
+
+    test()->withSession([
+        'guest_session_token' => $sessionToken,
+    ]);
+    test()->withCookie('guest_session_token', $sessionToken);
+
+    return $eval;
 }
 
 function generarDeclaracionesCompletas(Autoevaluacion $evaluacion, string $estado = 'CUMPLE_DECLARADO'): array

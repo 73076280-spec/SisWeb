@@ -362,6 +362,7 @@ export interface FinalizarPendiente {
  */
 export interface InformeAutoevaluacion {
     uuid_trazabilidad: string;
+    uuid?: string;
     nombre_comercio: string;
     funcion_economica: string;
     ruc: string | null;
@@ -377,7 +378,58 @@ export interface InformeAutoevaluacion {
     porcentaje_cumplimiento: number;
     evaluacion_origen_id: number | null;
     hash_integridad: string | null;
-    detalle_checklist: InformeDetalleItem[];
+    detalle_checklist?: InformeDetalleItem[];
+    area_techada?: string | null;
+    aforo_estimado?: number | null;
+    numero_pisos?: number | null;
+    giro?: string | null;
+    nombre_comercial?: string;
+    condiciones_evaluadas?: CondicionEvaluada[];
+}
+
+/** Condición normativa individual hidratada por EvaluacionSyncService. */
+export interface CondicionEvaluada {
+    codigo: string;
+    titulo: string;
+    especialidad: string;
+    norma_referencial: string;
+    estado_actual: 'CUMPLE_DECLARADO' | 'PENDIENTE_ATENDER' | 'POR_REVISAR' | 'NO_APLICA' | string;
+    notas?: string | null;
+}
+
+/** Props de autoevaluación consolidada canónicamente. */
+export interface EvaluacionCompletaProps {
+    area_techada: string | null;
+    area_m2?: number | string | null;
+    aforo_estimado: number | null;
+    aforo?: number | null;
+    numero_pisos: number;
+    pisos?: number | null;
+    giro?: string | null;
+    funcion_economica?: string | null;
+    nombre_comercial: string;
+    nombre_comercio?: string;
+    ruc?: string | null;
+    direccion?: string | null;
+    sector_huancayo?: string | null;
+    distrito?: string | null;
+    referencia?: string | null;
+    tipo_tramite?: string | null;
+    nivel_riesgo?: string | null;
+    uuid?: string;
+    uuid_trazabilidad?: string;
+    hash_integridad?: string | null;
+    estado?: string;
+    total_aplicables?: number;
+    cumplen?: number;
+    observados?: number;
+    por_subsanar?: number;
+    por_revisar?: number;
+    no_aplica?: number;
+    porcentaje_cumplimiento?: number;
+    estado_semaforo?: string;
+    semaforo?: SemaforoRiesgo | string;
+    condiciones_evaluadas?: CondicionEvaluada[];
 }
 
 /** Fila del `detalle_checklist`. Solo `codigo` está garantizado. */
@@ -448,6 +500,8 @@ export interface InformeEvaluacionOrigen {
 /** Props de `Inertia::render('Evaluacion/InformePreventivo')`. */
 export interface InformePreventivoProps {
     autoevaluacion: InformeAutoevaluacion;
+    evaluacion?: EvaluacionCompletaProps;
+    condiciones_evaluadas?: CondicionEvaluada[];
     esReevaluacion: boolean;
     evaluacionOrigen: InformeEvaluacionOrigen | null;
     codigoInforme: string;

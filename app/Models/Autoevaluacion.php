@@ -109,6 +109,28 @@ class Autoevaluacion extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::updating(function (Autoevaluacion $model) {
+            if ($model->getOriginal('estado') === self::ESTADO_REGISTRADA) {
+                $atributosSellados = [
+                    'uuid_trazabilidad',
+                    'caracteristicas_declaradas',
+                    'payload_canonico',
+                    'hash_integridad',
+                    'registrada_at',
+                    'evaluacion_origen_id',
+                ];
+
+                foreach ($atributosSellados as $atributo) {
+                    if ($model->isDirty($atributo) && $model->getOriginal($atributo) !== null) {
+                        throw new \LogicException("No se permite modificar el atributo sellado [{$atributo}] en una autoevaluación registrada.");
+                    }
+                }
+            }
+        });
+    }
+
     public function estaRegistrada(): bool
     {
         return $this->estado === self::ESTADO_REGISTRADA;
@@ -134,16 +156,7 @@ class Autoevaluacion extends Model
             ? $this->respuestas->isNotEmpty()
             : $this->respuestas()->exists();
 
-        if ($tieneRespuestas) {
-            return true;
-        }
-
-        $checklist = $this->detalle_checklist ?? [];
-        if (! empty($checklist)) {
-            return false;
-        }
-
-        return true;
+        return $tieneRespuestas || empty($this->detalle_checklist);
     }
 
     /**
@@ -208,6 +221,35 @@ class Autoevaluacion extends Model
     public function reevaluaciones(): HasMany
     {
         return $this->hasMany(Autoevaluacion::class, 'evaluacion_origen_id');
+    }
+
+    public function subsanaciones(): HasMany
+    {
+        return $this->hasMany(Subsanacion::class, 'autoevaluacion_id');
+    }
+
+    /**
+     * Plano del establecimiento (Fase 3: Croquis y modelo espacial ciudadano).
+     */
+    public function planoEstablecimiento(): HasOne
+    {
+        return $this->hasOne(PlanoEstablecimiento::class, 'autoevaluacion_id');
+    }
+
+    /**
+     * Sugerencias de elementos espaciales derivadas de análisis visual IA (Fase 3.2).
+     */
+    public function sugerenciasEspaciales(): HasMany
+    {
+        return $this->hasMany(SugerenciaEspacial::class, 'autoevaluacion_id');
+    }
+
+    /**
+     * Análisis espaciales preventivos inmutables generados para la autoevaluación (Subfase 3.3).
+     */
+    public function analisisEspaciales(): HasMany
+    {
+        return $this->hasMany(AnalisisEspacial::class, 'autoevaluacion_id')->orderBy('id', 'desc');
     }
 
     // --- Relaciones en transición de compatibilidad (Fase 6 Bloque 1) ---

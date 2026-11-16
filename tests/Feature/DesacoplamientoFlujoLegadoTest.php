@@ -61,14 +61,17 @@ test('UX06-01: acceso a autoevaluacion.resultado con evaluacion V2 iniciada redi
 });
 
 test('UX06-01: acceso a autoevaluacion.resultado con evaluacion V2 registrada redirige con 302 a autoevaluacion.resumen', function () {
+    $token = 'token_guest_desacople_12345';
     $evaluacion = crearEvaluacionV2Desacople([
         'estado' => Autoevaluacion::ESTADO_REGISTRADA,
         'registrada_at' => now(),
         'payload_canonico' => ['criterios' => []],
         'total_condiciones_evaluadas' => 13,
+        'session_token' => $token,
     ]);
 
-    $response = $this->get(route('autoevaluacion.resultado', ['uuid' => $evaluacion->uuid_trazabilidad]));
+    $response = $this->withCookie('guest_session_token', $token)
+        ->get(route('autoevaluacion.resultado', ['uuid' => $evaluacion->uuid_trazabilidad]));
 
     $response->assertStatus(302);
     $response->assertRedirect(route('autoevaluacion.resumen', ['uuid' => $evaluacion->uuid_trazabilidad]));

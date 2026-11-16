@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import {
   AlertTriangle,
@@ -6,22 +6,32 @@ import {
   ArrowRight,
   BookOpen,
   Building2,
+  Camera,
   Check,
   CheckCircle2,
   ExternalLink,
+  FileCheck,
   FileSpreadsheet,
   FileText,
   Info,
   Loader2,
   MapPin,
+  RotateCw,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Store,
+  UploadCloud,
   Users,
   Wrench,
 } from 'lucide-react';
 import { ProveedoresCercanosModal } from '@/components/ProveedoresCercanosModal';
 import { RecursoEducativoModal, type RecursoEducativoData } from '@/components/RecursoEducativoModal';
+import { EvidenciaUploadModal } from '@/components/EvidenciaUploadModal';
+import {
+  PanelResultadoAnalisisIA,
+  type AnalisisEvidenciaItem,
+} from '@/components/Evaluacion/PanelResultadoAnalisisIA';
 
 export interface RecursoEducativoItem {
   id: number;
@@ -45,6 +55,11 @@ export interface CriterioObservadoItem {
   accion_mejora_orientativa: string;
   estado: string;
   notas?: string | null;
+  evidencia_url?: string | null;
+  mime_type?: string | null;
+  es_imagen?: boolean;
+  es_pdf?: boolean;
+  ultimo_analisis?: AnalisisEvidenciaItem | null;
   recursos_educativos?: RecursoEducativoItem[];
 }
 
@@ -74,8 +89,155 @@ export default function SubsanacionDirecta({
   const [modalProveedoresAbierto, setModalProveedoresAbierto] = useState(false);
   const [modalRecursosAbierto, setModalRecursosAbierto] = useState(false);
   const [criterioSeleccionado, setCriterioSeleccionado] = useState<CriterioObservadoItem | null>(null);
+  const [criterioEvidenciaModal, setCriterioEvidenciaModal] = useState<CriterioObservadoItem | null>(null);
   const [notaSubsanacion, setNotaSubsanacion] = useState<Record<string, string>>({});
   const [itemParaDeclarar, setItemParaDeclarar] = useState<CriterioObservadoItem | null>(null);
+  const [solicitandoAnalisis, setSolicitandoAnalisis] = useState<Record<string, boolean>>({});
+  const intervalosRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+
+  // Sincronizar items al recibir props actualizadas (ej. tras subir evidencia)
+  useEffect(() => {
+    setItems(itemsIniciales);
+  }, [itemsIniciales]);
+
+  // Limpiar intervalos de sondeo al desmontar
+  useEffect(() => {
+    return () => {
+      Object.values(intervalosRef.current).forEach((intervalo) => clearInterval(intervalo));
+    };
+  }, []);
+
+  const iniciarSondeoAnalisis = (codigo: string, analisisUuid: string) => {
+    if (intervalosRef.current[codigo]) {
+      clearInterval(intervalosRef.current[codigo]);
+    }
+
+    let intentos = 0;
+    const maxIntentos = 30; // ~60s máx (intervalo 2s)
+
+    intervalosRef.current[codigo] = setInterval(async () => {
+      intentos++;
+      try {
+        const res = await fetch(
+          `/autoevaluacion/${autoevaluacion.uuid}/analisis/${analisisUuid}/estado`,
+          {
+            headers: {
+              Accept: 'application/json',
+            },
+          }
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.analisis) {
+            const estadoActual = data.analisis.estado;
+
+            setItems((prev) =>
+              prev.map((it) =>
+                it.codigo === codigo
+                  ? {
+                      ...it,
+                      ultimo_analisis: {
+                        id: data.analisis.id,
+                        uuid: data.analisis.uuid,
+                        estado: estadoActual,
+                        mensaje_error: data.analisis.mensaje_error,
+                        hash_sha256: data.analisis.hash_sha256,
+                        created_at: data.analisis.created_at,
+                        resultado: data.analisis.resultado,
+                      },
+                    }
+                  : it
+              )
+            );
+
+            if (
+              estadoActual === 'COMPLETADO' ||
+              estadoActual === 'REQUIERE_REVISION' ||
+              estadoActual === 'FALLIDO'
+            ) {
+              clearInterval(intervalosRef.current[codigo]);
+              delete intervalosRef.current[codigo];
+              return;
+            }
+          }
+        }
+      } catch {
+        // En caso de intermitencia de red se continúa el sondeo hasta el límite
+      }
+
+      if (intentos >= maxIntentos) {
+        clearInterval(intervalosRef.current[codigo]);
+        delete intervalosRef.current[codigo];
+      }
+    }, 2000);
+  };
+
+  // Reanudar sondeo en caso de análisis pendientes al montar
+  useEffect(() => {
+    itemsIniciales.forEach((it) => {
+      if (
+        it.ultimo_analisis &&
+        (it.ultimo_analisis.estado === 'PENDIENTE' || it.ultimo_analisis.estado === 'EN_PROCESO') &&
+        it.ultimo_analisis.uuid
+      ) {
+        iniciarSondeoAnalisis(it.codigo, it.ultimo_analisis.uuid);
+      }
+    });
+  }, []);
+
+  const handleSolicitarAnalisis = async (item: CriterioObservadoItem) => {
+    if (!item.subsanacion_id) return;
+
+    setSolicitandoAnalisis((prev) => ({ ...prev, [item.codigo]: true }));
+    const csrfToken =
+      document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    try {
+      const res = await fetch(
+        `/autoevaluacion/${autoevaluacion.uuid}/evidencias/${item.subsanacion_id}/analizar`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'No se pudo iniciar el análisis de la fotografía.');
+      }
+
+      const analisisUuid = data.analisis_uuid;
+      setItems((prev) =>
+        prev.map((it) =>
+          it.codigo === item.codigo
+            ? {
+                ...it,
+                ultimo_analisis: {
+                  uuid: analisisUuid,
+                  estado: data.estado || 'PENDIENTE',
+                  resultado: null,
+                },
+              }
+            : it
+        )
+      );
+
+      if (analisisUuid) {
+        iniciarSondeoAnalisis(item.codigo, analisisUuid);
+      }
+    } catch (err: unknown) {
+      const mensaje = err instanceof Error ? err.message : 'Error al solicitar orientación visual con IA.';
+      alert(mensaje);
+    } finally {
+      setSolicitandoAnalisis((prev) => ({ ...prev, [item.codigo]: false }));
+    }
+  };
 
   const totalObservados = items.length;
   const subsanados = items.filter((it) => it.estado === 'CUMPLE_DECLARADO' || it.estado === 'CUMPLE');
@@ -207,6 +369,14 @@ export default function SubsanacionDirecta({
 
               <div className="flex items-center gap-2 self-start sm:self-center">
                 <Link
+                  href={route('autoevaluacion.croquis', { uuid: autoevaluacion.uuid })}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs font-bold text-indigo-700 shadow-2xs transition hover:bg-indigo-100 active:scale-95"
+                >
+                  <Building2 className="h-4 w-4 text-indigo-600" />
+                  <span>Croquis 2D</span>
+                </Link>
+
+                <Link
                   href={route('dashboard')}
                   className="inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95"
                 >
@@ -219,6 +389,49 @@ export default function SubsanacionDirecta({
 
         {/* Contenido Principal */}
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 space-y-6">
+          {/* Banner de Trazabilidad, Evidencias, Orientación Visual y Deslinde Cívico */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 text-xs text-sky-950">
+              <div className="flex items-center gap-1.5 font-bold text-sky-900 mb-1">
+                <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />
+                <span>Declaración Cívica</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-sky-800">
+                Al marcar una condición como subsanada, registras una declaración voluntaria de cumplimiento para tu preparación preventiva.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-950">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900 mb-1">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Custodia de Evidencias</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-emerald-800">
+                Puedes adjuntar fotografías o certificados (máx. 5 MB). Se almacenan en entorno privado y con respaldo hash SHA-256.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 text-xs text-indigo-950">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-900 mb-1">
+                <Sparkles className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span>Orientación Visual IA</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-indigo-800">
+                Asistencia fotográfica con Gemini para detectar elementos visibles, limitaciones y sugerencias de mejora preventiva.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950">
+              <div className="flex items-center gap-1.5 font-bold text-amber-900 mb-1">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Sin Valor Municipal</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800">
+                CheckITSE no emite certificados ITSE ni reemplaza la inspección técnica de seguridad efectuada por inspectores municipales.
+              </p>
+            </div>
+          </div>
+
           {/* Barra de Progreso y Estado */}
           <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -249,7 +462,7 @@ export default function SubsanacionDirecta({
                   {todosSubsanados ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      100% Conforme para Inspección
+                      100% de Condiciones Declaradas Subsanadas
                     </>
                   ) : (
                     <>
@@ -285,8 +498,8 @@ export default function SubsanacionDirecta({
                       ¡Excelente trabajo! Has subsanado todas las observaciones
                     </h2>
                     <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xl">
-                      Todas las condiciones de seguridad han sido declaradas conforme. En tu Panel Ciudadano este local
-                      ahora figura como <strong>CONFORME</strong> al 100% para tu inspección municipal ITSE en Huancayo.
+                      Todas las condiciones observadas han sido declaradas como subsanadas por el titular. En tu Panel Ciudadano este local
+                      figura con <strong>100% de cumplimiento declarado</strong> como preparación preventiva para tu trámite oficial ante la municipalidad.
                     </p>
                   </div>
                 </div>
@@ -324,7 +537,7 @@ export default function SubsanacionDirecta({
                 No hay observaciones pendientes en este local
               </h3>
               <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
-                Tu establecimiento se encuentra al 100% de cumplimiento en sus declaraciones ITSE.
+                Tu establecimiento cuenta con todas las condiciones declaradas conformes en esta autoevaluación preventiva.
               </p>
               <div className="mt-6">
                 <Link
@@ -425,6 +638,28 @@ export default function SubsanacionDirecta({
                               <strong>Anotación del comerciante:</strong> "{item.notas}"
                             </div>
                           )}
+
+                          {/* Aviso si la evidencia adjunta es un PDF */}
+                          {item.evidencia_url && item.es_pdf && (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-600 flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                              <span>
+                                Archivo PDF custodiado como respaldo documental. (La orientación visual con IA requiere fotografía en JPG, PNG o WebP).
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Panel de Orientación Visual con IA */}
+                          {item.ultimo_analisis && (
+                            <PanelResultadoAnalisisIA
+                              analisis={item.ultimo_analisis}
+                              codigoCriterio={item.codigo}
+                              onReanalizar={
+                                item.subsanacion_id ? () => handleSolicitarAnalisis(item) : undefined
+                              }
+                              estaReanalizando={Boolean(solicitandoAnalisis[item.codigo])}
+                            />
+                          )}
                         </div>
                       </div>
 
@@ -451,6 +686,48 @@ export default function SubsanacionDirecta({
                               <span>Guía / Video técnico ({item.recursos_educativos.length})</span>
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => setCriterioEvidenciaModal(item)}
+                            className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+                          >
+                            <Camera className="h-4 w-4 text-slate-500" />
+                            <span>{item.evidencia_url ? 'Actualizar evidencia' : 'Adjuntar evidencia (foto/PDF)'}</span>
+                          </button>
+
+                          {item.evidencia_url && (
+                            <a
+                              href={item.evidencia_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition"
+                            >
+                              <FileCheck className="h-4 w-4 text-emerald-600" />
+                              <span>Ver evidencia</span>
+                            </a>
+                          )}
+
+                          {/* Botón Asistente IA si tiene evidencia y no se ha analizado aún */}
+                          {item.subsanacion_id &&
+                            item.evidencia_url &&
+                            !item.es_pdf &&
+                            !item.ultimo_analisis && (
+                              <button
+                                type="button"
+                                disabled={Boolean(solicitandoAnalisis[item.codigo])}
+                                onClick={() => handleSolicitarAnalisis(item)}
+                                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3.5 py-2 text-xs font-bold text-indigo-700 shadow-2xs transition hover:border-indigo-300 hover:bg-indigo-100 active:scale-95 disabled:opacity-50"
+                                title="Solicitar orientación visual con IA (Gemini)"
+                              >
+                                {solicitandoAnalisis[item.codigo] ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                                ) : (
+                                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                                )}
+                                <span>Orientación visual con IA</span>
+                              </button>
+                            )}
                         </div>
 
                         {/* Botón de Subsanación */}
@@ -503,13 +780,23 @@ export default function SubsanacionDirecta({
               <span>Volver al Panel Ciudadano</span>
             </Link>
 
-            <Link
-              href={route('autoevaluacion.resumen', { uuid: autoevaluacion.uuid })}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
-            >
-              <FileText className="h-4 w-4 text-slate-400" />
-              <span>Ver Expediente Completo</span>
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={route('autoevaluacion.resumen', { uuid: autoevaluacion.uuid })}
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
+              >
+                <FileText className="h-4 w-4 text-slate-400" />
+                <span>Ver Diagnóstico Inicial (Resumen)</span>
+              </Link>
+
+              <Link
+                href={route('autoevaluacion.informe', { uuid: autoevaluacion.uuid })}
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+              >
+                <FileCheck className="h-4 w-4" />
+                <span>Ver Informe Preventivo</span>
+              </Link>
+            </div>
           </div>
         </main>
       </div>
@@ -631,6 +918,19 @@ export default function SubsanacionDirecta({
           }))}
           criterioCodigo={criterioSeleccionado.codigo}
           criterioTitulo={criterioSeleccionado.titulo}
+        />
+      )}
+
+      {/* Modal de Carga de Evidencia Fotográfica / PDF Voluntaria */}
+      {criterioEvidenciaModal && (
+        <EvidenciaUploadModal
+          isOpen={Boolean(criterioEvidenciaModal)}
+          onClose={() => setCriterioEvidenciaModal(null)}
+          uuid={autoevaluacion.uuid}
+          codigoItem={criterioEvidenciaModal.codigo}
+          nombreItem={criterioEvidenciaModal.titulo}
+          estadoInicial="SUBSANADO_DECLARADO"
+          accionInicial={criterioEvidenciaModal.notas || ''}
         />
       )}
     </>

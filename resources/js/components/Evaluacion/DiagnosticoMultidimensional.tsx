@@ -85,6 +85,279 @@ export function clasificarEnEjeCenepred(codigo: string, titulo: string = ''): 'i
   return 'evacuacion_estructural';
 }
 
+interface MetricasEjes {
+  total1: number;
+  cumplidas1: number;
+  alertas1: number;
+  total2: number;
+  cumplidas2: number;
+  alertas2: number;
+}
+
+function calcularMetricasDesdeDesglose(desglose: DesgloseEspecialidades): MetricasEjes {
+  const elec = desglose.electricas ?? { total: 0, cumplidas: 0, alertas: 0 };
+  const inc = desglose.incendios ?? { total: 0, cumplidas: 0, alertas: 0 };
+  const arq = desglose.arquitectura ?? { total: 0, cumplidas: 0, alertas: 0 };
+  const est = desglose.estructuras ?? { total: 0, cumplidas: 0, alertas: 0 };
+
+  return {
+    total1: elec.total + inc.total,
+    cumplidas1: elec.cumplidas + inc.cumplidas,
+    alertas1: elec.alertas + inc.alertas,
+    total2: arq.total + est.total,
+    cumplidas2: arq.cumplidas + est.cumplidas,
+    alertas2: arq.alertas + est.alertas,
+  };
+}
+
+function calcularMetricasDesdeListas(
+  cumple: CriterioResumenItem[],
+  pendientes: CriterioResumenItem[],
+  porRevisar: CriterioResumenItem[],
+): MetricasEjes {
+  let total1 = 0;
+  let cumplidas1 = 0;
+  let alertas1 = 0;
+  let total2 = 0;
+  let cumplidas2 = 0;
+  let alertas2 = 0;
+
+  cumple.forEach((it) => {
+    if (clasificarEnEjeCenepred(it.codigo, it.titulo) === 'incendio_electrico') {
+      cumplidas1++;
+      total1++;
+    } else {
+      cumplidas2++;
+      total2++;
+    }
+  });
+
+  [...pendientes, ...porRevisar].forEach((it) => {
+    if (clasificarEnEjeCenepred(it.codigo, it.titulo) === 'incendio_electrico') {
+      alertas1++;
+      total1++;
+    } else {
+      alertas2++;
+      total2++;
+    }
+  });
+
+  return { total1, cumplidas1, alertas1, total2, cumplidas2, alertas2 };
+}
+
+function calcularMetricasEjes(
+  desglose: DesgloseEspecialidades | null | undefined,
+  cumple: CriterioResumenItem[],
+  pendientes: CriterioResumenItem[],
+  porRevisar: CriterioResumenItem[],
+): MetricasEjes {
+  if (desglose) {
+    return calcularMetricasDesdeDesglose(desglose);
+  }
+
+  return calcularMetricasDesdeListas(cumple, pendientes, porRevisar);
+}
+
+function calcularPorcentajeConformidad(cumplidas: number, total: number): number {
+  return total > 0 ? Math.min(100, Math.max(0, Math.round((cumplidas / total) * 100))) : 100;
+}
+
+function calcularDiasEstimadosResolucion(alertas1: number, alertas2: number): string {
+  if (alertas1 === 0 && alertas2 === 0) {
+    return '0 días (Cumplimiento inmediato)';
+  }
+  if (alertas1 > 0 && alertas2 > 0) {
+    return '3 a 5 días hábiles (Intervención técnica integral)';
+  }
+  if (alertas1 > 0) {
+    return '2 a 4 días hábiles (Adecuación eléctrica y extintores)';
+  }
+  return '1 a 3 días hábiles (Despeje y señalética de rutas)';
+}
+
+function obtenerAnalisisPrevalencia(
+  esEje1Conforme: boolean,
+  esEje2Conforme: boolean,
+): { diagnosticoPrevalencia: string; estiloPrevalencia: string } {
+  if (esEje1Conforme && esEje2Conforme) {
+    return {
+      diagnosticoPrevalencia:
+        'Ambos ejes evaluados se encuentran en estado CONFORME según tu autodeclaración. Tu establecimiento presenta las condiciones orientadas a tramitar la Licencia de Funcionamiento con ITSE Posterior (Declaración Jurada - Anexo 4).',
+      estiloPrevalencia: 'border-emerald-300 bg-emerald-50/80 text-emerald-950',
+    };
+  }
+  if (!esEje1Conforme && esEje2Conforme) {
+    return {
+      diagnosticoPrevalencia:
+        'Aunque el Eje de Evacuación cumple al 100%, prevalece el riesgo del Eje de Incendio y Seguridad Eléctrica por existir observaciones en tableros, puesta a tierra o extintores. Por norma CENEPRED, el riesgo no se promedia para garantizar la vida humana.',
+      estiloPrevalencia: 'border-rose-300 bg-rose-50/90 text-rose-950',
+    };
+  }
+  if (esEje1Conforme && !esEje2Conforme) {
+    return {
+      diagnosticoPrevalencia:
+        'Aunque las instalaciones de fuego y electricidad están en orden, prevalece la criticidad del Eje de Evacuación y Estructuras. Anchos de paso obstruidos o puertas trabadas impiden la evacuación en sismos e incendios.',
+      estiloPrevalencia: 'border-amber-300 bg-amber-50/90 text-amber-950',
+    };
+  }
+  return {
+    diagnosticoPrevalencia:
+      'Ambos ejes normativos presentan no-conformidades activas. El establecimiento se clasifica en el rango crítico más elevado, siendo mandatorio subsanar las alertas prioritarias antes de solicitar la verificación municipal.',
+    estiloPrevalencia: 'border-rose-300 bg-rose-50/90 text-rose-950',
+  };
+}
+
+function obtenerClasesContenedorEje(esConforme: boolean, alertas: number, esPrevia: boolean): string {
+  if (esConforme) {
+    return 'border-emerald-200 bg-emerald-50/30';
+  }
+  if (alertas > 0 && esPrevia) {
+    return 'border-rose-200 bg-rose-50/30';
+  }
+  return 'border-amber-200 bg-amber-50/30';
+}
+
+interface EstilosTarjetaEje {
+  claseIcono: string;
+  claseBadge: string;
+  clasePorcentaje: string;
+  claseBarra: string;
+}
+
+function obtenerEstilosTarjetaEje(variante: 'incendio' | 'evacuacion', esConforme: boolean): EstilosTarjetaEje {
+  if (esConforme) {
+    return {
+      claseIcono: 'bg-emerald-100 text-emerald-700',
+      claseBadge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      clasePorcentaje: 'text-emerald-700',
+      claseBarra: 'bg-emerald-500',
+    };
+  }
+
+  if (variante === 'incendio') {
+    return {
+      claseIcono: 'bg-rose-100 text-rose-700',
+      claseBadge: 'bg-rose-50 text-rose-800 border-rose-200',
+      clasePorcentaje: 'text-rose-600',
+      claseBarra: 'bg-rose-500',
+    };
+  }
+
+  return {
+    claseIcono: 'bg-amber-100 text-amber-700',
+    claseBadge: 'bg-amber-50 text-amber-900 border-amber-200',
+    clasePorcentaje: 'text-amber-700',
+    claseBarra: 'bg-amber-500',
+  };
+}
+
+interface TarjetaEjeProps {
+  variante: 'incendio' | 'evacuacion';
+  etiquetaEje: string;
+  titulo: string;
+  descripcion: string;
+  iconoPrincipal: React.ReactNode;
+  iconoAlerta: React.ReactNode;
+  esConforme: boolean;
+  esPrevia: boolean;
+  pct: number;
+  cumplidas: number;
+  total: number;
+  alertas: number;
+  children: React.ReactNode;
+}
+
+function TarjetaEje({
+  variante,
+  etiquetaEje,
+  titulo,
+  descripcion,
+  iconoPrincipal,
+  iconoAlerta,
+  esConforme,
+  esPrevia,
+  pct,
+  cumplidas,
+  total,
+  alertas,
+  children,
+}: Readonly<TarjetaEjeProps>) {
+  const claseContenedor = obtenerClasesContenedorEje(esConforme, alertas, esPrevia);
+  const estilos = obtenerEstilosTarjetaEje(variante, esConforme);
+  const textoAlertas = alertas === 1 ? 'Alerta' : 'Alertas';
+
+  return (
+    <div className={`rounded-2xl border p-5 space-y-4 transition-shadow shadow-2xs ${claseContenedor}`}>
+      {/* Cabecera del Eje */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${estilos.claseIcono}`}>
+            {iconoPrincipal}
+          </div>
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+              {etiquetaEje}
+            </span>
+            <h3 className="text-sm font-black text-slate-900 leading-snug">
+              {titulo}
+            </h3>
+          </div>
+        </div>
+
+        <span
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${estilos.claseBadge}`}
+        >
+          {esConforme ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Conforme</span>
+            </>
+          ) : (
+            <>
+              {iconoAlerta}
+              <span>{alertas} {textoAlertas}</span>
+            </>
+          )}
+        </span>
+      </div>
+
+      <p className="text-xs text-slate-600 leading-relaxed">
+        {descripcion}
+      </p>
+
+      {/* Barra de Score / Conformidad */}
+      <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-700">Conformidad del Eje</span>
+          <span className={`font-mono font-black ${estilos.clasePorcentaje}`}>
+            {pct}%
+          </span>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div
+            style={{ width: `${pct}%` }}
+            className={`h-full rounded-full transition-all duration-700 ${estilos.claseBarra}`}
+          />
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+          <span>{cumplidas} de {total} condiciones conformes</span>
+          <span>{alertas} por subsanar</span>
+        </div>
+      </div>
+
+      {/* Criterios clave fiscalizados en este eje */}
+      <div className="space-y-2 pt-1 border-t border-slate-200/60">
+        <span className="text-[11px] font-bold text-slate-700 block">
+          Criterios Normativos Evaluados:
+        </span>
+        <ul className="space-y-1.5 text-xs text-slate-600">
+          {children}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export function DiagnosticoMultidimensional({
   desglose,
   pendientes = [],
@@ -93,59 +366,17 @@ export function DiagnosticoMultidimensional({
   clasificacion,
   nombreComercio,
   className = '',
-}: DiagnosticoMultidimensionalProps) {
-  // 1. Cálculo de métricas para Eje 1 (Incendio y Seguridad Eléctrica)
-  let total1 = 0;
-  let cumplidas1 = 0;
-  let alertas1 = 0;
-
-  // 2. Cálculo de métricas para Eje 2 (Evacuación y Seguridad Estructural)
-  let total2 = 0;
-  let cumplidas2 = 0;
-  let alertas2 = 0;
-
-  if (desglose) {
-    // Si viene el desglose estructurado del backend (eléctricas + incendios vs arquitectura + estructuras)
-    const elec = desglose.electricas ?? { total: 0, cumplidas: 0, alertas: 0 };
-    const inc = desglose.incendios ?? { total: 0, cumplidas: 0, alertas: 0 };
-    const arq = desglose.arquitectura ?? { total: 0, cumplidas: 0, alertas: 0 };
-    const est = desglose.estructuras ?? { total: 0, cumplidas: 0, alertas: 0 };
-
-    total1 = elec.total + inc.total;
-    cumplidas1 = elec.cumplidas + inc.cumplidas;
-    alertas1 = elec.alertas + inc.alertas;
-
-    total2 = arq.total + est.total;
-    cumplidas2 = arq.cumplidas + est.cumplidas;
-    alertas2 = arq.alertas + est.alertas;
-  } else {
-    // Modo de derivación directa por listas de criterios
-    cumple.forEach((it) => {
-      const eje = clasificarEnEjeCenepred(it.codigo, it.titulo);
-      if (eje === 'incendio_electrico') {
-        cumplidas1++;
-        total1++;
-      } else {
-        cumplidas2++;
-        total2++;
-      }
-    });
-
-    [...pendientes, ...porRevisar].forEach((it) => {
-      const eje = clasificarEnEjeCenepred(it.codigo, it.titulo);
-      if (eje === 'incendio_electrico') {
-        alertas1++;
-        total1++;
-      } else {
-        alertas2++;
-        total2++;
-      }
-    });
-  }
+}: Readonly<DiagnosticoMultidimensionalProps>) {
+  const { total1, cumplidas1, alertas1, total2, cumplidas2, alertas2 } = calcularMetricasEjes(
+    desglose,
+    cumple,
+    pendientes,
+    porRevisar,
+  );
 
   // Porcentajes de conformidad protegidos
-  const pct1 = total1 > 0 ? Math.min(100, Math.max(0, Math.round((cumplidas1 / total1) * 100))) : 100;
-  const pct2 = total2 > 0 ? Math.min(100, Math.max(0, Math.round((cumplidas2 / total2) * 100))) : 100;
+  const pct1 = calcularPorcentajeConformidad(cumplidas1, total1);
+  const pct2 = calcularPorcentajeConformidad(cumplidas2, total2);
 
   const esPrevia = Boolean(clasificacion?.es_previa || clasificacion?.tipo_tramite === 'EX_ANTE');
 
@@ -153,39 +384,14 @@ export function DiagnosticoMultidimensional({
   const esEje2Conforme = alertas2 === 0;
 
   // Tiempo estimado de resolución técnica
-  let diasEstimadosResolucion = '0 días (Cumplimiento inmediato)';
   const totalAlertas = alertas1 + alertas2;
-  if (totalAlertas > 0) {
-    if (alertas1 > 0 && alertas2 > 0) {
-      diasEstimadosResolucion = '3 a 5 días hábiles (Intervención técnica integral)';
-    } else if (alertas1 > 0) {
-      diasEstimadosResolucion = '2 a 4 días hábiles (Adecuación eléctrica y extintores)';
-    } else {
-      diasEstimadosResolucion = '1 a 3 días hábiles (Despeje y señalética de rutas)';
-    }
-  }
+  const diasEstimadosResolucion = calcularDiasEstimadosResolucion(alertas1, alertas2);
 
   // Análisis del Principio de Prevalencia
-  let diagnosticoPrevalencia = '';
-  let estiloPrevalencia = 'border-emerald-200 bg-emerald-50/80 text-emerald-950';
-
-  if (esEje1Conforme && esEje2Conforme) {
-    diagnosticoPrevalencia =
-      'Ambos ejes de riesgo se encuentran en estado CONFORME. Tu establecimiento acredita condiciones seguras integrales para tramitar la Licencia de Funcionamiento con ITSE Posterior (Declaración Jurada - Anexo 4).';
-    estiloPrevalencia = 'border-emerald-300 bg-emerald-50/80 text-emerald-950';
-  } else if (!esEje1Conforme && esEje2Conforme) {
-    diagnosticoPrevalencia =
-      'Aunque el Eje de Evacuación cumple al 100%, prevalece el riesgo del Eje de Incendio y Seguridad Eléctrica por existir observaciones en tableros, puesta a tierra o extintores. Por norma CENEPRED, el riesgo no se promedia para garantizar la vida humana.';
-    estiloPrevalencia = 'border-rose-300 bg-rose-50/90 text-rose-950';
-  } else if (esEje1Conforme && !esEje2Conforme) {
-    diagnosticoPrevalencia =
-      'Aunque las instalaciones de fuego y electricidad están en orden, prevalece la criticidad del Eje de Evacuación y Estructuras. Anchos de paso obstruidos o puertas trabadas impiden la evacuación en sismos e incendios.';
-    estiloPrevalencia = 'border-amber-300 bg-amber-50/90 text-amber-950';
-  } else {
-    diagnosticoPrevalencia =
-      'Ambos ejes normativos presentan no-conformidades activas. El establecimiento se clasifica en el rango crítico más elevado, siendo mandatorio subsanar las alertas prioritarias antes de solicitar la verificación municipal.';
-    estiloPrevalencia = 'border-rose-300 bg-rose-50/90 text-rose-950';
-  }
+  const { diagnosticoPrevalencia, estiloPrevalencia } = obtenerAnalisisPrevalencia(
+    esEje1Conforme,
+    esEje2Conforme,
+  );
 
   return (
     <section
@@ -214,7 +420,7 @@ export function DiagnosticoMultidimensional({
         </div>
 
         <span className="text-[11px] font-mono text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded-lg w-fit border border-slate-200">
-          Matriz Oficial de Riesgos ITSE
+          Matriz de Riesgo CENEPRED (D.S. N° 002-2018-PCM)
         </span>
       </div>
 
@@ -223,238 +429,88 @@ export function DiagnosticoMultidimensional({
         {/* ========================================================================= */}
         {/* EJE 1: RIESGO DE INCENDIO Y SEGURIDAD ELÉCTRICA                           */}
         {/* ========================================================================= */}
-        <div
-          className={`rounded-2xl border p-5 space-y-4 transition-shadow shadow-2xs ${
-            esEje1Conforme
-              ? 'border-emerald-200 bg-emerald-50/30'
-              : alertas1 > 0 && esPrevia
-              ? 'border-rose-200 bg-rose-50/30'
-              : 'border-amber-200 bg-amber-50/30'
-          }`}
+        <TarjetaEje
+          variante="incendio"
+          etiquetaEje="Eje Determinante 1"
+          titulo="Riesgo de Incendio y Seguridad Eléctrica"
+          descripcion="Protección contra fuego, sobrecargas eléctricas, cortocircuitos, descargas atmosféricas y control seguro de combustibles."
+          iconoPrincipal={<Flame className="h-5 w-5" />}
+          iconoAlerta={<ShieldAlert className="h-3.5 w-3.5 text-rose-600" />}
+          esConforme={esEje1Conforme}
+          esPrevia={esPrevia}
+          pct={pct1}
+          cumplidas={cumplidas1}
+          total={total1}
+          alertas={alertas1}
         >
-          {/* Cabecera del Eje 1 */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                  esEje1Conforme
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-rose-100 text-rose-700'
-                }`}
-              >
-                <Flame className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                  Eje Determinante 1
-                </span>
-                <h3 className="text-sm font-black text-slate-900 leading-snug">
-                  Riesgo de Incendio y Seguridad Eléctrica
-                </h3>
-              </div>
-            </div>
-
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${
-                esEje1Conforme
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border-rose-200'
-              }`}
-            >
-              {esEje1Conforme ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Conforme</span>
-                </>
-              ) : (
-                <>
-                  <ShieldAlert className="h-3.5 w-3.5 text-rose-600" />
-                  <span>{alertas1} {alertas1 === 1 ? 'Alerta' : 'Alertas'}</span>
-                </>
-              )}
+          <li className="flex items-start gap-2">
+            <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Tableros Eléctricos:</strong> Interruptor diferencial 30 mA y mandil protector sin cables expuestos.
             </span>
-          </div>
-
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Protección contra fuego, sobrecargas eléctricas, cortocircuitos, descargas atmosféricas y control seguro de combustibles.
-          </p>
-
-          {/* Barra de Score / Conformidad */}
-          <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700">Conformidad del Eje</span>
-              <span
-                className={`font-mono font-black ${
-                  esEje1Conforme ? 'text-emerald-700' : 'text-rose-600'
-                }`}
-              >
-                {pct1}%
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                style={{ width: `${pct1}%` }}
-                className={`h-full rounded-full transition-all duration-700 ${
-                  esEje1Conforme ? 'bg-emerald-500' : 'bg-rose-500'
-                }`}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-              <span>{cumplidas1} de {total1} condiciones conformes</span>
-              <span>{alertas1} por subsanar</span>
-            </div>
-          </div>
-
-          {/* Criterios clave fiscalizados en este eje */}
-          <div className="space-y-2 pt-1 border-t border-slate-200/60">
-            <span className="text-[11px] font-bold text-slate-700 block">
-              Criterios Normativos Evaluados:
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Puesta a Tierra:</strong> Protocolo de medición ≤ 25 Ω suscrito por ingeniero electricista colegiado habilitado (CIP).
             </span>
-            <ul className="space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-2">
-                <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Tableros Eléctricos:</strong> Interruptor diferencial 30 mA y mandil protector sin cables expuestos.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Puesta a Tierra:</strong> Medición certificada ≤ 25 Ω por ingeniero electricista habilitado (CIP).
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Flame className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Extintores Operativos:</strong> Recarga anual vigente NTP 350.043-1 (PQS y Acetato Clase K).
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Combustibles / Gas GLP:</strong> Tanques y balones en zonas ventiladas alejados de fuentes de calor.
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
+          </li>
+          <li className="flex items-start gap-2">
+            <Flame className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Extintores Operativos:</strong> Recarga anual vigente NTP 350.043-1 (PQS y Acetato Clase K).
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-orange-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Combustibles / Gas GLP:</strong> Tanques y balones en zonas ventiladas alejados de fuentes de calor.
+            </span>
+          </li>
+        </TarjetaEje>
 
         {/* ========================================================================= */}
         {/* EJE 2: RIESGO DE EVACUACIÓN Y SEGURIDAD ESTRUCTURAL                       */}
         {/* ========================================================================= */}
-        <div
-          className={`rounded-2xl border p-5 space-y-4 transition-shadow shadow-2xs ${
-            esEje2Conforme
-              ? 'border-emerald-200 bg-emerald-50/30'
-              : 'border-amber-200 bg-amber-50/30'
-          }`}
+        <TarjetaEje
+          variante="evacuacion"
+          etiquetaEje="Eje Determinante 2"
+          titulo="Riesgo de Evacuación y Seguridad Estructural"
+          descripcion="Fluidez en rutas de salida, ancho normativo de pasadizos, puertas de escape, aforo regulado y estabilidad sismorresistente."
+          iconoPrincipal={<Footprints className="h-5 w-5" />}
+          iconoAlerta={<AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+          esConforme={esEje2Conforme}
+          esPrevia={false}
+          pct={pct2}
+          cumplidas={cumplidas2}
+          total={total2}
+          alertas={alertas2}
         >
-          {/* Cabecera del Eje 2 */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                  esEje2Conforme
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                <Footprints className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                  Eje Determinante 2
-                </span>
-                <h3 className="text-sm font-black text-slate-900 leading-snug">
-                  Riesgo de Evacuación y Seguridad Estructural
-                </h3>
-              </div>
-            </div>
-
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${
-                esEje2Conforme
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-amber-50 text-amber-900 border-amber-200'
-              }`}
-            >
-              {esEje2Conforme ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>Conforme</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                  <span>{alertas2} {alertas2 === 1 ? 'Alerta' : 'Alertas'}</span>
-                </>
-              )}
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-sky-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Pasadizos y Rutas:</strong> Ancho continuo libre de mercadería ≥ 1.20 m (RNE A.010 Art. 25).
             </span>
-          </div>
-
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Fluidez en rutas de salida, ancho normativo de pasadizos, puertas de escape, aforo regulado y estabilidad sismorresistente.
-          </p>
-
-          {/* Barra de Score / Conformidad */}
-          <div className="space-y-1.5 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700">Conformidad del Eje</span>
-              <span
-                className={`font-mono font-black ${
-                  esEje2Conforme ? 'text-emerald-700' : 'text-amber-700'
-                }`}
-              >
-                {pct2}%
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                style={{ width: `${pct2}%` }}
-                className={`h-full rounded-full transition-all duration-700 ${
-                  esEje2Conforme ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-              <span>{cumplidas2} de {total2} condiciones conformes</span>
-              <span>{alertas2} por subsanar</span>
-            </div>
-          </div>
-
-          {/* Criterios clave fiscalizados en este eje */}
-          <div className="space-y-2 pt-1 border-t border-slate-200/60">
-            <span className="text-[11px] font-bold text-slate-700 block">
-              Criterios Normativos Evaluados:
+          </li>
+          <li className="flex items-start gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Puertas de Escape:</strong> Apertura hacia el exterior sin cerraduras trabadas durante atención.
             </span>
-            <ul className="space-y-1.5 text-xs text-slate-600">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-sky-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Pasadizos y Rutas:</strong> Ancho continuo libre de mercadería ≥ 1.20 m (RNE A.010 Art. 25).
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Puertas de Escape:</strong> Apertura hacia el exterior sin cerraduras trabadas durante atención.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Luces y Señalética:</strong> Luminarias autónomas de 90 min y señales fotoluminiscentes de salida.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Layers className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" />
-                <span>
-                  <strong>Arriostramiento Sísmico:</strong> Anclaje mecánico rígido de estanterías y muebles &gt; 1.80 m.
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
+          </li>
+          <li className="flex items-start gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+            <span>
+              <strong>Luces y Señalética:</strong> Luminarias autónomas de 90 min y señales fotoluminiscentes de salida.
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <Layers className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" />
+            <span>
+              <strong>Arriostramiento Sísmico:</strong> Anclaje mecánico rígido de estanterías y muebles &gt; 1.80 m.
+            </span>
+          </li>
+        </TarjetaEje>
       </div>
 
       {/* 3. Banner Pedagógico del Principio de Prevalencia del Mayor Riesgo */}

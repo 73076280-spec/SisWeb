@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DirectorioController;
 use App\Http\Controllers\EvaluacionController;
+use App\Http\Controllers\PlanoEstablecimientoController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -60,6 +61,27 @@ Route::prefix('autoevaluacion')->name('autoevaluacion.')->group(function () {
         Route::get('/subsanacion/{uuid}', [EvaluacionController::class, 'panelSubsanacion'])->name('subsanacion');
         Route::post('/subsanacion/{uuid}', [EvaluacionController::class, 'guardarSubsanacion'])->name('subsanacion.store');
         Route::get('/subsanacion/{uuid}/evidencia/{subsanacion}', [EvaluacionController::class, 'descargarEvidencia'])->name('evidencia');
+
+        // Análisis multimodal de evidencias con IA (Fase 2)
+        Route::post('/{uuid}/evidencias/{subsanacion}/analizar', [EvaluacionController::class, 'solicitarAnalisisEvidencia'])->name('evidencia.analizar');
+        Route::get('/{uuid}/analisis/{analisisUuid}/estado', [EvaluacionController::class, 'consultarEstadoAnalisis'])->name('analisis.estado')->whereUuid('analisisUuid');
+        Route::get('/{uuid}/evidencias/{subsanacion}/analisis', [EvaluacionController::class, 'historialAnalisisEvidencia'])->name('evidencia.analisis.historial');
+
+        // Fase 3.1: Croquis y modelo espacial ciudadano
+        Route::get('/{uuid}/croquis', [PlanoEstablecimientoController::class, 'editor'])->name('croquis');
+        Route::get('/{uuid}/croquis/datos', [PlanoEstablecimientoController::class, 'datos'])->name('croquis.datos');
+        Route::post('/{uuid}/croquis/guardar', [PlanoEstablecimientoController::class, 'guardar'])->name('croquis.guardar');
+        Route::get('/{uuid}/croquis/versiones/{versionId}', [PlanoEstablecimientoController::class, 'version'])->name('croquis.version');
+
+        // Fase 3.2: Sugerencias espaciales multimodales (IA Gemini)
+        Route::get('/{uuid}/croquis/sugerencias', [PlanoEstablecimientoController::class, 'listarSugerencias'])->name('croquis.sugerencias');
+        Route::post('/{uuid}/croquis/sugerencias/{sugerenciaId}/confirmar', [PlanoEstablecimientoController::class, 'confirmarSugerencia'])->name('croquis.sugerencias.confirmar');
+        Route::post('/{uuid}/croquis/sugerencias/{sugerenciaId}/rechazar', [PlanoEstablecimientoController::class, 'rechazarSugerencia'])->name('croquis.sugerencias.rechazar');
+        Route::post('/{uuid}/croquis/elementos/confirmar-plantilla', [PlanoEstablecimientoController::class, 'confirmarElementoPlantilla'])->name('croquis.elementos.confirmar-plantilla');
+
+        // Subfase 3.3 MVP: Análisis espacial preventivo y conectividad
+        Route::post('/{uuid}/croquis/analisis', [PlanoEstablecimientoController::class, 'ejecutarAnalisis'])->name('croquis.analisis.ejecutar');
+        Route::get('/{uuid}/croquis/analisis/ultimo', [PlanoEstablecimientoController::class, 'ultimoAnalisis'])->name('croquis.analisis.ultimo');
     });
 
     // Rutas sin restricción de UUID

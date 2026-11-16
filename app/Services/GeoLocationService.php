@@ -13,6 +13,38 @@ class GeoLocationService
 
     public const FALLBACK_LON = -75.2100;
 
+    /**
+     * Retorna la latitud base configurada para Huancayo Centro con fallback garantizado.
+     */
+    public static function latitudBase(): float
+    {
+        return (float) (function_exists('config') ? config('itse.coordenadas_base.latitud', self::FALLBACK_LAT) : self::FALLBACK_LAT);
+    }
+
+    /**
+     * Retorna la longitud base configurada para Huancayo Centro con fallback garantizado.
+     */
+    public static function longitudBase(): float
+    {
+        return (float) (function_exists('config') ? config('itse.coordenadas_base.longitud', self::FALLBACK_LON) : self::FALLBACK_LON);
+    }
+
+    /**
+     * Retorna el arreglo de coordenadas base de referencia.
+     *
+     * @return array{latitud: float, longitud: float}
+     */
+    public static function coordenadasBase(): array
+    {
+        $latitudBase = (float) (function_exists('config') ? config('itse.coordenadas_base.latitud', -12.0680) : -12.0680);
+        $longitudBase = (float) (function_exists('config') ? config('itse.coordenadas_base.longitud', -75.2100) : -75.2100);
+
+        return [
+            'latitud' => $latitudBase,
+            'longitud' => $longitudBase,
+        ];
+    }
+
     public function calcularDistanciaKm(float $lat1, float $lon1, float $lat2, float $lon2): float
     {
         if ($lat1 === $lat2 && $lon1 === $lon2) {
@@ -84,10 +116,24 @@ class GeoLocationService
 
     private function categoriaParaDeficiencia(string $codigoNormativo): string
     {
-        return match ($codigoNormativo) {
-            'EXTINTOR', 'EXTINTOR_PQS' => 'EXTINTOR',
-            'TERMOMAGNETICO', 'LUCES_EMERG' => 'ELECTRICO',
-            'EVACUACION', 'SENALETICA' => 'SENALETICA',
+        $codigo = strtoupper(trim($codigoNormativo));
+
+        return match ($codigo) {
+            'CRIT-01', 'CRIT-02', 'CRIT-02A',
+            'EXTINTOR', 'EXTINTOR_PQS', 'EXTINTOR_K', 'EXTINTORES', 'INCENDIOS' => 'EXTINTOR',
+
+            'CRIT-03', 'CRIT-04', 'CRIT-05', 'CRIT-06', 'CRIT-07', 'CRIT-08',
+            'TERMOMAGNETICO', 'LUCES_EMERG', 'DIFERENCIAL', 'TABLERO_MANDIL', 'CABLEADO_CANALIZADO',
+            'ELECTRICO', 'ELECTRICIDAD' => 'ELECTRICO',
+
+            'EVACUACION', 'SENALETICA', 'PUERTAS_ESCAPE' => 'SENALETICA',
+
+            'CRIT-09', 'CRIT-11', 'CRIT-12',
+            'CRIT-10', 'GLP', 'GAS',
+            'CRIT-13', 'ESTRUCTURAS',
+            'ANCLAJE_ESTANTERIAS', 'LAMINADO_VIDRIOS', 'CAMPANA_EXTRACCION', 'AFORO_CARTEL', 'BOTIQUIN',
+            'POZO_TIERRA', 'ARQUITECTURA' => 'ARQUITECTURA',
+
             default => 'ARQUITECTURA',
         };
     }

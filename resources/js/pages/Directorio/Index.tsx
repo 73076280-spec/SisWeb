@@ -375,12 +375,12 @@ export default function Directorio({
                         </span>
                       </p>
 
-                      {/* Entregable Oficial para Mesa de Partes (Huancayo) */}
+                      {/* Documentación técnica para trámite */}
                       {aliado.entregable_oficial && (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 shadow-2xs space-y-1">
                           <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-950 uppercase tracking-wider">
                             <FileCheck className="h-4 w-4 text-emerald-700 shrink-0" />
-                            <span>Entregable Oficial (Mesa de Partes MPH)</span>
+                            <span>Documentación Técnica para Trámite (Formato Normativo)</span>
                           </div>
                           <p className="text-[11px] font-medium leading-relaxed text-emerald-900">
                             {aliado.entregable_oficial}

@@ -59,8 +59,8 @@ interface AutoevaluacionData {
 }
 
 interface Props {
-  autoevaluacion: AutoevaluacionData;
-  ultimaRevision?: SimulacionData;
+  readonly autoevaluacion: AutoevaluacionData;
+  readonly ultimaRevision?: SimulacionData;
 }
 
 const OPCIONES_ESTADO: Array<{
@@ -89,7 +89,7 @@ const OPCIONES_ESTADO: Array<{
   },
 ];
 
-export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
+export default function Subsanacion({ autoevaluacion, ultimaRevision }: Readonly<Props>) {
   const [showGuia, setShowGuia] = useState<boolean>(false);
   const [showGuardarProgreso, setShowGuardarProgreso] = useState<boolean>(false);
   const [showModalReevaluacion, setShowModalReevaluacion] = useState<boolean>(false);
@@ -156,6 +156,160 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
           </span>
         );
     }
+  };
+
+  const renderBloqueOperativo = () => {
+    if (estadoOperativo) {
+      return (
+        <div className="p-8 rounded-3xl bg-emerald-50 border border-emerald-200 text-center">
+          <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+          <h3 className="text-sm font-bold text-emerald-950">Sin Observaciones Declaradas</h3>
+          <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
+            Tu última simulación de revisión no registró observaciones. Mantén tus condiciones al día para conservar un buen nivel de preparación.
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowModalReevaluacion(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 hover:bg-emerald-50 px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Volver a evaluar establecimiento
+            </button>
+            <a
+              href={`/autoevaluacion/informe/${autoevaluacion.uuid_trazabilidad}`}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 rounded-xl shadow-xs"
+            >
+              <FileCheck className="w-4 h-4" /> Generar Informe de Autoevaluación
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Tarjetas por condición observada */}
+        <div className="space-y-4">
+          {itemsParaSubsanar.map(item => {
+            const sub = subsanacionesRealizadas.find(s => s.codigo_item === item.codigo);
+
+            return (
+              <div
+                key={item.codigo}
+                className="bg-white border border-neutral-200/80 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono font-bold text-neutral-800 text-xs">{item.codigo}</span>
+                  {badgeEstado(sub?.estado)}
+                </div>
+                <h3 className="text-sm font-bold text-neutral-900 leading-snug -mt-1">{item.nombre}</h3>
+
+                {sub?.descripcion && (
+                  <p className="text-xs text-neutral-600 leading-relaxed">{sub.descripcion}</p>
+                )}
+
+                {sub?.evidencia_url && (
+                  <a
+                    href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-danger-900 hover:underline"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" /> Ver evidencia declarada
+                  </a>
+                )}
+
+                {/* Cambio de estado reactivo */}
+                <div>
+                  <span className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
+                    Estado declarado de tu adecuación
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {OPCIONES_ESTADO.map(opcion => {
+                      const activo = sub?.estado === opcion.valor;
+
+                      return (
+                        <button
+                          key={opcion.valor}
+                          type="button"
+                          onClick={() => cambiarEstadoItem(item.codigo, opcion.valor, sub)}
+                          className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                            activo
+                              ? `${opcion.activo} border-transparent`
+                              : 'bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                          }`}
+                        >
+                          <span className="text-xs font-bold block">{opcion.etiqueta}</span>
+                          <span className="text-[10px] text-neutral-500 mt-0.5 block">{opcion.detalle}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Acciones de soporte */}
+                <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCodigoEvidencia(item.codigo)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    {sub?.evidencia_url ? 'Actualizar evidencia' : 'Subir evidencia'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCodigoProveedores(item.codigo);
+                      setItemActivoNombre(item.nombre);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                  >
+                    <MapPin className="w-3.5 h-3.5" /> Buscar recursos cercanos en Huancayo
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Historial de Adecuaciones */}
+        {subsanacionesRealizadas.length > 0 && (
+          <div className="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-xs space-y-3">
+            <h3 className="text-sm font-bold text-neutral-900">Historial de tu Plan Preventivo</h3>
+            <div className="divide-y divide-neutral-100 border border-neutral-100 rounded-2xl overflow-hidden">
+              {subsanacionesRealizadas.map(sub => (
+                <div key={sub.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
+                  <div className="flex-1 pr-3">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-mono font-bold text-neutral-800 text-xs">{sub.codigo_item}</span>
+                      {badgeEstado(sub.estado)}
+                    </div>
+                    <p className="text-xs text-neutral-600 leading-relaxed">{sub.descripcion}</p>
+                    {sub.observacion && (
+                      <p className="text-[11px] text-neutral-400 mt-0.5">Nota: {sub.observacion}</p>
+                    )}
+                    {sub.evidencia_url && (
+                      <a
+                        href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-danger-900 hover:underline"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5" /> Ver evidencia declarada
+                      </a>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-mono shrink-0">
+                    {sub.fecha_subsanacion || sub.created_at}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
@@ -274,152 +428,8 @@ export default function Subsanacion({ autoevaluacion, ultimaRevision }: Props) {
               Realizar Simulación de Revisión In Situ
             </Link>
           </div>
-        ) : estadoOperativo ? (
-          <div className="p-8 rounded-3xl bg-emerald-50 border border-emerald-200 text-center">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-            <h3 className="text-sm font-bold text-emerald-950">Sin Observaciones Declaradas</h3>
-            <p className="text-xs text-emerald-800 mt-1 max-w-md mx-auto">
-              Tu última simulación de revisión no registró observaciones. Mantén tus condiciones al día para conservar un buen nivel de preparación.
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setShowModalReevaluacion(true)}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-900 bg-white border border-emerald-300 hover:bg-emerald-50 px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" /> Volver a evaluar establecimiento
-              </button>
-              <a
-                href={`/autoevaluacion/informe/${autoevaluacion.uuid_trazabilidad}`}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 rounded-xl shadow-xs"
-              >
-                <FileCheck className="w-4 h-4" /> Generar Informe de Autoevaluación
-              </a>
-            </div>
-          </div>
         ) : (
-          <>
-            {/* Tarjetas por condición observada */}
-            <div className="space-y-4">
-              {itemsParaSubsanar.map(item => {
-                const sub = subsanacionesRealizadas.find(s => s.codigo_item === item.codigo);
-
-                return (
-                  <div
-                    key={item.codigo}
-                    className="bg-white border border-neutral-200/80 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4"
-                  >
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-bold text-neutral-800 text-xs">{item.codigo}</span>
-                      {badgeEstado(sub?.estado)}
-                    </div>
-                    <h3 className="text-sm font-bold text-neutral-900 leading-snug -mt-1">{item.nombre}</h3>
-
-                    {sub?.descripcion && (
-                      <p className="text-xs text-neutral-600 leading-relaxed">{sub.descripcion}</p>
-                    )}
-
-                    {sub?.evidencia_url && (
-                      <a
-                        href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-danger-900 hover:underline"
-                      >
-                        <UploadCloud className="w-3.5 h-3.5" /> Ver evidencia declarada
-                      </a>
-                    )}
-
-                    {/* Cambio de estado reactivo */}
-                    <div>
-                      <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
-                        Estado declarado de tu adecuación
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {OPCIONES_ESTADO.map(opcion => {
-                          const activo = sub?.estado === opcion.valor;
-
-                          return (
-                            <button
-                              key={opcion.valor}
-                              type="button"
-                              onClick={() => cambiarEstadoItem(item.codigo, opcion.valor, sub)}
-                              className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                                activo
-                                  ? `${opcion.activo} border-transparent`
-                                  : 'bg-white border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                              }`}
-                            >
-                              <span className="text-xs font-bold block">{opcion.etiqueta}</span>
-                              <span className="text-[10px] text-neutral-500 mt-0.5 block">{opcion.detalle}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Acciones de soporte */}
-                    <div className="flex items-center gap-2 flex-wrap pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setCodigoEvidencia(item.codigo)}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-neutral-900 hover:bg-neutral-800 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        <Camera className="w-3.5 h-3.5" />
-                        {sub?.evidencia_url ? 'Actualizar evidencia' : 'Subir evidencia'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCodigoProveedores(item.codigo);
-                          setItemActivoNombre(item.nombre);
-                        }}
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary-700 hover:text-primary-800 bg-primary-50/60 hover:bg-primary-50 border border-primary-200 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                      >
-                        <MapPin className="w-3.5 h-3.5" /> Buscar recursos cercanos en Huancayo
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Historial de Adecuaciones */}
-            {subsanacionesRealizadas.length > 0 && (
-              <div className="bg-white border border-neutral-200/80 rounded-3xl p-6 shadow-xs space-y-3">
-                <h3 className="text-sm font-bold text-neutral-900">Historial de tu Plan Preventivo</h3>
-                <div className="divide-y divide-neutral-100 border border-neutral-100 rounded-2xl overflow-hidden">
-                  {subsanacionesRealizadas.map(sub => (
-                    <div key={sub.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
-                      <div className="flex-1 pr-3">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="font-mono font-bold text-neutral-800 text-xs">{sub.codigo_item}</span>
-                          {badgeEstado(sub.estado)}
-                        </div>
-                        <p className="text-xs text-neutral-600 leading-relaxed">{sub.descripcion}</p>
-                        {sub.observacion && (
-                          <p className="text-[11px] text-neutral-400 mt-0.5">Nota: {sub.observacion}</p>
-                        )}
-                        {sub.evidencia_url && (
-                          <a
-                            href={`/autoevaluacion/subsanacion/${autoevaluacion.uuid_trazabilidad}/evidencia/${sub.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-danger-900 hover:underline"
-                          >
-                            <UploadCloud className="w-3.5 h-3.5" /> Ver evidencia declarada
-                          </a>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-neutral-400 font-mono shrink-0">
-                        {sub.fecha_subsanacion || sub.created_at}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
+          renderBloqueOperativo()
         )}
 
       </div>

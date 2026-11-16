@@ -1,6 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
+
+use App\Models\ProveedorRecurso;
+use Throwable;
 
 /**
  * Directorio referencial y tipado de especialistas y empresas de seguridad
@@ -17,6 +22,20 @@ namespace App\Services;
  *
  * La fuente canónica de costos por criterio es ItseRiskService::COSTOS_REFERENCIALES;
  * este servicio sólo deriva el rango de referencia alrededor de ese valor.
+ *
+ * @phpstan-type Aliado array{
+ *     id: string,
+ *     categoria: string,
+ *     nombre_comercial: string,
+ *     contacto_nombre: string,
+ *     especialidad_texto: string,
+ *     telefono: string,
+ *     whatsapp: string,
+ *     sede: string,
+ *     cobertura: string,
+ *     verificado: bool,
+ *     servicios: array<int, string>
+ * }
  */
 class DirectorioAliadosService
 {
@@ -28,239 +47,6 @@ class DirectorioAliadosService
         'incendios',
         'arquitectura_senaletica',
         'estructuras',
-    ];
-
-    /**
-     * @phpstan-type Aliado array{
-     *     id: string,
-     *     categoria: string,
-     *     nombre_comercial: string,
-     *     contacto_nombre: string,
-     *     especialidad_texto: string,
-     *     telefono: string,
-     *     whatsapp: string,
-     *     sede: string,
-     *     cobertura: string,
-     *     verificado: bool,
-     *     servicios: array<int, string>
-     * }
-     */
-    private const ALIADOS = [
-        [
-            'id' => 'ELEC-001',
-            'categoria' => 'electricas',
-            'nombre_comercial' => 'Ingeniería Eléctrica Mantaro S.A.C.',
-            'contacto_nombre' => 'Ing. Elmer Ccahuana Rojas',
-            'especialidad_texto' => 'Especialista Eléctrico Colegiado',
-            'telefono' => '51976541230',
-            'whatsapp' => '51976541230',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo Metropolitano',
-            'verificado' => true,
-            'servicios' => [
-                'Medición de protocolo de pozo a tierra con informe de resistividad',
-                'Suministro e instalación de tableros de distribución con mandil protector',
-                'Diferenciales 30mA y termomagnéticos calibrados a la sección del cable',
-                'Pruebas de aislamiento y certificación de instalaciones según CNE-U',
-            ],
-        ],
-        [
-            'id' => 'ELEC-002',
-            'categoria' => 'electricas',
-            'nombre_comercial' => 'Servicios Técnicos El Tambo E.I.R.L.',
-            'contacto_nombre' => 'Sr. Wilder Ñaupa Mamani',
-            'especialidad_texto' => 'Electricista Certificado en Instalaciones Eléctricas',
-            'telefono' => '51942318745',
-            'whatsapp' => '51942318745',
-            'sede' => 'El Tambo',
-            'cobertura' => 'Huancayo / El Tambo',
-            'verificado' => true,
-            'servicios' => [
-                'Canalización de cables en canaletas y tuberías con prueba de operación',
-                'Adecuación de tableros sin conductores expuestos',
-                'Mantenimiento preventivo de redes interiores',
-                'Suministro de tomacorrientes y luminarias de seguridad',
-            ],
-        ],
-        [
-            'id' => 'ELEC-003',
-            'categoria' => 'electricas',
-            'nombre_comercial' => 'Ferretería El Tambino E.I.R.L.',
-            'contacto_nombre' => 'Sr. Rómulo Berrios Ayala',
-            'especialidad_texto' => 'Suministro y Montaje Eléctrico',
-            'telefono' => '51934129077',
-            'whatsapp' => '51934129077',
-            'sede' => 'El Tambo',
-            'cobertura' => 'Huancayo / El Tambo / Chilca',
-            'verificado' => true,
-            'servicios' => [
-                'Venta de diferenciales 30mA y llaves termomagnéticas',
-                'Venta de tableros, canaletas y accesorios de instalación',
-                'Asesoría en lectura de planos eléctricos',
-            ],
-        ],
-        [
-            'id' => 'INC-001',
-            'categoria' => 'incendios',
-            'nombre_comercial' => 'Extintores Centro del Mantaro S.A.C.',
-            'contacto_nombre' => 'Ing. Percy Chanchamayo Ríos',
-            'especialidad_texto' => 'Empresa Certificada en Recarga de Extintores',
-            'telefono' => '51947520110',
-            'whatsapp' => '51947520110',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo Metropolitano',
-            'verificado' => true,
-            'servicios' => [
-                'Recarga y certificación anual de extintores PQS con tarjeta de mantenimiento',
-                'Venta y distribución de extintores de polvo químico seco',
-                'Suministro e instalación de extintores Tipo K para cocinas comerciales',
-                'Revisión y reposición de manómetros y sellos de seguridad',
-            ],
-        ],
-        [
-            'id' => 'INC-002',
-            'categoria' => 'incendios',
-            'nombre_comercial' => 'Protección Contra Incendios Apu E.I.R.L.',
-            'contacto_nombre' => 'Ing. Luis Alberto Cervantes Peña',
-            'especialidad_texto' => 'Especialista en Detección y Supresión de Incendios',
-            'telefono' => '51958406233',
-            'whatsapp' => '51958406233',
-            'sede' => 'Chilca',
-            'cobertura' => 'Huancayo / Chilca',
-            'verificado' => true,
-            'servicios' => [
-                'Instalación de detectores de humo fotoeléctricos autónomos y centralizados',
-                'Recarga y mantenimiento de extintores PQS de 6 kg y 9 kg',
-                'Dimensionamiento y ubicación de extintores según área de riesgo',
-                'Pruebas funcionales periódicas de la red de detección',
-            ],
-        ],
-        [
-            'id' => 'INC-003',
-            'categoria' => 'incendios',
-            'nombre_comercial' => 'Incendios & Seguridad Valle S.A.C.',
-            'contacto_nombre' => 'Sr. Marcial Ttito Condori',
-            'especialidad_texto' => 'Técnico Certificado en Recarga y Mantenimiento',
-            'telefono' => '51933907456',
-            'whatsapp' => '51933907456',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo Metropolitano',
-            'verificado' => true,
-            'servicios' => [
-                'Recarga de extintores PQS con servicio a domicilio',
-                'Suministro de extintores Clase K para freidoras y cocinas',
-                'Venta de detectores de humo y luminarias de emergencia',
-                'Limpieza y desengrase de campanas extractoras y filtros metálicos',
-            ],
-        ],
-        [
-            'id' => 'ARQ-001',
-            'categoria' => 'arquitectura_senaletica',
-            'nombre_comercial' => 'Señalética Andina E.I.R.L.',
-            'contacto_nombre' => 'Sr. Andrés Palomino Soria',
-            'especialidad_texto' => 'Proveedor de Señalética de Seguridad Celtex',
-            'telefono' => '51973560944',
-            'whatsapp' => '51973560944',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo Metropolitano',
-            'verificado' => true,
-            'servicios' => [
-                'Señalética Celtex fotoluminiscente según NTP 399.010-1',
-                'Kit de señales de Salida, Extintor y Riesgo Eléctrico',
-                'Marcación de rutas de evacuación y puntos de reunión',
-                'Carteles de aforo máximo permitido y señalización de almacén',
-            ],
-        ],
-        [
-            'id' => 'ARQ-002',
-            'categoria' => 'arquitectura_senaletica',
-            'nombre_comercial' => 'Iluminación de Emergencia Sacs IHS.A.C.',
-            'contacto_nombre' => 'Ing. Joseth Ramos Huamán',
-            'especialidad_texto' => 'Especialista en Iluminación de Emergencia',
-            'telefono' => '51988745206',
-            'whatsapp' => '51988745206',
-            'sede' => 'El Tambo',
-            'cobertura' => 'Huancayo / El Tambo',
-            'verificado' => true,
-            'servicios' => [
-                'Suministro e instalación de luminarias de emergencia LED autónomas de 90 minutos',
-                'Pruebas de autonomía de batería y cambio de baterías',
-                'Luces de emergencia sobre puertas de salida y rutas de evacuación',
-                'Mantenimiento programado y etiquetado de equipos',
-            ],
-        ],
-        [
-            'id' => 'ARQ-003',
-            'categoria' => 'arquitectura_senaletica',
-            'nombre_comercial' => 'Pisos Seguros Mantaro E.I.R.L.',
-            'contacto_nombre' => 'Sr. Percy Salcedo Quispe',
-            'especialidad_texto' => 'Aplicación de Cintas Antideslizantes y Señalización',
-            'telefono' => '51902763918',
-            'whatsapp' => '51902763918',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo / Chilca',
-            'verificado' => true,
-            'servicios' => [
-                'Aplicación de cintas antideslizantes en escaleras, rampas y pasillos',
-                'Señalización fotoluminiscente de zócalos y nivelaciones',
-                'Señalética de tránsito interno y demarcación de zonas',
-                'Asesoría en cumplimiento de rutas de evacuación peatonales',
-            ],
-        ],
-        [
-            'id' => 'EST-001',
-            'categoria' => 'estructuras',
-            'nombre_comercial' => 'Anclajes y Estructuras Huancayo E.I.R.L.',
-            'contacto_nombre' => 'Ing. Víctor Hugo Ticona Mamani',
-            'especialidad_texto' => 'Especialista en Anclaje Sismorresistente',
-            'telefono' => '51981264530',
-            'whatsapp' => '51981264530',
-            'sede' => 'Huancayo',
-            'cobertura' => 'Huancayo Metropolitano',
-            'verificado' => true,
-            'servicios' => [
-                'Anclaje sismorresistente a muro y piso de estanterías mayores a 1.80 m',
-                'Refuerzo de anaqueles y racks metálicos',
-                'Verificación de anclajes existentes con peritaje básico',
-                'Emisión de informe de conformidad estructural referencial',
-            ],
-        ],
-        [
-            'id' => 'EST-002',
-            'categoria' => 'estructuras',
-            'nombre_comercial' => 'Peritajes Técnicos Valle Verde S.A.C.',
-            'contacto_nombre' => 'Ing. Miriam Condori Apaza',
-            'especialidad_texto' => 'Perito Registrado en Seguridad de Edificaciones',
-            'telefono' => '51950471892',
-            'whatsapp' => '51950471892',
-            'sede' => 'Chilca',
-            'cobertura' => 'Huancayo / Chilca',
-            'verificado' => true,
-            'servicios' => [
-                'Peritaje básico de elementos estructurales y cubiertas',
-                'Evaluación de riesgos de colapso en muros de tabiquería',
-                'Instalación de lámina de seguridad en vidrios crudos',
-                'Informe técnico de peritaje para el expediente ITSE',
-            ],
-        ],
-        [
-            'id' => 'EST-003',
-            'categoria' => 'estructuras',
-            'nombre_comercial' => 'Constructora y Remodelaciones Valle del Mantaro S.A.C.',
-            'contacto_nombre' => 'Sr. Hernán Quispe Atahuanca',
-            'especialidad_texto' => 'Adecuación de Ambientes y Estructuras',
-            'telefono' => '51948300117',
-            'whatsapp' => '51948300117',
-            'sede' => 'El Tambo',
-            'cobertura' => 'Huancayo / El Tambo',
-            'verificado' => true,
-            'servicios' => [
-                'Anclaje de estanterías y anaqueles a muro o piso',
-                'Adecuación de puertas de salida de apertura hacia afuera',
-                'Despeje de rutas y salidas de escape con ancho útil mínimo',
-                'Remodelaciones menores y resanes en muros',
-            ],
-        ],
     ];
 
     /**
@@ -368,8 +154,6 @@ class DirectorioAliadosService
         'CRIT-17' => 'incendios',
     ];
 
-    public function __construct(private readonly ItseRiskService $itseRiskService) {}
-
     /**
      * Todas las categorías soportadas por el directorio.
      *
@@ -387,7 +171,7 @@ class DirectorioAliadosService
      */
     public function todos(): array
     {
-        return array_map($this->registroPublico(...), self::ALIADOS);
+        return array_map($this->registroPublico(...), $this->getAliadosRaw());
     }
 
     /**
@@ -406,10 +190,100 @@ class DirectorioAliadosService
         return array_map(
             $this->registroPublico(...),
             array_values(array_filter(
-                self::ALIADOS,
+                $this->getAliadosRaw(),
                 fn (array $aliado): bool => $aliado['categoria'] === $categoria,
             )),
         );
+    }
+
+    /**
+     * Obtiene el listado crudo de aliados desde la base de datos (con fallback a config/aliados.php).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function getAliadosRaw(): array
+    {
+        try {
+            $proveedores = ProveedorRecurso::with('categoria')
+                ->where('activo', true)
+                ->get();
+
+            if ($proveedores->isNotEmpty()) {
+                return $proveedores->map(fn (ProveedorRecurso $p) => $this->transformarProveedor($p))->all();
+            }
+        } catch (Throwable) {
+            // Si la base de datos no está disponible o la tabla aún no existe, fallback silencioso
+        }
+
+        if (function_exists('app') && app()->bound('config')) {
+            $directorio = config('aliados.directorio');
+
+            if (is_array($directorio) && $directorio !== []) {
+                return $directorio;
+            }
+        }
+
+        $rutaConfig = dirname(__DIR__, 2).'/config/aliados.php';
+
+        if (! is_file($rutaConfig)) {
+            return [];
+        }
+
+        /** @var array{directorio?: array<int, array<string, mixed>>} $config */
+        $config = require_once $rutaConfig;
+
+        return $config['directorio'] ?? [];
+    }
+
+    /**
+     * Transforma un modelo ProveedorRecurso al contrato esperado por el frontend.
+     *
+     * @return array<string, mixed>
+     */
+    private function transformarProveedor(ProveedorRecurso $proveedor): array
+    {
+        $categoriaCodigo = $proveedor->categoria?->codigo ?? $proveedor->rubro;
+        $serviciosRaw = $proveedor->servicios_ofrecidos;
+
+        if (is_array($serviciosRaw)) {
+            $servicios = array_values(array_filter($serviciosRaw));
+        } elseif (is_string($serviciosRaw) && trim($serviciosRaw) !== '') {
+            $servicios = array_values(array_filter(array_map('trim', explode(',', $serviciosRaw))));
+        } else {
+            $servicios = ['Servicio técnico especializado y asesoría'];
+        }
+
+        return [
+            'id' => 'PRV-'.str_pad((string) $proveedor->id, 3, '0', STR_PAD_LEFT),
+            'categoria' => $this->mapearCategoria($categoriaCodigo),
+            'nombre_comercial' => (string) ($proveedor->nombre_comercial ?: $proveedor->razon_social),
+            'contacto_nombre' => (string) $proveedor->razon_social,
+            'especialidad_texto' => (string) ($proveedor->tipo_servicio ?: ($proveedor->servicios_ofrecidos ?: 'Especialista Técnico Autorizado')),
+            'telefono' => (string) ($proveedor->telefono ?? ''),
+            'whatsapp' => (string) ($proveedor->whatsapp ?: ($proveedor->telefono ?? '')),
+            'sede' => (string) ($proveedor->distrito ?: 'Huancayo'),
+            'cobertura' => $proveedor->distrito ? "Huancayo / {$proveedor->distrito}" : 'Huancayo Metropolitano',
+            'verificado' => (bool) ($proveedor->verificado ?? true),
+            'servicios' => $servicios,
+        ];
+    }
+
+    /**
+     * Mapea el código de categoría de BD al identificador que maneja el frontend.
+     */
+    private function mapearCategoria(?string $codigo): string
+    {
+        $codigoNormalizado = mb_strtoupper(trim((string) $codigo));
+
+        return match ($codigoNormalizado) {
+            'ELECTRICO', 'ELECTRICAS', 'ELECTRICIDAD' => 'electricas',
+            'EXTINTOR', 'INCENDIOS', 'INCENDIO' => 'incendios',
+            'SENALETICA', 'ARQUITECTURA_SENALETICA' => 'arquitectura_senaletica',
+            'ARQUITECTURA', 'ESTRUCTURAS' => 'estructuras',
+            default => in_array(mb_strtolower($codigoNormalizado), self::CATEGORIAS, true)
+                ? mb_strtolower($codigoNormalizado)
+                : 'electricas',
+        };
     }
 
     /**
@@ -503,29 +377,62 @@ class DirectorioAliadosService
         $catalogo = ItseRiskService::COSTOS_REFERENCIALES[$criterioCodigo] ?? null;
 
         if ($categoria === null || $catalogo === null) {
-            return [
+            return $this->buildRespuestaCriterio([
                 'criterio' => $criterioCodigo,
                 'criterio_conocido' => false,
                 'categoria' => $categoria,
-                'aliado' => null,
-                'alternativas' => [],
-                'guia_autoayuda' => [],
-                'norma' => null,
-                'rango_costo' => null,
-            ];
+            ]);
         }
 
         $aliados = $this->obtenerPorCategoria($categoria);
 
-        return [
+        return $this->buildRespuestaCriterio([
             'criterio' => $criterioCodigo,
             'criterio_conocido' => true,
             'categoria' => $categoria,
             'aliado' => $aliados[0] ?? null,
             'alternativas' => array_values(array_slice($aliados, 1)),
             'guia_autoayuda' => $this->guiaAutoayuda($criterioCodigo),
-            'norma' => $catalogo['norma'] ?? null,
+            'norma' => isset($catalogo['norma']) ? (string) $catalogo['norma'] : null,
             'rango_costo' => $this->rangoCosto((float) ($catalogo['costo_soles'] ?? 0.0)),
+        ]);
+    }
+
+    /**
+     * Construye de forma centralizada la estructura de respuesta por criterio.
+     *
+     * @param  array{
+     *     criterio: string,
+     *     criterio_conocido: bool,
+     *     categoria?: ?string,
+     *     aliado?: ?array<string, mixed>,
+     *     alternativas?: array<int, array<string, mixed>>,
+     *     guia_autoayuda?: array<int, string>,
+     *     norma?: ?string,
+     *     rango_costo?: ?array{referencia_soles: float, minimo_soles: float, maximo_soles: float}
+     * }  $datos
+     * @return array{
+     *     criterio: string,
+     *     criterio_conocido: bool,
+     *     categoria: string|null,
+     *     aliado: array<string, mixed>|null,
+     *     alternativas: array<int, array<string, mixed>>,
+     *     guia_autoayuda: array<int, string>,
+     *     norma: string|null,
+     *     rango_costo: array{referencia_soles: float, minimo_soles: float, maximo_soles: float}|null
+     * }
+     */
+    private function buildRespuestaCriterio(array $datos): array
+    {
+        return [
+            'criterio' => $datos['criterio'],
+            'criterio_conocido' => $datos['criterio_conocido'],
+            'categoria' => $datos['categoria'] ?? null,
+            'aliado' => $datos['aliado'] ?? null,
+            'alternativas' => $datos['alternativas'] ?? [],
+            'guia_autoayuda' => $datos['guia_autoayuda'] ?? [],
+            'norma' => $datos['norma'] ?? null,
+            'rango_costo' => $datos['rango_costo'] ?? null,
         ];
     }
 
@@ -554,7 +461,7 @@ class DirectorioAliadosService
             'EXTINTOR', 'EXTINTOR_PQS' => [
                 'Verifica que el manómetro marque la zona verde y que la etiqueta de mantenimiento esté vigente.',
                 'Ubica el extintor entre 0.30 m y 1.00 m del piso, accesible y sin obstrucciones.',
-                'Si la carga venció o el precinto está roto, solicita la recarga a una empresa certificada y exige la tarjeta de mantenimiento.',
+                'Si la carga venció o el precinto está roto, solicita la recarga a una empresa especializada y exige la tarjeta de mantenimiento conforme a la NTP 350.043-1.',
             ],
             'EXTINTOR_K' => [
                 'Coloca el extintor Tipo K a menos de 1.50 m de la freidora o del punto de riesgo de cocción.',
@@ -645,18 +552,32 @@ class DirectorioAliadosService
      */
     private function registroPublico(array $aliado): array
     {
+        return $this->buildAliadoItem($aliado);
+    }
+
+    /**
+     * Normaliza y estructura un registro de aliado según el contrato público.
+     *
+     * @param  array<string, mixed>  $aliado
+     * @return array<string, mixed>
+     */
+    private function buildAliadoItem(array $aliado): array
+    {
+        /** @var array<int, string> $servicios */
+        $servicios = is_array($aliado['servicios'] ?? null) ? array_values($aliado['servicios']) : [];
+
         return [
-            'id' => $aliado['id'],
-            'categoria' => $aliado['categoria'],
-            'nombre_comercial' => $aliado['nombre_comercial'],
-            'contacto_nombre' => $aliado['contacto_nombre'],
-            'especialidad_texto' => $aliado['especialidad_texto'],
-            'telefono' => $aliado['telefono'],
-            'whatsapp' => $aliado['whatsapp'],
-            'sede' => $aliado['sede'],
-            'cobertura' => $aliado['cobertura'],
-            'verificado' => (bool) $aliado['verificado'],
-            'servicios' => array_values($aliado['servicios']),
+            'id' => (string) ($aliado['id'] ?? ''),
+            'categoria' => (string) ($aliado['categoria'] ?? ''),
+            'nombre_comercial' => (string) ($aliado['nombre_comercial'] ?? ''),
+            'contacto_nombre' => (string) ($aliado['contacto_nombre'] ?? ''),
+            'especialidad_texto' => (string) ($aliado['especialidad_texto'] ?? ''),
+            'telefono' => (string) ($aliado['telefono'] ?? ''),
+            'whatsapp' => (string) ($aliado['whatsapp'] ?? ''),
+            'sede' => (string) ($aliado['sede'] ?? ''),
+            'cobertura' => (string) ($aliado['cobertura'] ?? ''),
+            'verificado' => (bool) ($aliado['verificado'] ?? false),
+            'servicios' => $servicios,
         ];
     }
 }

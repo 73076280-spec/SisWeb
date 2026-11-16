@@ -37,15 +37,15 @@ interface RespuestaProveedores {
 }
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  codigo: string | null;
-  nombreItem?: string | null;
-  sectorRef?: string | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly codigo: string | null;
+  readonly nombreItem?: string | null;
+  readonly sectorRef?: string | null;
 }
 
 // Referencia aproximada: centro de Huancayo. El directorio es comunitario y
-// referencial; no se solicita ubicaciÃ³n GPS del navegador porque el sistema no
+// referencial; no se solicita ubicación GPS del navegador porque el sistema no
 // registra coordenadas del establecimiento.
 const LAT_REFERENCIA = -12.068;
 const LON_REFERENCIA = -75.21;
@@ -66,7 +66,7 @@ function osmUrl(latitud: number, longitud: number): string {
   return `https://www.openstreetmap.org/?mlat=${latitud}&mlon=${longitud}#map=16/${latitud}/${longitud}`;
 }
 
-export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, codigo, nombreItem, sectorRef }) => {
+export const ProveedoresCercanosModal: React.FC<Readonly<Props>> = ({ isOpen, onClose, codigo, nombreItem, sectorRef }: Readonly<Props>) => {
   const [radio, setRadio] = useState<number>(5);
   const [cargando, setCargando] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +110,7 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
     setRespuesta(null);
     setError(null);
     setRadio(5);
-    cargarRecursos(5);
+    void cargarRecursos(5);
   }, [isOpen, codigo, cargarRecursos]);
 
   useEffect(() => {
@@ -139,7 +139,9 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
       if (enfocables.length === 0) return;
 
       const primero = enfocables[0];
-      const ultimo = enfocables[enfocables.length - 1];
+      const ultimo = enfocables.at(-1);
+
+      if (!primero || !ultimo) return;
 
       if (event.shiftKey && document.activeElement === primero) {
         event.preventDefault();
@@ -150,12 +152,12 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
       }
     };
 
-    document.addEventListener('keydown', manejarTeclado);
+    window.addEventListener('keydown', manejarTeclado);
     document.body.style.overflow = 'hidden';
     closeButtonRef.current?.focus();
 
     return () => {
-      document.removeEventListener('keydown', manejarTeclado);
+      window.removeEventListener('keydown', manejarTeclado);
       document.body.style.overflow = '';
       anteriormenteFocalizado?.focus?.();
     };
@@ -163,24 +165,28 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
 
   const cambiarRadio = (valor: number) => {
     setRadio(valor);
-    cargarRecursos(valor);
+    void cargarRecursos(valor);
   };
 
   if (!isOpen || !codigo) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="recursos-cercanos-titulo"
       aria-describedby="recursos-cercanos-intro"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/50 backdrop-blur-xs animate-in fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-neutral-950/50 backdrop-blur-xs cursor-default"
+      />
       <div
         ref={panelRef}
-        className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
-        onClick={event => event.stopPropagation()}
+        className="relative z-10 bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left"
       >
         {/* Cabecera del Modal */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-100 mb-4">
@@ -190,14 +196,14 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-1">
-                Directorio Comunitario Â· Valle del Mantaro
+                Directorio Comunitario · Valle del Mantaro
               </span>
               <h3 id="recursos-cercanos-titulo" className="text-sm font-bold text-neutral-900 leading-snug">
                 Recursos cercanos
               </h3>
               {nombreItem && (
                 <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                  <span className="font-mono font-bold text-primary-700">{codigo}</span> Â· {nombreItem}
+                  <span className="font-mono font-bold text-primary-700">{codigo}</span> · {nombreItem}
                 </p>
               )}
             </div>
@@ -215,31 +221,31 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
 
         {/* Texto introductorio */}
         <p id="recursos-cercanos-intro" className="text-xs text-neutral-600 leading-relaxed">
-          Consulta algunas opciones cercanas que podrÃ­an ayudarte a atender aspectos pendientes de tu establecimiento.
+          Consulta algunas opciones cercanas que podrían ayudarte a atender aspectos pendientes de tu establecimiento.
           Esta lista es solo una ayuda referencial.
         </p>
 
-        {/* Aviso de carÃ¡cter referencial */}
+        {/* Aviso de carácter referencial */}
         <div
           role="note"
-          aria-label="Aviso sobre el carÃ¡cter referencial de los recursos"
+          aria-label="Aviso sobre el carácter referencial de los recursos"
           className="mt-3 flex items-start gap-2.5 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-[11px] leading-relaxed text-sky-900"
         >
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>
             <strong>Aviso importante:</strong> estos recursos son referenciales. CheckITSE no verifica ni certifica que los
-            proveedores estÃ©n autorizados, disponibles o especializados para realizar el trabajo que necesitas.
+            proveedores estén autorizados, disponibles o especializados para realizar el trabajo que necesitas.
           </p>
         </div>
 
-        {/* RelaciÃ³n con el aspecto pendiente */}
+        {/* Relación con el aspecto pendiente */}
         {nombreItem && (
           <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 px-3.5 py-3 text-[11px] leading-relaxed text-neutral-700">
             <Target className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-700" />
             <p>
               <strong>Aspecto relacionado:</strong> {nombreItem}.
               <br />
-              Puedes consultar recursos relacionados con este tipo de trabajo. Es solo una orientaciÃ³n.
+              Puedes consultar recursos relacionados con este tipo de trabajo. Es solo una orientación.
             </p>
           </div>
         )}
@@ -249,17 +255,17 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
           <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-neutral-200 bg-white px-3.5 py-3 text-[11px] leading-relaxed text-neutral-600">
             <Store className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" />
             <p>
-              Zona de tu establecimiento registrada: <strong>{sectorRef}</strong>. La cercanÃ­a real de cada recurso debe
+              Zona de tu establecimiento registrada: <strong>{sectorRef}</strong>. La cercanía real de cada recurso debe
               verificarse directamente con el proveedor.
             </p>
           </div>
         )}
 
-        {/* Selector de radio de bÃºsqueda */}
+        {/* Selector de radio de búsqueda */}
         <div className="mt-4">
-          <label className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
-            Radio de bÃºsqueda aproximado
-          </label>
+          <span className="block text-[11px] font-bold uppercase text-neutral-500 mb-1.5">
+            Radio de búsqueda aproximado
+          </span>
           <div className="grid grid-cols-3 gap-2">
             {OPCIONES_RADIO.map(opcion => (
               <button
@@ -302,7 +308,7 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 mb-3 flex items-start gap-2">
                 <Search className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                 <span>
-                  Sin resultados dentro del radio seleccionado; se muestran los recursos mÃ¡s cercanos del Valle del Mantaro.
+                  Sin resultados dentro del radio seleccionado; se muestran los recursos más cercanos del Valle del Mantaro.
                 </span>
               </div>
             )}
@@ -331,11 +337,11 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-neutral-900">{nombre}</span>
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5">
-                            <MapPin className="w-3 h-3" /> â‰ˆ {proveedor.distancia_km.toFixed(1)} km
+                            <MapPin className="w-3 h-3" /> ≈ {proveedor.distancia_km.toFixed(1)} km
                           </span>
                         </div>
                         <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                          {[proveedor.distrito, proveedor.direccion].filter(Boolean).join(' Â· ')}
+                          {[proveedor.distrito, proveedor.direccion].filter(Boolean).join(' · ')}
                         </p>
                         {proveedor.servicios_ofrecidos && (
                           <p className="text-[11px] text-neutral-600 mt-1 leading-relaxed">
@@ -378,8 +384,8 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
             )}
 
             <div className="mt-4 p-3 rounded-xl bg-neutral-50 border border-neutral-100 text-[10px] leading-relaxed text-neutral-500">
-              InformaciÃ³n referencial comunitaria. No implica recomendaciÃ³n, garantÃ­a, autorizaciÃ³n oficial ni relaciÃ³n con la
-              inspecciÃ³n municipal.
+              Información referencial comunitaria. No implica recomendación, garantía, autorización oficial ni relación con la
+              inspección municipal.
             </div>
           </>
         )}
@@ -394,6 +400,6 @@ export const ProveedoresCercanosModal: React.FC<Props> = ({ isOpen, onClose, cod
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

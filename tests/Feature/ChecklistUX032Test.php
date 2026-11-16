@@ -161,9 +161,11 @@ test('6. Integridad: ApplicabilityEngineService no acopla RecursoEducativo y no 
 });
 
 test('7. Bloqueo de modificacion en estado REGISTRADA para declaraciones y notas', function () {
+    $token = 'token_guest_ux032_12345';
     $autoevaluacion = crearEvaluacionUX03([
         'estado' => Autoevaluacion::ESTADO_REGISTRADA,
         'registrada_at' => now(),
+        'session_token' => $token,
     ]);
 
     $payload = [
@@ -176,7 +178,9 @@ test('7. Bloqueo de modificacion en estado REGISTRADA para declaraciones y notas
         ],
     ];
 
-    $response = $this->postJson(route('autoevaluacion.checklist.store', ['uuid' => $autoevaluacion->uuid_trazabilidad]), $payload);
+    $response = $this->withSession(['guest_session_token' => $token])
+        ->withCookie('guest_session_token', $token)
+        ->postJson(route('autoevaluacion.checklist.store', ['uuid' => $autoevaluacion->uuid_trazabilidad]), $payload);
 
     $response->assertStatus(409)
         ->assertJson([

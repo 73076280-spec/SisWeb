@@ -54,7 +54,7 @@ export function DesgloseEspecialidades({
   desglose,
   variante = 'detallada',
   className = '',
-}: Props) {
+}: Readonly<Props>) {
   const filas = ORDEN_ESPECIALIDADES.map(({ clave, Icono, tono }) => ({
     clave,
     Icono,

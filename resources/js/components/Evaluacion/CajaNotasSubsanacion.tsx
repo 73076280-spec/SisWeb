@@ -15,7 +15,7 @@ export function CajaNotasSubsanacion({
   notaInicial = '',
   placeholder = 'Ej. Cotizado con Ing. Mantaro para el jueves / Falta comprar candado y retirar mercadería...',
   className = '',
-}: CajaNotasSubsanacionProps) {
+}: Readonly<CajaNotasSubsanacionProps>) {
   const storageKey = `checkitse_nota_${uuid}_${codigo}`;
 
   const [nota, setNota] = useState<string>(() => {
@@ -62,6 +62,27 @@ export function CajaNotasSubsanacion({
     }
   };
 
+  const renderIndicadorGuardado = () => {
+    if (guardadoReciente) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 animate-in fade-in duration-200">
+          <Check className="h-3 w-3 text-emerald-600" />
+          Guardado en este equipo
+        </span>
+      );
+    }
+
+    if (nota.trim().length > 0) {
+      return (
+        <span className="text-[10px] text-slate-400 font-medium">
+          Autoguardado ✓
+        </span>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className={`space-y-1.5 rounded-2xl bg-slate-50/90 border border-slate-200/90 p-3.5 shadow-2xs transition-all ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -74,16 +95,7 @@ export function CajaNotasSubsanacion({
         </label>
 
         <div className="flex items-center gap-2">
-          {guardadoReciente ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 animate-in fade-in duration-200">
-              <Check className="h-3 w-3 text-emerald-600" />
-              Guardado en este equipo
-            </span>
-          ) : nota.trim().length > 0 ? (
-            <span className="text-[10px] text-slate-400 font-medium">
-              Autoguardado ✓
-            </span>
-          ) : null}
+          {renderIndicadorGuardado()}
           <span className="text-[11px] font-mono text-slate-400">
             {nota.length}/1000
           </span>

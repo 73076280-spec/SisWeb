@@ -53,7 +53,7 @@ interface Props {
   autoevaluacion: AutoevaluacionData;
 }
 
-export default function SimulacionRevision({ autoevaluacion }: Props) {
+export default function SimulacionRevision({ autoevaluacion }: Readonly<Props>) {
   // Verificaciones iniciales de la simulación: por defecto reflejan lo que el
   // ciudadano declaró como cumplido en su autoevaluación.
   const estadoInicial = autoevaluacion.detalle_checklist.reduce((acc, item) => {

@@ -12,8 +12,11 @@ use App\Models\HistorialSubsanacion;
 use App\Models\RespuestaAutoevaluacion;
 use App\Models\SimulacionRevision;
 use App\Models\Subsanacion;
+use App\Services\AI\AnalisisEvidenciaService;
 use App\Services\ApplicabilityEngineService;
 use App\Services\DirectorioAliadosService;
+use App\Services\Evaluacion\EvaluacionSyncService;
+use App\Services\Evaluacion\IntegridadEvaluacionService;
 use App\Services\GeoLocationService;
 use App\Services\ItseRiskService;
 use Illuminate\Filesystem\FilesystemAdapter;
@@ -43,8 +46,14 @@ class EvaluacionController extends Controller
         protected ItseRiskService $riskService,
         protected GeoLocationService $geoLocationService,
         protected ApplicabilityEngineService $applicabilityEngine,
-        protected DirectorioAliadosService $directorioAliados
-    ) {}
+        protected DirectorioAliadosService $directorioAliados,
+        protected EvaluacionSyncService $evaluacionSyncService,
+        protected ?IntegridadEvaluacionService $integridadService = null,
+        protected ?AnalisisEvidenciaService $analisisService = null
+    ) {
+        $this->integridadService ??= app(IntegridadEvaluacionService::class);
+        $this->analisisService ??= app(AnalisisEvidenciaService::class);
+    }
 
     public function index(): Response
     {
@@ -255,7 +264,7 @@ class EvaluacionController extends Controller
     {
         $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
         $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
-        $revision = $autoevaluacion->simulaciones()->latest()->firstOrFail();
+        $revision = $autoevaluacion->simulaciones()->latest()->first();
 
         $validated = $request->validate([
             'codigo_item' => 'required|string',
@@ -272,94 +281,131 @@ class EvaluacionController extends Controller
 
         $estadoSubsanacion = $validated['estado'] ?? 'PENDIENTE';
 
-        $subsanacion = Subsanacion::firstOrNew([
-            'simulacion_revision_id' => $revision->id,
-            'codigo_item' => $validated['codigo_item'],
-        ]);
+        $subsanacion = $revision
+            ? Subsanacion::firstOrNew([
+                'simulacion_revision_id' => $revision->id,
+                'codigo_item' => $validated['codigo_item'],
+            ])
+            : Subsanacion::firstOrNew([
+                'autoevaluacion_id' => $autoevaluacion->id,
+                'codigo_item' => $validated['codigo_item'],
+            ]);
 
         $estadoAnterior = $subsanacion->exists ? $subsanacion->estado : 'PENDIENTE';
 
-        // Ruta previa de la evidencia para retirar del almacenamiento privado el
-        // archivo obsoleto cuando el ciudadano la reemplaza por una nueva.
-        $rutaEvidenciaAnterior = $subsanacion->exists ? $subsanacion->evidencia_url : null;
-
         $evidenciaUrl = null;
+        $hashSha256 = null;
         if ($request->hasFile('evidencia')) {
-            // Las evidencias se conservan en almacenamiento privado: solo el
-            // titular (o el titular del guest_session_token que las originó)
-            // puede consultarlas a través de la ruta autorizada de descarga.
-            $evidenciaUrl = Storage::disk('local')->putFile('evidencias/subsanaciones', $request->file('evidencia'));
+            $archivo = $request->file('evidencia');
+            $hashSha256 = hash_file('sha256', $archivo->getRealPath());
+            $sha12 = substr($hashSha256, 0, 12);
+            $timestamp = time();
+            $uuid8 = substr((string) Str::uuid(), 0, 8);
+            $ext = $archivo->getClientOriginalExtension() ?: ($archivo->guessExtension() ?: 'bin');
+            $nombreArchivo = "{$validated['codigo_item']}_{$sha12}_{$timestamp}_{$uuid8}.{$ext}";
 
-            if (filled($rutaEvidenciaAnterior) && $rutaEvidenciaAnterior !== $evidenciaUrl) {
-                Storage::disk('local')->delete($rutaEvidenciaAnterior);
-            }
+            $directorio = "evidencias/subsanaciones/{$autoevaluacion->uuid_trazabilidad}";
+            $evidenciaUrl = Storage::disk('local')->putFileAs($directorio, $archivo, $nombreArchivo);
+            // Custodia histórica: NO se elimina la evidencia previa del almacenamiento.
         }
 
-        $subsanacion->fill([
-            'descripcion' => $validated['descripcion_subsanacion'],
-            'observacion' => $validated['observacion'] ?? null,
-            'estado' => $estadoSubsanacion,
-            'fecha_subsanacion' => $estadoSubsanacion === 'SUBSANADO_DECLARADO' ? now() : null,
-        ]);
+        $criterio = CriterioNormativo::where('codigo_criterio', $validated['codigo_item'])->first();
 
-        if ($evidenciaUrl !== null) {
-            $subsanacion->evidencia_url = $evidenciaUrl;
-        }
-
-        $subsanacion->save();
-
-        // Trazabilidad histórica: se registra la transición únicamente cuando
-        // el estado cambia (o la condición por defecto PENDIENTE al declarar
-        // por primera vez), preservando la nomenclatura cívico-preventiva.
-        if ($estadoAnterior !== $estadoSubsanacion) {
-            HistorialSubsanacion::create([
-                'subsanacion_id' => $subsanacion->id,
-                'user_id' => Auth::id(),
-                'estado_anterior' => $estadoAnterior,
-                'estado_nuevo' => $estadoSubsanacion,
-                'evidencia_url' => $evidenciaUrl,
-                'comentario' => $validated['descripcion_subsanacion'],
-                'ip_address' => $request->ip(),
-            ]);
-        }
-
-        // Recálculo dinámico del ciclo de autoevaluación preventiva:
-        // si todas las observaciones declaradas quedaron subsanadas por el
-        // ciudadano, se actualiza el semáforo a VERDE y el GAP a 0%.
-        $verificaciones = $revision->detalle_revision ?? [];
-        $codigosObservados = array_keys(array_filter($verificaciones, fn ($v) => $v === false));
-
-        $subsanacionesDeclaradas = Subsanacion::where('simulacion_revision_id', $revision->id)
-            ->where('estado', 'SUBSANADO_DECLARADO')
-            ->pluck('codigo_item')
-            ->toArray();
-
-        $todasSubsanadas = count($codigosObservados) > 0 &&
-                           empty(array_diff($codigosObservados, $subsanacionesDeclaradas));
-
-        if ($todasSubsanadas) {
-            $checklistActualizado = collect($autoevaluacion->detalle_checklist ?? [])->map(function (array $item) use ($subsanacionesDeclaradas): array {
-                if (in_array($item['codigo'] ?? '', $subsanacionesDeclaradas, true)) {
-                    $item['estado'] = 'CUMPLE';
-                    $item['cumple'] = true;
+        try {
+            DB::transaction(function () use (
+                $subsanacion,
+                $autoevaluacion,
+                $revision,
+                $criterio,
+                $validated,
+                $estadoSubsanacion,
+                $estadoAnterior,
+                $evidenciaUrl,
+                $hashSha256,
+                $request
+            ) {
+                $subsanacion->autoevaluacion_id = $autoevaluacion->id;
+                if ($criterio) {
+                    $subsanacion->criterio_id = $criterio->id;
+                }
+                if ($revision) {
+                    $subsanacion->simulacion_revision_id = $revision->id;
                 }
 
-                return $item;
-            })->values()->all();
+                $subsanacion->fill([
+                    'descripcion' => $validated['descripcion_subsanacion'],
+                    'observacion' => $validated['observacion'] ?? null,
+                    'estado' => $estadoSubsanacion,
+                    'fecha_subsanacion' => $estadoSubsanacion === 'SUBSANADO_DECLARADO' ? now() : null,
+                ]);
 
-            $autoevaluacion->update([
-                'semaforo' => 'VERDE',
-                'porcentaje_cumplimiento' => 100.0,
-                'detalle_checklist' => $checklistActualizado,
-                'total_pendiente_atender' => 0,
-            ]);
+                if ($evidenciaUrl !== null) {
+                    $subsanacion->evidencia_url = $evidenciaUrl;
+                    $subsanacion->hash_sha256 = $hashSha256;
+                }
 
-            $revision->update([
-                'resultado' => 'SIN_OBSERVACIONES',
-                'porcentaje_revision' => 100.0,
-                'metrica_gap' => 0.0,
-                'total_observaciones' => 0,
-            ]);
+                $subsanacion->save();
+
+                // Trazabilidad histórica append-only
+                if ($estadoAnterior !== $estadoSubsanacion || $evidenciaUrl !== null) {
+                    HistorialSubsanacion::create([
+                        'subsanacion_id' => $subsanacion->id,
+                        'user_id' => Auth::id(),
+                        'estado_anterior' => $estadoAnterior,
+                        'estado_nuevo' => $estadoSubsanacion,
+                        'evidencia_url' => $evidenciaUrl ?? $subsanacion->evidencia_url,
+                        'hash_sha256' => $hashSha256 ?? $subsanacion->hash_sha256,
+                        'comentario' => $validated['descripcion_subsanacion'],
+                        'ip_address' => $request->ip(),
+                    ]);
+                }
+
+                // Recálculo dinámico del ciclo de autoevaluación preventiva para simulaciones
+                if ($revision) {
+                    $verificaciones = $revision->detalle_revision ?? [];
+                    $codigosObservados = array_keys(array_filter($verificaciones, fn ($v) => $v === false));
+
+                    $subsanacionesDeclaradas = Subsanacion::where('simulacion_revision_id', $revision->id)
+                        ->where('estado', 'SUBSANADO_DECLARADO')
+                        ->pluck('codigo_item')
+                        ->toArray();
+
+                    $todasSubsanadas = count($codigosObservados) > 0 &&
+                                       empty(array_diff($codigosObservados, $subsanacionesDeclaradas));
+
+                    if ($todasSubsanadas) {
+                        $checklistActualizado = collect($autoevaluacion->detalle_checklist ?? [])->map(function (array $item) use ($subsanacionesDeclaradas): array {
+                            if (in_array($item['codigo'] ?? '', $subsanacionesDeclaradas, true)) {
+                                $item['estado'] = 'CUMPLE';
+                                $item['cumple'] = true;
+                            }
+
+                            return $item;
+                        })->values()->all();
+
+                        $autoevaluacion->update([
+                            'semaforo' => 'VERDE',
+                            'porcentaje_cumplimiento' => 100.0,
+                            'detalle_checklist' => $checklistActualizado,
+                            'total_pendiente_atender' => 0,
+                        ]);
+
+                        $revision->update([
+                            'resultado' => 'SIN_OBSERVACIONES',
+                            'porcentaje_revision' => 100.0,
+                            'metrica_gap' => 0.0,
+                            'total_observaciones' => 0,
+                        ]);
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            // Limpieza compensatoria: revertir únicamente el archivo subido si falló la persistencia
+            if ($evidenciaUrl !== null) {
+                Storage::disk('local')->delete($evidenciaUrl);
+            }
+
+            throw $e;
         }
 
         return redirect()->route('autoevaluacion.subsanacion', ['uuid' => $uuid])
@@ -489,6 +535,64 @@ class EvaluacionController extends Controller
             }
         }
 
+        // 4. Enlazar evidencias y subsanaciones existentes a los ítems observados
+        $subsanacionesDirectas = $autoevaluacion->subsanaciones()
+            ->with(['analisisEvidencias.resultado'])
+            ->get();
+        $subsanacionesSimulaciones = $autoevaluacion->simulaciones
+            ->flatMap(fn ($sim) => $sim->subsanaciones()->with(['analisisEvidencias.resultado'])->get());
+
+        $todasSubsanaciones = $subsanacionesDirectas->concat($subsanacionesSimulaciones)->keyBy('codigo_item');
+
+        foreach ($todasSubsanaciones as $codigo => $sub) {
+            if ($itemsObservados->has($codigo)) {
+                $item = $itemsObservados->get($codigo);
+                $item['subsanacion_id'] = $sub->id;
+                $item['mime_type'] = $sub->mime_type;
+                $item['es_imagen'] = ! empty($sub->mime_type) && str_starts_with($sub->mime_type, 'image/');
+                $item['es_pdf'] = ($sub->mime_type === 'application/pdf');
+
+                if (! empty($sub->evidencia_url)) {
+                    $item['evidencia_url'] = route('autoevaluacion.evidencia', [
+                        'uuid' => $autoevaluacion->uuid_trazabilidad,
+                        'subsanacion' => $sub->id,
+                    ]);
+                }
+                if (! empty($sub->descripcion)) {
+                    $item['notas'] = $sub->descripcion;
+                }
+                if ($sub->estado === 'SUBSANADO_DECLARADO') {
+                    $item['estado'] = ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO;
+                }
+
+                $ultimoAnalisis = $sub->analisisEvidencias->sortByDesc('id')->first();
+                if ($ultimoAnalisis) {
+                    $item['ultimo_analisis'] = [
+                        'id' => $ultimoAnalisis->id,
+                        'uuid' => $ultimoAnalisis->uuid_analisis,
+                        'estado' => $ultimoAnalisis->estado,
+                        'mensaje_error' => $ultimoAnalisis->mensaje_error,
+                        'created_at' => $ultimoAnalisis->created_at?->toIso8601String(),
+                        'resultado' => $ultimoAnalisis->resultado ? [
+                            'calidad_imagen' => $ultimoAnalisis->resultado->calidad_imagen,
+                            'nivel_incertidumbre' => $ultimoAnalisis->resultado->nivel_incertidumbre,
+                            'elementos_detectados' => $ultimoAnalisis->resultado->elementos_detectados,
+                            'visual_observations' => $ultimoAnalisis->resultado->visual_observations,
+                            'not_observable' => $ultimoAnalisis->resultado->not_observable,
+                            'photo_improvement_recommendations' => $ultimoAnalisis->resultado->photo_improvement_recommendations,
+                            'resumen_pedagogico' => $ultimoAnalisis->resultado->resumen_pedagogico,
+                            'advertencia_legal' => $ultimoAnalisis->resultado->advertencia_legal,
+                            'version_motor' => $ultimoAnalisis->resultado->version_motor,
+                        ] : null,
+                    ];
+                } else {
+                    $item['ultimo_analisis'] = null;
+                }
+
+                $itemsObservados->put($codigo, $item);
+            }
+        }
+
         return Inertia::render('Evaluacion/SubsanacionDirecta', [
             'autoevaluacion' => [
                 'id' => $autoevaluacion->id,
@@ -510,12 +614,11 @@ class EvaluacionController extends Controller
     /**
      * Declara una condición subsanada y conforme, actualizando el estado de la respuesta
      * a CUMPLE_DECLARADO y recalculando el porcentaje de cumplimiento y contadores.
+     *
+     * Protege estrictamente la inmutabilidad de payload_canonico y hash_integridad.
      */
     public function declararSubsanado(Request $request, string $uuid): JsonResponse|RedirectResponse
     {
-        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
-        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
-
         $validated = $request->validate([
             'criterio_id' => 'nullable|integer',
             'codigo_criterio' => 'nullable|string',
@@ -544,83 +647,117 @@ class EvaluacionController extends Controller
         $codigo = $criterio?->codigo_criterio ?? $codigoCriterio;
         $idCriterio = $criterio?->id ?? $criterioId;
 
-        // 1. Actualizar respuesta en respuestas_autoevaluacion
-        if ($idCriterio) {
-            RespuestaAutoevaluacion::updateOrCreate(
-                [
-                    'autoevaluacion_id' => $autoevaluacion->id,
-                    'criterio_id' => $idCriterio,
-                ],
-                [
-                    'estado_respuesta' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
-                    'notas_ciudadano' => $nota ?: 'Subsanado y declarado en regla por el titular.',
-                ]
-            );
-        }
+        // Transacción atómica con bloqueo pesimista
+        $resultado = DB::transaction(function () use ($uuid, $request, $criterio, $codigo, $idCriterio, $nota) {
+            /** @var Autoevaluacion $autoevaluacion */
+            $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        // 2. Si tiene detalle_checklist (legacy o snapshot), actualizar el ítem
-        if (! empty($autoevaluacion->detalle_checklist) && is_array($autoevaluacion->detalle_checklist)) {
-            $checklistActualizada = collect($autoevaluacion->detalle_checklist)->map(function ($item) use ($codigo) {
-                if (($item['codigo'] ?? '') === $codigo) {
-                    $item['cumple'] = true;
-                    $item['estado'] = 'CUMPLE';
+            $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+            // Validar que el criterio sea aplicable si el modelo cuenta con reglas activas
+            if ($criterio) {
+                $evaluacionCriterio = $this->applicabilityEngine->evaluarCriterio($criterio, $autoevaluacion);
+                if ($evaluacionCriterio['aplicable'] === false) {
+                    throw new \InvalidArgumentException("El criterio [{$codigo}] no aplica a este establecimiento y no requiere subsanación.");
                 }
-
-                return $item;
-            })->values()->all();
-
-            $autoevaluacion->detalle_checklist = $checklistActualizada;
-        }
-
-        // 3. Si existen subsanaciones de simulaciones, marcarlas como declaradas
-        foreach ($autoevaluacion->simulaciones as $simulacion) {
-            $simulacion->subsanaciones()
-                ->where('codigo_item', $codigo)
-                ->update([
-                    'estado' => 'SUBSANADO_DECLARADO',
-                    'fecha_subsanacion' => now(),
-                    'notas_ciudadano' => $nota ?: 'Subsanado directamente por el titular.',
-                ]);
-        }
-
-        // 4. Recalcular métricas
-        $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
-        $conteos = $resumenData['conteos'];
-        $totalAplicables = (int) ($conteos['total_criterios_aplicables'] ?? 0);
-        $totalCumple = (int) ($conteos['total_cumple_declarado'] ?? 0);
-        $pendientes = (int) ($conteos['total_pendiente_atender'] ?? 0);
-        $porRevisar = (int) ($conteos['total_por_revisar'] ?? 0);
-
-        if ($totalAplicables > 0) {
-            if ($pendientes === 0 && $porRevisar === 0) {
-                $porcentaje = 100.0;
-                $semaforo = 'VERDE';
-            } else {
-                $metricas = $this->riskService->calcularMetricasCumplimiento($totalAplicables, $totalCumple);
-                $porcentaje = $metricas['porcentaje'];
-                $semaforo = $metricas['semaforo'];
             }
-        } else {
-            // Evaluación con detalle_checklist legado
-            $checklist = $autoevaluacion->detalle_checklist ?? [];
-            $totalItems = count($checklist);
-            $cumplen = count(array_filter($checklist, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE'));
-            $porcentaje = $totalItems > 0 ? round(($cumplen / $totalItems) * 100, 1) : 100.0;
-            $semaforo = $porcentaje >= 100.0 ? 'VERDE' : ($porcentaje >= 75.0 ? 'AMARILLO' : 'ROJO');
-            $pendientes = $totalItems - $cumplen;
-            $porRevisar = 0;
-            $totalCumple = $cumplen;
-            $totalAplicables = $totalItems;
-        }
 
-        $autoevaluacion->total_condiciones_evaluadas = $totalAplicables;
-        $autoevaluacion->total_cumple_declarado = $totalCumple;
-        $autoevaluacion->total_pendiente_atender = $pendientes;
-        $autoevaluacion->total_por_revisar = $porRevisar;
-        $autoevaluacion->total_no_aplica = (int) ($conteos['total_no_aplica'] ?? 0);
-        $autoevaluacion->porcentaje_cumplimiento = $porcentaje;
-        $autoevaluacion->semaforo = $semaforo;
-        $autoevaluacion->save();
+            // 1. Actualizar respuesta en respuestas_autoevaluacion
+            if ($idCriterio) {
+                RespuestaAutoevaluacion::updateOrCreate(
+                    [
+                        'autoevaluacion_id' => $autoevaluacion->id,
+                        'criterio_id' => $idCriterio,
+                    ],
+                    [
+                        'estado_respuesta' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
+                        'notas_ciudadano' => $nota ?: 'Subsanado y declarado en regla por el titular.',
+                    ]
+                );
+            }
+
+            // 2. Si tiene detalle_checklist (legacy o snapshot), actualizar el ítem
+            if (! empty($autoevaluacion->detalle_checklist) && is_array($autoevaluacion->detalle_checklist)) {
+                $checklistActualizada = collect($autoevaluacion->detalle_checklist)->map(function ($item) use ($codigo) {
+                    if (($item['codigo'] ?? '') === $codigo) {
+                        $item['cumple'] = true;
+                        $item['estado'] = 'CUMPLE';
+                    }
+
+                    return $item;
+                })->values()->all();
+
+                $autoevaluacion->detalle_checklist = $checklistActualizada;
+            }
+
+            // 3. Crear o actualizar Subsanacion directa y registrar en HistorialSubsanacion
+            $subsanacion = Subsanacion::firstOrNew([
+                'autoevaluacion_id' => $autoevaluacion->id,
+                'codigo_item' => $codigo,
+            ]);
+
+            $estadoAnteriorSub = $subsanacion->exists ? $subsanacion->estado : 'PENDIENTE';
+
+            $subsanacion->fill([
+                'autoevaluacion_id' => $autoevaluacion->id,
+                'criterio_id' => $idCriterio,
+                'descripcion' => $nota ?: 'Subsanado directamente por el titular.',
+                'estado' => 'SUBSANADO_DECLARADO',
+                'fecha_subsanacion' => now(),
+                'notas_ciudadano' => $nota ?: 'Subsanado directamente por el titular.',
+            ]);
+            $subsanacion->save();
+
+            HistorialSubsanacion::create([
+                'subsanacion_id' => $subsanacion->id,
+                'user_id' => Auth::id(),
+                'estado_anterior' => $estadoAnteriorSub,
+                'estado_nuevo' => 'SUBSANADO_DECLARADO',
+                'evidencia_url' => $subsanacion->evidencia_url,
+                'hash_sha256' => $subsanacion->hash_sha256,
+                'comentario' => $nota ?: 'Subsanación directa declarada conforme por el titular.',
+                'ip_address' => $request->ip(),
+            ]);
+
+            // Si existen simulaciones asociadas, actualizar también sus subsanaciones
+            foreach ($autoevaluacion->simulaciones as $simulacion) {
+                $simulacion->subsanaciones()
+                    ->where('codigo_item', $codigo)
+                    ->update([
+                        'autoevaluacion_id' => $autoevaluacion->id,
+                        'criterio_id' => $idCriterio,
+                        'estado' => 'SUBSANADO_DECLARADO',
+                        'fecha_subsanacion' => now(),
+                        'notas_ciudadano' => $nota ?: 'Subsanado directamente por el titular.',
+                    ]);
+            }
+
+            // 4. Sincronización canónica reactiva de métricas operativas
+            $autoevaluacion->unsetRelation('respuestas');
+            $datos = $this->evaluacionSyncService->obtenerDatosCompletos($autoevaluacion);
+
+            $autoevaluacion->total_condiciones_evaluadas = $datos['total_aplicables'];
+            $autoevaluacion->total_cumple_declarado = $datos['cumplen'];
+            $autoevaluacion->total_pendiente_atender = $datos['por_subsanar'];
+            $autoevaluacion->total_por_revisar = $datos['por_revisar'];
+            $autoevaluacion->total_no_aplica = $datos['no_aplica'];
+            $autoevaluacion->porcentaje_cumplimiento = $datos['porcentaje_cumplimiento'];
+            $autoevaluacion->semaforo = $datos['estado_semaforo'];
+
+            // NOTA CRÍTICA C.3: payload_canonico y hash_integridad NO SE MODIFICAN.
+            // El snapshot inicial permanece sellado e inmutable.
+
+            $autoevaluacion->save();
+
+            return [
+                'autoevaluacion' => $autoevaluacion,
+                'datos' => $datos,
+            ];
+        });
+
+        $datos = $resultado['datos'];
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -628,9 +765,9 @@ class EvaluacionController extends Controller
                 'mensaje' => 'Condición técnica subsanada y declarada conforme.',
                 'codigo' => $codigo,
                 'estado' => ApplicabilityEngineService::ESTADO_CUMPLE_DECLARADO,
-                'porcentaje_cumplimiento' => $porcentaje,
-                'pendientes_restantes' => $pendientes + $porRevisar,
-                'es_conforme' => ($porcentaje >= 100.0 && $pendientes === 0 && $porRevisar === 0),
+                'porcentaje_cumplimiento' => $datos['porcentaje_cumplimiento'],
+                'pendientes_restantes' => $datos['por_subsanar'] + $datos['por_revisar'],
+                'es_conforme' => ($datos['porcentaje_cumplimiento'] >= 100.0 && $datos['por_subsanar'] === 0 && $datos['por_revisar'] === 0),
             ]);
         }
 
@@ -649,12 +786,31 @@ class EvaluacionController extends Controller
     {
         $autoevaluacion = Autoevaluacion::where('uuid_trazabilidad', $uuid)->firstOrFail();
 
-        $revision = $autoevaluacion->simulacionRevision;
-        if ($revision === null || (int) $subsanacion->simulacion_revision_id !== (int) $revision->id) {
+        // Si la subsanación está vinculada a una simulación, debe pertenecer a la última revisión activa
+        if ($subsanacion->simulacion_revision_id !== null) {
+            $revision = $autoevaluacion->simulacionRevision;
+            if ($revision === null || (int) $subsanacion->simulacion_revision_id !== (int) $revision->id) {
+                abort(404);
+            }
+        } elseif ((int) $subsanacion->autoevaluacion_id !== (int) $autoevaluacion->id) {
             abort(404);
         }
 
-        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion, self::MSG_NO_AUTORIZADO_EVIDENCIA);
+        // Autorización de descarga de evidencia privada:
+        // Titular autenticado si está vinculada a cuenta, o cookie guest_session_token si es anónima.
+        if ($autoevaluacion->user_id !== null) {
+            $autenticado = $request->user();
+            if ($autenticado === null || (int) $autenticado->id !== (int) $autoevaluacion->user_id) {
+                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
+            }
+        } else {
+            $tokenCookie = $request->cookie('guest_session_token');
+            if (! filled($autoevaluacion->session_token)
+                || ! filled($tokenCookie)
+                || ! hash_equals((string) $autoevaluacion->session_token, (string) $tokenCookie)) {
+                abort(403, self::MSG_NO_AUTORIZADO_EVIDENCIA);
+            }
+        }
 
         $path = $subsanacion->evidencia_url;
 
@@ -673,6 +829,84 @@ class EvaluacionController extends Controller
     }
 
     /**
+     * Solicita voluntariamente un análisis multimodal con IA para la evidencia física adjunta.
+     */
+    public function solicitarAnalisisEvidencia(Request $request, string $uuid, Subsanacion $subsanacion): JsonResponse
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        if ((int) $subsanacion->autoevaluacion_id !== (int) $autoevaluacion->id) {
+            abort(404);
+        }
+
+        try {
+            $analisis = $this->analisisService->solicitarAnalisis($autoevaluacion, $subsanacion, $request->user());
+
+            return response()->json([
+                'success' => true,
+                'mensaje' => 'Solicitud de análisis multimodal encolada correctamente.',
+                'analisis_uuid' => $analisis->uuid_analisis,
+                'estado' => $analisis->estado_analisis,
+            ], 202);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'error' => 'archivo_invalido',
+                'mensaje' => $e->getMessage(),
+            ], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'error' => 'error_analisis',
+                'mensaje' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
+     * Consulta el estado de procesamiento y el resultado de un análisis multimodal.
+     */
+    public function consultarEstadoAnalisis(Request $request, string $uuid, string $analisisUuid): JsonResponse
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        $analisis = $this->analisisService->consultarEstado($analisisUuid);
+
+        if ((int) $analisis->autoevaluacion_id !== (int) $autoevaluacion->id) {
+            abort(404);
+        }
+
+        return response()->json([
+            'uuid_analisis' => $analisis->uuid_analisis,
+            'estado' => $analisis->estado_analisis,
+            'modelo' => $analisis->modelo_solicitado,
+            'iniciado_at' => $analisis->iniciado_at?->format(self::FORMATO_FECHA_HORA),
+            'completado_at' => $analisis->completado_at?->format(self::FORMATO_FECHA_HORA),
+            'mensaje_error' => $analisis->mensaje_error,
+            'resultado' => $analisis->resultado,
+        ]);
+    }
+
+    /**
+     * Consulta el historial de análisis multimodales vinculados a una subsanación.
+     */
+    public function historialAnalisisEvidencia(Request $request, string $uuid, Subsanacion $subsanacion): JsonResponse
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        if ((int) $subsanacion->autoevaluacion_id !== (int) $autoevaluacion->id) {
+            abort(404);
+        }
+
+        $historial = $this->analisisService->obtenerHistorialSubsanacion($subsanacion);
+
+        return response()->json([
+            'historial' => $historial,
+        ]);
+    }
+
+    /**
      * Informe de autoevaluación preventiva integral.
      *
      * Consolida la trazabilidad completa del ciclo preventivo (subsanaciones e
@@ -685,59 +919,23 @@ class EvaluacionController extends Controller
     {
         $autoevaluacion = Autoevaluacion::with([
             'simulacionRevision.subsanaciones.historial',
+            'subsanaciones.historial',
             'evaluacionOrigen',
+            'respuestas.criterioNormativo',
         ])
             ->where('uuid_trazabilidad', $uuid)
             ->firstOrFail();
 
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
         $this->validarAutorizacionInforme($request, $autoevaluacion);
 
+        $datos = $this->evaluacionSyncService->obtenerDatosCompletos($autoevaluacion);
+
         $revision = $autoevaluacion->simulacionRevision;
-
-        $verificaciones = $revision?->detalle_revision ?? [];
-        $codigosObservados = array_keys(array_filter($verificaciones, fn ($v) => $v === false));
-
-        $subsanaciones = collect($revision?->subsanaciones ?? []);
-        $codigosSubsanados = $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->pluck('codigo_item')->all();
-
+        $subsanacionesDirectas = $autoevaluacion->subsanaciones ?? collect();
+        $subsanacionesRevision = collect($revision?->subsanaciones ?? []);
+        $subsanaciones = $subsanacionesDirectas->concat($subsanacionesRevision)->unique('codigo_item')->values();
         $nombresPorCodigo = collect($this->riskService->getCatalogoChecklist())->keyBy('codigo');
-
-        $checklistRaw = $autoevaluacion->detalle_checklist ?? [];
-
-        $detalleChecklist = $this->construirDetalleChecklistInforme($checklistRaw, $nombresPorCodigo);
-
-        // Resumen cuantitativo por estado de las condiciones
-        $totalCondicionesEvaluables = count(array_filter(
-            $checklistRaw,
-            fn ($item) => ($item['estado'] ?? 'CUMPLE') !== 'NA'
-        ));
-
-        $conformesIniciales = count(array_filter(
-            $checklistRaw,
-            function (array $item) use ($codigosSubsanados): bool {
-                $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
-                $codigo = $item['codigo'] ?? '';
-
-                return $estado === 'CUMPLE' && ! in_array($codigo, $codigosSubsanados, true);
-            }
-        ));
-
-        $conteoEstados = [
-            'total' => count($checklistRaw),
-            'cumple' => count(array_filter($checklistRaw, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'CUMPLE')),
-            'no_cumple' => count(array_filter($checklistRaw, fn ($i) => ($i['estado'] ?? ($i['cumple'] ? 'CUMPLE' : 'NO_CUMPLE')) === 'NO_CUMPLE')),
-            'por_revisar' => count(array_filter($checklistRaw, fn ($i) => ($i['estado'] ?? '') === 'POR_REVISAR')),
-            'na' => count(array_filter($checklistRaw, fn ($i) => ($i['estado'] ?? '') === 'NA')),
-        ];
-
-        $subsanadasDeclaradas = $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count();
-        $totalObservadas = count($codigosObservados);
-        $porcentajeSubsanado = 0;
-        if ($totalObservadas > 0) {
-            $porcentajeSubsanado = (int) round(($subsanadasDeclaradas / $totalObservadas) * 100);
-        } elseif ($totalCondicionesEvaluables > 0) {
-            $porcentajeSubsanado = 100;
-        }
 
         $matriz = $subsanaciones->map(function (Subsanacion $subsanacion) use ($nombresPorCodigo, $uuid): array {
             $item = $nombresPorCodigo->get($subsanacion->codigo_item);
@@ -758,30 +956,63 @@ class EvaluacionController extends Controller
             ];
         })->values();
 
+        $subsanadasDeclaradas = $subsanaciones->where('estado', 'SUBSANADO_DECLARADO')->count();
+        $conformesIniciales = max(0, $datos['cumplen'] - $subsanadasDeclaradas);
+        $porcentajeSubsanado = ($datos['observados'] === 0 && $datos['por_revisar'] === 0 && $datos['total_aplicables'] > 0)
+            ? 100
+            : (int) round($datos['porcentaje_cumplimiento']);
+        $gapFinal = ($subsanadasDeclaradas > 0 && $datos['observados'] === 0 && $datos['por_revisar'] === 0)
+            ? 0.0
+            : round(max(0.0, 100.0 - $datos['porcentaje_cumplimiento']), 1);
+
         $resumen = [
-            'total_condiciones' => $totalCondicionesEvaluables,
+            'total_condiciones' => $datos['total_aplicables'],
             'conformes_iniciales' => $conformesIniciales,
             'subsanadas_declaradas' => $subsanadasDeclaradas,
             'en_proceso' => $subsanaciones->where('estado', 'EN_PROCESO')->count(),
-            'pendientes' => $subsanaciones->where('estado', 'PENDIENTE')->count(),
-            'gap_final' => $revision?->metrica_gap ?? 0.0,
+            'pendientes' => $datos['observados'],
+            'gap_final' => $gapFinal,
             'porcentaje_subsanado' => $porcentajeSubsanado,
         ];
 
+        $conteoEstados = [
+            'total' => count($datos['condiciones_evaluadas']),
+            'cumple' => $datos['cumplen'],
+            'no_cumple' => $datos['observados'],
+            'por_revisar' => $datos['por_revisar'],
+            'na' => $datos['no_aplica'] ?? 0,
+        ];
+
+        $detalleChecklist = collect($datos['condiciones_evaluadas'])->map(function (array $condicion) use ($nombresPorCodigo): array {
+            $cat = $nombresPorCodigo->get($condicion['codigo']);
+            $estado = match ($condicion['estado_actual']) {
+                'CUMPLE_DECLARADO' => 'CUMPLE',
+                'PENDIENTE_ATENDER' => 'NO_CUMPLE',
+                'POR_REVISAR' => 'POR_REVISAR',
+                'NO_APLICA' => 'NA',
+                default => $condicion['estado_actual'],
+            };
+
+            return [
+                'codigo' => $condicion['codigo'],
+                'nombre' => $condicion['titulo'],
+                'categoria' => $condicion['especialidad'] ?: ($cat['categoria'] ?? 'Seguridad General'),
+                'estado' => $estado,
+                'cumple' => $estado === 'CUMPLE',
+                'es_critico' => (bool) ($cat['es_critico'] ?? false),
+                'norma' => $condicion['norma_referencial'],
+            ];
+        })->values()->all();
+
         $codigoInforme = 'INF-PREV-'.date('Y').'-'.strtoupper(Str::random(6));
 
-        // El hash de integridad del informe debe ser reproducible: el mismo estado
-        // de la autoevaluación tiene que producir siempre la misma huella, aunque
-        // el informe se recargue o se imprima en otro momento. Por eso el código
-        // de emisión, aleatorio por emisión, queda fuera del payload hasheado y
-        // solo se publica como dato de presentación.
         $payloadConsolidado = [
             'uuid' => $autoevaluacion->uuid_trazabilidad,
-            'ruc' => $autoevaluacion->ruc,
-            'nombre_comercio' => $autoevaluacion->nombre_comercio,
+            'ruc' => $datos['ruc'],
+            'nombre_comercio' => $datos['nombre_comercial'] ?: $autoevaluacion->nombre_comercio,
             'sector_huancayo' => $autoevaluacion->sector_huancayo,
-            'semaforo' => $autoevaluacion->semaforo,
-            'porcentaje_cumplimiento' => $autoevaluacion->porcentaje_cumplimiento,
+            'semaforo' => $datos['estado_semaforo'],
+            'porcentaje_cumplimiento' => $datos['porcentaje_cumplimiento'],
             'resumen' => $resumen,
             'evidencias' => $matriz->pluck('evidencia_url')->filter()->values()->all(),
             'matriz' => $matriz
@@ -800,8 +1031,28 @@ class EvaluacionController extends Controller
             'porcentaje_cumplimiento' => $autoevaluacion->evaluacionOrigen->porcentaje_cumplimiento,
         ] : null;
 
+        $autoevaluacionHydrated = array_merge($autoevaluacion->paraInforme(), [
+            'area_techada' => $datos['area_techada'],
+            'area_m2' => $autoevaluacion->area_m2 ?? ($datos['area_techada'] !== null ? (float) $datos['area_techada'] : null),
+            'aforo_estimado' => $datos['aforo_estimado'],
+            'aforo' => $datos['aforo_estimado'] ?: $autoevaluacion->aforo,
+            'numero_pisos' => $datos['numero_pisos'],
+            'pisos' => $datos['numero_pisos'] ?: $autoevaluacion->pisos,
+            'giro' => $datos['giro'],
+            'funcion_economica' => $datos['giro'] ?: $autoevaluacion->funcion_economica,
+            'nombre_comercial' => $datos['nombre_comercial'] ?: $autoevaluacion->nombre_comercio,
+            'nombre_comercio' => $datos['nombre_comercial'] ?: $autoevaluacion->nombre_comercio,
+            'ruc' => $datos['ruc'] ?: $autoevaluacion->ruc,
+            'direccion' => $datos['direccion'] ?: $autoevaluacion->direccion,
+            'semaforo' => $datos['estado_semaforo'],
+            'porcentaje_cumplimiento' => $datos['porcentaje_cumplimiento'],
+            'condiciones_evaluadas' => $datos['condiciones_evaluadas'],
+        ]);
+
         return Inertia::render('Evaluacion/InformePreventivo', [
-            'autoevaluacion' => $autoevaluacion->paraInforme(),
+            'autoevaluacion' => $autoevaluacionHydrated,
+            'evaluacion' => $autoevaluacionHydrated,
+            'condiciones_evaluadas' => $datos['condiciones_evaluadas'],
             'esReevaluacion' => $esReevaluacion,
             'evaluacionOrigen' => $evaluacionOrigen,
             'codigoInforme' => $codigoInforme,
@@ -984,6 +1235,7 @@ class EvaluacionController extends Controller
         return [
             'total_locales' => $totalLocales,
             'aprobados' => $aprobados,
+            'sin_observaciones' => $aprobados,
             'observados' => $observados,
             'en_proceso' => $enProceso,
             'riesgo_dominante' => (string) $riesgoDominante,
@@ -1483,6 +1735,8 @@ class EvaluacionController extends Controller
         $autoevaluacion = $this->resolverAutoevaluacion($uuid);
         $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
 
+        $datos = $this->evaluacionSyncService->obtenerDatosCompletos($autoevaluacion);
+
         $resumenData = $this->applicabilityEngine->generarResumenDescriptivo($autoevaluacion);
         $resumenData = $this->adjuntarRecursosEducativosAResumen($resumenData);
         $resumenData = $this->adjuntarAsistenciaTecnicaAResumen($resumenData);
@@ -1491,20 +1745,31 @@ class EvaluacionController extends Controller
         $datosAutoevaluacion = [
             'id' => $autoevaluacion->id,
             'uuid' => $autoevaluacion->uuid_trazabilidad,
-            'nombre_comercio' => $autoevaluacion->nombre_comercio,
-            'funcion_economica' => $autoevaluacion->funcion_economica,
-            'ruc' => $autoevaluacion->ruc,
+            'nombre_comercio' => $datos['nombre_comercial'] ?: $autoevaluacion->nombre_comercio,
+            'nombre_comercial' => $datos['nombre_comercial'] ?: $autoevaluacion->nombre_comercio,
+            'funcion_economica' => $datos['giro'] ?: $autoevaluacion->funcion_economica,
+            'giro' => $datos['giro'] ?: $autoevaluacion->funcion_economica,
+            'ruc' => $datos['ruc'] ?: $autoevaluacion->ruc,
             'distrito' => $autoevaluacion->distrito,
-            'direccion' => $autoevaluacion->direccion,
+            'direccion' => $datos['direccion'] ?: $autoevaluacion->direccion,
+            'area_techada' => $datos['area_techada'],
+            'area_m2' => $autoevaluacion->area_m2 ?? ($datos['area_techada'] !== null ? (float) $datos['area_techada'] : null),
+            'aforo_estimado' => $datos['aforo_estimado'],
+            'aforo' => $datos['aforo_estimado'] ?: $autoevaluacion->aforo,
+            'numero_pisos' => $datos['numero_pisos'],
+            'pisos' => $datos['numero_pisos'] ?: $autoevaluacion->pisos,
             'codigo_acceso' => $autoevaluacion->codigo_acceso,
             'caracteristicas_declaradas' => $autoevaluacion->caracteristicas_declaradas,
             'estado' => $autoevaluacion->estado,
             'registrada_at' => $autoevaluacion->registrada_at?->format(self::FORMATO_FECHA_HORA),
             'hash_integridad' => $autoevaluacion->hash_integridad,
+            'condiciones_evaluadas' => $datos['condiciones_evaluadas'],
         ];
 
         $payload = [
             'autoevaluacion' => $datosAutoevaluacion,
+            'evaluacion' => $datosAutoevaluacion,
+            'condiciones_evaluadas' => $datos['condiciones_evaluadas'],
             'resumen' => $resumenData['conteos'],
             'pendiente_atender' => $resumenData['pendiente_atender'],
             'por_revisar' => $resumenData['por_revisar'],
@@ -1523,6 +1788,90 @@ class EvaluacionController extends Controller
             'Pragma' => 'no-cache',
             'Expires' => '0',
         ]);
+    }
+
+    /**
+     * Muestra el expediente técnico digital consolidado del establecimiento comercial.
+     *
+     * Agrupa la autoevaluación raíz inmutable junto con su serie histórica de reevaluaciones
+     * vinculadas (A -> B, C), desgloses técnicos y cálculo de variaciones netas.
+     */
+    public function expediente(Request $request, string $uuid): Response|JsonResponse
+    {
+        $autoevaluacion = $this->resolverAutoevaluacion($uuid);
+        $this->autorizarAccesoAutoevaluacion($request, $autoevaluacion);
+
+        $proceso = $this->construirProcesoPreventivo($autoevaluacion);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'proceso' => $proceso,
+                'uuidSeleccionado' => $uuid,
+            ]);
+        }
+
+        return Inertia::render('Evaluacion/ExpedienteLocal', [
+            'proceso' => $proceso,
+            'uuidSeleccionado' => $uuid,
+        ]);
+    }
+
+    /**
+     * Construye la estructura agregada ProcesoPreventivo para la vista de Expediente Local.
+     *
+     * @return array<string, mixed>
+     */
+    private function construirProcesoPreventivo(Autoevaluacion $autoevaluacion): array
+    {
+        // 1. Resolver el nodo raíz original inmutable
+        $root = $autoevaluacion;
+        while ($root->evaluacion_origen_id !== null && $root->evaluacionOrigen !== null) {
+            $root = $root->evaluacionOrigen;
+        }
+
+        $root->loadMissing(['simulaciones.subsanaciones', 'respuestas', 'reevaluaciones']);
+
+        // 2. Obtener todas las reevaluaciones de la serie en orden cronológico
+        $reevaluaciones = Autoevaluacion::with(['simulaciones.subsanaciones', 'evaluacionOrigen', 'respuestas'])
+            ->where('evaluacion_origen_id', $root->id)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        // 3. Determinar la última evaluación de la serie
+        $ultimaEvaluacion = $reevaluaciones->isNotEmpty() ? $reevaluaciones->last() : $root;
+
+        $originalItem = $this->formatearItemMisEvaluaciones($root);
+        $reevaluacionesItems = $reevaluaciones->map(fn (Autoevaluacion $r) => $this->formatearItemMisEvaluaciones($r))->values()->all();
+        $ultimaItem = $this->formatearItemMisEvaluaciones($ultimaEvaluacion);
+
+        $origCumple = (int) ($originalItem['conteo_condiciones']['cumple'] ?? 0);
+        $origNoCumple = (int) ($originalItem['conteo_condiciones']['no_cumple'] ?? 0);
+        $origPorRevisar = (int) ($originalItem['conteo_condiciones']['por_revisar'] ?? 0);
+        $origNa = (int) ($originalItem['conteo_condiciones']['na'] ?? 0);
+        $origPct = (float) ($originalItem['porcentaje_cumplimiento'] ?? 0);
+
+        $ultCumple = (int) ($ultimaItem['conteo_condiciones']['cumple'] ?? 0);
+        $ultNoCumple = (int) ($ultimaItem['conteo_condiciones']['no_cumple'] ?? 0);
+        $ultPorRevisar = (int) ($ultimaItem['conteo_condiciones']['por_revisar'] ?? 0);
+        $ultNa = (int) ($ultimaItem['conteo_condiciones']['na'] ?? 0);
+        $ultPct = (float) ($ultimaItem['porcentaje_cumplimiento'] ?? 0);
+
+        return [
+            'id' => $root->id,
+            'nombre_comercio' => $root->nombre_comercio,
+            'funcion_economica' => $root->funcion_economica,
+            'ruc' => $root->ruc,
+            'direccion' => $root->direccion,
+            'original' => $originalItem,
+            'reevaluaciones' => $reevaluacionesItems,
+            'ultimaEvaluacion' => $ultimaItem,
+            'tieneReevaluaciones' => count($reevaluacionesItems) > 0,
+            'difPorcentaje' => round($ultPct - $origPct, 1),
+            'difCumple' => $ultCumple - $origCumple,
+            'difNoCumple' => $ultNoCumple - $origNoCumple,
+            'difPorRevisar' => $ultPorRevisar - $origPorRevisar,
+            'difNa' => $ultNa - $origNa,
+        ];
     }
 
     public function anexoOficial(string $uuid, Request $request): Response

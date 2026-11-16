@@ -135,10 +135,10 @@ export const CHECKLIST_CATALOGO_OFICIAL: ChecklistItem[] = [
     cumple: true,
     es_critico: true,
     norma: 'CNE-U Regla 060.712 / R.J. 016-2018 Anexo 4',
-    que_observar: 'Revisa que exista el certificado de puesta a tierra con menos de 25 ohmios y con vigencia al día.',
+    que_observar: 'Revisa que cuentes con el protocolo de medición de puesta a tierra con valor ≤ 25 Ω y vigencia al día (máx. 1 año).',
     por_que: 'Drena corrientes estáticas y de falla hacia el suelo, protegiendo computadoras, vitrinas y vidas.',
     riesgo_real: 'Sobretensiones transitorias y riesgo de electrocución permanente en carcasas metálicas.',
-    solucion: 'Mantenimiento anual con sales de bentonita/gel y certificado firmado por ingeniero electricista colegiado.'
+    solucion: 'Mantenimiento anual con sales/gel y protocolo de medición firmado por ingeniero electricista colegiado habilitado.'
   },
   {
     codigo: 'CABLEADO_CANALIZADO',

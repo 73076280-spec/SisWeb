@@ -12,8 +12,10 @@ class ProveedorRecurso extends Model
 
     protected $fillable = [
         'categoria_id',
+        'rubro',
         'razon_social',
         'nombre_comercial',
+        'tipo_servicio',
         'telefono',
         'whatsapp',
         'direccion',
@@ -22,12 +24,14 @@ class ProveedorRecurso extends Model
         'longitud',
         'servicios_ofrecidos',
         'activo',
+        'verificado',
     ];
 
     protected $casts = [
         'latitud' => 'float',
         'longitud' => 'float',
         'activo' => 'boolean',
+        'verificado' => 'boolean',
     ];
 
     public function categoria(): BelongsTo

@@ -3,16 +3,19 @@
 namespace App\Services;
 
 use App\Models\RecursoEducativo;
+use Illuminate\Support\Facades\Log;
 
 class ItseRiskService
 {
+    private const NORMA_DIFERENCIAL = 'CNE-U Regla 150-400 / R.M. 175-2008-MEM';
+
     /**
      * Catálogo base de costos referenciales de subsanación técnica en Huancayo (Soles).
      * Sustento: USM (2026) - Priorización Operativa y Económica.
      */
     public const COSTOS_REFERENCIALES = [
         'EXTINTOR' => [
-            'nombre' => 'Recarga y certificación anual de extintor PQS 6kg con soporte',
+            'nombre' => 'Recarga y mantenimiento anual de extintor PQS 6kg con soporte (NTP 350.043-1)',
             'prioridad' => 'Alta',
             'dias_plazo' => 2,
             'costo_soles' => 65.00,
@@ -44,7 +47,7 @@ class ItseRiskService
             'prioridad' => 'Alta',
             'dias_plazo' => 2,
             'costo_soles' => 110.00,
-            'norma' => 'CNE-U Regla 150-400 / R.M. 175-2008-MEM',
+            'norma' => self::NORMA_DIFERENCIAL,
         ],
         'CABLEADO_CANALIZADO' => [
             'nombre' => 'Canalización de cables expuestos en tuberías o canaletas libres de empalmes',
@@ -93,7 +96,7 @@ class ItseRiskService
             'prioridad' => 'Alta',
             'dias_plazo' => 2,
             'costo_soles' => 110.00,
-            'norma' => 'CNE-U Regla 150-400 / R.M. 175-2008-MEM',
+            'norma' => self::NORMA_DIFERENCIAL,
         ],
         'TABLERO_MANDIL' => [
             'nombre' => 'Colocación de mandil de protección y tapas ciegas en tablero eléctrico',
@@ -178,7 +181,7 @@ class ItseRiskService
                 'codigo' => 'DIFERENCIAL',
                 'nombre' => 'Interruptores diferenciales de 30mA en circuitos eléctricos',
                 'es_critico' => true,
-                'norma' => 'CNE-U Regla 150-400 / R.M. 175-2008-MEM',
+                'norma' => self::NORMA_DIFERENCIAL,
             ],
             [
                 'codigo' => 'TERMOMAGNETICO',
@@ -261,7 +264,13 @@ class ItseRiskService
                 ->activos()
                 ->get()
                 ->keyBy('codigo_normativo');
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            if (function_exists('app') && app()->bound('log')) {
+                Log::warning('Error consultando recursos cercanos en ItseRiskService', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
             $recursos = collect();
         }
 
@@ -281,56 +290,36 @@ class ItseRiskService
     /**
      * Motor 1: Clasificación de Trámite según R.J. 016-2018-CENEPRED/J y RNE G.040.
      * Criterio: Comercio <= 3 pisos y <= 750m2 => EX_POST. Superar límites o factores agravantes => EX_ANTE.
+     *
+     * @param  array{usaGlp?: bool, galonesGlp?: float, usaCaldero?: bool, usaLiquidosInflamables?: bool}  $factoresRiesgo
+     * @return array{tipo_tramite: string, nivel_riesgo: string, es_bloqueante: bool, motivos: list<string>}
      */
     public function clasificarTramite(
         string $funcion = 'Comercio',
         ?float $areaM2 = null,
         ?int $pisos = null,
         ?int $aforo = null,
-        bool $usaGlp = false,
-        float $galonesGlp = 0.0,
-        bool $usaCaldero = false,
-        bool $usaLiquidosInflamables = false
+        array|bool $factoresRiesgo = [],
+        mixed ...$legacyArgs
     ): array {
-        $esPrevia = false;
-        $motivos = [];
-
-        // 1. Escala Física por Función Comercial (R.J. 016-2018-CENEPRED/J Numeral 1.1.2)
-        if ($funcion === 'Comercio') {
-            if ($pisos !== null && $pisos > 3) {
-                $esPrevia = true;
-                $motivos[] = "Supera los 3 pisos de altura ({$pisos} pisos registrados).";
-            }
-            if ($areaM2 !== null && $areaM2 > 750.0) {
-                $esPrevia = true;
-                $motivos[] = "Supera los 750 m² de área techada ({$areaM2} m² registrados).";
-            }
-        } elseif (in_array($funcion, ['Salud', 'Educacion', 'Hospedaje', 'Industrial', 'Encuentro'])) {
-            if (($areaM2 !== null && $areaM2 > 500.0) || ($pisos !== null && $pisos > 2) || ($aforo !== null && $aforo > 100)) {
-                $esPrevia = true;
-                $motivos[] = "La función '{$funcion}' clasifica en Riesgo Alto por su escala/aforo.";
-            }
+        if (is_array($factoresRiesgo)) {
+            $usaGlp = (bool) ($factoresRiesgo['usaGlp'] ?? false);
+            $galonesGlpVal = (float) ($factoresRiesgo['galonesGlp'] ?? 0.0);
+            $usaCalderoVal = (bool) ($factoresRiesgo['usaCaldero'] ?? false);
+            $usaLiquidosInflamablesVal = (bool) ($factoresRiesgo['usaLiquidosInflamables'] ?? false);
+        } else {
+            // Compatibilidad heredada cuando el 5° parámetro es booleano
+            $usaGlp = $factoresRiesgo;
+            $galonesGlpVal = isset($legacyArgs[0]) && $legacyArgs[0] !== null ? (float) $legacyArgs[0] : 0.0;
+            $usaCalderoVal = (bool) ($legacyArgs[1] ?? false);
+            $usaLiquidosInflamablesVal = (bool) ($legacyArgs[2] ?? false);
         }
 
-        // 2. Factores Agravantes de Carga Térmica (R.J. 016-2018 Cap. I Num. 1.1.2 lit. i / D.S. 027-94-EM)
-        if ($usaCaldero) {
-            $esPrevia = true;
-            $motivos[] = 'Presencia de caldero en el establecimiento.';
-        }
+        $motivosFisicos = $this->evaluarLimitesFisicos($funcion, $areaM2, $pisos, $aforo);
+        $agravantes = $this->evaluarFactoresAgravantes($usaGlp, $galonesGlpVal, $usaCalderoVal, $usaLiquidosInflamablesVal);
 
-        if ($usaGlp && $galonesGlp > 118.18) { // > 0.45 m3
-            $esPrevia = true;
-            $motivos[] = 'Almacenamiento de GLP superior a 118.18 galones (0.45 m³).';
-        } elseif ($usaGlp && $galonesGlp <= 0) {
-            // Compatibilidad hacia atrás si solo marcaron usa_glp = true
-            $esPrevia = true;
-            $motivos[] = 'Uso de GLP comercial reportado.';
-        }
-
-        if ($usaLiquidosInflamables) {
-            $esPrevia = true;
-            $motivos[] = 'Almacenamiento o manipulación de líquidos combustibles o reactivos inflamables.';
-        }
+        $motivos = array_merge($motivosFisicos, $agravantes['motivos']);
+        $esPrevia = $motivos !== [] || $agravantes['es_previa'];
 
         return [
             'tipo_tramite' => $esPrevia ? 'EX_ANTE' : 'EX_POST',
@@ -341,17 +330,82 @@ class ItseRiskService
     }
 
     /**
+     * Evalúa los límites físicos normativos según la función del establecimiento.
+     *
+     * @return list<string>
+     */
+    private function evaluarLimitesFisicos(string $funcion, ?float $areaM2, ?int $pisos, ?int $aforo): array
+    {
+        if ($funcion === 'Comercio') {
+            $motivos = [];
+            if ($pisos !== null && $pisos > 3) {
+                $motivos[] = "Supera los 3 pisos de altura ({$pisos} pisos registrados).";
+            }
+            if ($areaM2 !== null && $areaM2 > 750.0) {
+                $motivos[] = "Supera los 750 m² de área techada ({$areaM2} m² registrados).";
+            }
+
+            return $motivos;
+        }
+
+        $funcionesRiesgoEscala = ['Salud', 'Educacion', 'Hospedaje', 'Industrial', 'Encuentro'];
+        if (in_array($funcion, $funcionesRiesgoEscala, true) && $this->superaUmbralEscalaEspecial($areaM2, $pisos, $aforo)) {
+            return ["La función '{$funcion}' clasifica en Riesgo Alto por su escala/aforo."];
+        }
+
+        return [];
+    }
+
+    private function superaUmbralEscalaEspecial(?float $areaM2, ?int $pisos, ?int $aforo): bool
+    {
+        return ($areaM2 !== null && $areaM2 > 500.0)
+            || ($pisos !== null && $pisos > 2)
+            || ($aforo !== null && $aforo > 100);
+    }
+
+    /**
+     * Evalúa los factores agravantes de carga térmica e inflamabilidad.
+     *
+     * @return array{es_previa: bool, motivos: list<string>}
+     */
+    private function evaluarFactoresAgravantes(
+        bool $usaGlp,
+        float $galonesGlp,
+        bool $usaCaldero,
+        bool $usaLiquidosInflamables
+    ): array {
+        $motivos = [];
+
+        if ($usaCaldero) {
+            $motivos[] = 'Presencia de caldero en el establecimiento.';
+        }
+
+        if ($usaGlp && $galonesGlp > 118.18) {
+            $motivos[] = 'Almacenamiento de GLP superior a 118.18 galones (0.45 m³).';
+        } elseif ($usaGlp && $galonesGlp <= 0) {
+            $motivos[] = 'Uso de GLP comercial reportado.';
+        }
+
+        if ($usaLiquidosInflamables) {
+            $motivos[] = 'Almacenamiento o manipulación de líquidos combustibles o reactivos inflamables.';
+        }
+
+        return [
+            'es_previa' => $motivos !== [],
+            'motivos' => $motivos,
+        ];
+    }
+
+    /**
      * Motor 2: Semáforo Cívico CENEPRED (Verde >= 85%, Ámbar 60-84%, Rojo < 60% o Falla Crítica).
      * Estados declarados por el ciudadano: CUMPLE, NO_CUMPLE, NA o POR_REVISAR (pendiente de revisión).
+     *
+     * @param  array<int, array<string, mixed>>  $checklist
+     * @return array{porcentaje: float, semaforo: string, tiene_falla_critica: bool, total_evaluables: int, total_cumple: int, total_por_revisar: int}
      */
     public function calcularConformidad(array $checklist): array
     {
-        $evaluables = array_filter($checklist, function ($item) {
-            $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
-
-            return $estado !== 'NA' && $estado !== 'NO_APLICA';
-        });
-
+        $evaluables = array_filter($checklist, [$this, 'esItemEvaluable']);
         $totalEvaluables = count($evaluables);
 
         if ($totalEvaluables === 0) {
@@ -365,32 +419,10 @@ class ItseRiskService
             ];
         }
 
-        $cumplidos = 0;
-        $porRevisar = 0;
-        $tieneFallaCritica = false;
-
-        foreach ($evaluables as $item) {
-            $estado = $item['estado'] ?? ($item['cumple'] ? 'CUMPLE' : 'NO_CUMPLE');
-            $esCritico = $item['es_critico'] ?? false;
-
-            if ($estado === 'CUMPLE' || $estado === 'CUMPLE_DECLARADO') {
-                $cumplidos++;
-            } elseif ($estado === 'POR_REVISAR') {
-                $porRevisar++;
-            } elseif ($esCritico) {
-                $tieneFallaCritica = true;
-            }
-        }
+        [$cumplidos, $porRevisar, $tieneFallaCritica] = $this->contabilizarEstadosChecklist($evaluables);
 
         $porcentaje = round(($cumplidos / $totalEvaluables) * 100, 1);
-
-        if ($tieneFallaCritica || $porcentaje < 60.0) {
-            $semaforo = 'ROJO';
-        } elseif ($porcentaje >= 85.0) {
-            $semaforo = 'VERDE';
-        } else {
-            $semaforo = 'AMBAR';
-        }
+        $semaforo = $this->determinarColorSemaforo($porcentaje, $tieneFallaCritica);
 
         return [
             'porcentaje' => $porcentaje,
@@ -399,6 +431,70 @@ class ItseRiskService
             'total_evaluables' => $totalEvaluables,
             'total_cumple' => $cumplidos,
             'total_por_revisar' => $porRevisar,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    private function esItemEvaluable(array $item): bool
+    {
+        $estado = $item['estado'] ?? (($item['cumple'] ?? false) ? 'CUMPLE' : 'NO_CUMPLE');
+
+        return $estado !== 'NA' && $estado !== 'NO_APLICA';
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $evaluables
+     * @return array{0: int, 1: int, 2: bool}
+     */
+    private function contabilizarEstadosChecklist(array $evaluables): array
+    {
+        $cumplidos = 0;
+        $porRevisar = 0;
+        $tieneFallaCritica = false;
+
+        foreach ($evaluables as $item) {
+            $estado = $item['estado'] ?? (($item['cumple'] ?? false) ? 'CUMPLE' : 'NO_CUMPLE');
+
+            if ($estado === 'CUMPLE' || $estado === 'CUMPLE_DECLARADO') {
+                $cumplidos++;
+            } elseif ($estado === 'POR_REVISAR') {
+                $porRevisar++;
+            } elseif ($item['es_critico'] ?? false) {
+                $tieneFallaCritica = true;
+            }
+        }
+
+        return [$cumplidos, $porRevisar, $tieneFallaCritica];
+    }
+
+    /**
+     * Determina el color del semáforo preventivo según umbrales normativos CENEPRED.
+     */
+    public function determinarColorSemaforo(float $porcentaje, bool $tieneFallaCritica = false): string
+    {
+        if ($tieneFallaCritica || $porcentaje < 60.0) {
+            return 'ROJO';
+        }
+
+        return $porcentaje >= 85.0 ? 'VERDE' : 'AMBAR';
+    }
+
+    /**
+     * Calcula el porcentaje y color de semáforo a partir de conteos normativos.
+     *
+     * @return array{porcentaje: float, semaforo: string}
+     */
+    public function calcularMetricasCumplimiento(int $totalAplicables, int $totalCumple, bool $tieneFallaCritica = false): array
+    {
+        $porcentaje = $totalAplicables > 0
+            ? round(($totalCumple / $totalAplicables) * 100, 1)
+            : 0.0;
+
+        return [
+            'porcentaje' => $porcentaje,
+            'semaforo' => $this->determinarColorSemaforo($porcentaje, $tieneFallaCritica),
         ];
     }
 

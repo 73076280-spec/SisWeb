@@ -100,7 +100,7 @@ export default function Footer() {
         <p className="mt-6 text-[11px] text-slate-500">Herramienta gratuita. Sin registros obligatorios.</p>
 
         <p className="mt-12 text-xs text-slate-400">
-          © 2026 CheckITSE Huancayo. Herramienta informativa de apoyo; no reemplaza la inspección municipal oficial.
+          © CheckITSE • Herramienta de autoevaluación preventiva según D.S. N° 002-2018-PCM
         </p>
       </div>
     </footer>

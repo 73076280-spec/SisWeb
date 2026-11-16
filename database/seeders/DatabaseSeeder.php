@@ -26,8 +26,8 @@ class DatabaseSeeder extends Seeder
         );
 
         $this->call(NormativaCatalogSeeder::class);
+        $this->call(ProveedorRecursoSeeder::class);
         $this->seedRecursosEducativos();
-        $this->seedCategoriasYProveedoresRecursos();
     }
 
     /**

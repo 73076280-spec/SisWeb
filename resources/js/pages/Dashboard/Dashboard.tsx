@@ -33,6 +33,7 @@ import { formatearNivelRiesgo } from '@/lib/riesgo';
 export interface DashboardKpis {
   readonly total_locales: number;
   readonly aprobados: number;
+  readonly sin_observaciones?: number;
   readonly observados: number;
   readonly en_proceso: number;
   readonly riesgo_dominante: string;
@@ -91,7 +92,7 @@ function hashSeed(seed: string): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
+    hash = Math.trunc(hash);
   }
   return Math.abs(hash);
 }
@@ -461,15 +462,22 @@ function LocalCard({ record }: Readonly<LocalCardProps>) {
               Informe
             </Link>
 
+            <Link
+              href={route('mis-autoevaluaciones.expediente', { uuid: record.uuid_trazabilidad })}
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+              Expediente
+            </Link>
+
             <a
               href={route('autoevaluacion.anexo', { uuid: record.uuid_trazabilidad })}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 active:scale-95"
             >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+              <ExternalLink className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
               <span>Anexos</span>
-              <ExternalLink className="h-3 w-3 text-slate-400" aria-hidden="true" />
             </a>
 
             {!esConforme && totalObservaciones > 0 && (
@@ -588,7 +596,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
               </div>
 
               <p className="mt-2 text-xs font-semibold text-emerald-900">
-                {kpis.aprobados} de {kpis.total_locales} {kpis.total_locales === 1 ? 'conforme' : 'conformes'} para trámite ITSE
+                {kpis.aprobados} de {kpis.total_locales} {kpis.total_locales === 1 ? 'local con autoevaluación conforme' : 'locales con autoevaluación conforme'}
               </p>
             </div>
           </div>
@@ -725,7 +733,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
                       : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  Conformes ({kpis.aprobados})
+                  Sin Observaciones ({kpis.aprobados})
                 </button>
 
                 <button
@@ -826,7 +834,7 @@ export default function Dashboard({ records, kpis }: Readonly<DashboardProps>) {
                         </td>
                         <td className="py-3 px-2 text-right">
                           <Link
-                            href={route('autoevaluacion.resumen', { uuid: exp.uuid_trazabilidad })}
+                            href={route('mis-autoevaluaciones.expediente', { uuid: exp.uuid_trazabilidad })}
                             className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
                           >
                             Ver Expediente

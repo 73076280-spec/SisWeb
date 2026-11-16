@@ -42,13 +42,22 @@ export function FormatoAnexo02({
 
   return (
     <article className="mx-auto w-full max-w-[210mm] border border-slate-300 bg-white p-8 text-slate-900 shadow-md print:max-w-none print:border-none print:p-0 print:shadow-none print:text-black">
-      {/* Encabezado Oficial */}
+      {/* Banner de Borrador Orientativo de Trabajo */}
+      <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/90 p-2.5 text-center text-[10px] text-amber-900 print:border-black print:bg-slate-100 print:text-black">
+        <strong className="block uppercase tracking-wider">Plantilla Orientativa de Trabajo — Borrador No Oficial Generado por CheckITSE Huancayo</strong>
+        <p className="mt-0.5 text-[9px] leading-relaxed">
+          Documento referencial de autoevaluación preventiva prellenado con datos declarados por el ciudadano (D.S. N° 002-2018-PCM / CENEPRED).
+          No constituye documento oficial, constancia de inspección, recepción por mesa de partes ni autorización emitida por la Municipalidad Provincial de Huancayo.
+        </p>
+      </div>
+
+      {/* Encabezado Normativo de Referencia */}
       <header className="border-b-2 border-slate-800 pb-3 text-center">
         <div className="flex items-center justify-between text-left text-[11px] font-semibold text-slate-600 print:text-black">
           <div>
             <p className="font-black uppercase text-slate-900 print:text-black">MUNICIPALIDAD PROVINCIAL DE HUANCAYO</p>
             <p>Gerencia de Seguridad Ciudadana y Gestión del Riesgo</p>
-            <p className="text-[10px] text-slate-500 print:text-black">Subgerencia de Gestión del Riesgo de Desastres e ITSE</p>
+            <p className="text-[10px] text-slate-500 print:text-black">Subgerencia de Gestión del Riesgo de Desastres e ITSE · Modelo Normativo</p>
           </div>
           <div className="text-right">
             <span className="rounded border border-slate-400 px-2 py-0.5 font-mono text-[10px] font-bold">
@@ -152,9 +161,9 @@ export function FormatoAnexo02({
             <div className="flex min-h-[120px] flex-col justify-between rounded border border-slate-400 p-3 text-center print:border-black">
               <div className="h-14 border-b border-dashed border-slate-300" />
               <div className="pt-1 text-[10px]">
-                <strong className="block">ÓRGANO EJECUTANTE ITSE</strong>
+                <strong className="block">ESPACIO RESERVADO PARA RECEPCIÓN MUNICIPAL</strong>
                 <span className="text-slate-500 print:text-black">Municipalidad Provincial de Huancayo</span>
-                <span className="block font-medium text-slate-600 print:text-black">Receptor / Inspector Asignado</span>
+                <span className="block font-medium text-slate-600 print:text-black">Para uso en trámite presencial / mesa de partes</span>
               </div>
             </div>
           </div>

@@ -945,7 +945,7 @@ function TarjetaCriterioPendiente({
                             <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#FF9500]/10 text-[#FF9500]">
                                 <Wrench className="h-3.5 w-3.5" />
                             </div>
-                            <span>Solución Técnica Oficial (CENEPRED / RNE)</span>
+                            <span>Orientación Técnica Normativa (CENEPRED / RNE)</span>
                             <span className="ml-2 rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[10px] text-slate-600">
                                 {accionOficial.norma}
                             </span>
@@ -1500,10 +1500,10 @@ function SeccionModalidadTramite({
                 <div className="space-y-0.5">
                     <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
                         <FileText className="h-3.5 w-3.5 text-slate-600" />
-                        Formatos Oficiales (D.S. N° 002-2018-PCM)
+                        Plantillas de Formatos Normativos (D.S. N° 002-2018-PCM)
                     </h3>
                     <p className="text-[11px] leading-tight text-slate-500">
-                        Documentos canónicos para mesa de partes de la Municipalidad Provincial de Huancayo.
+                        Plantillas orientativas de autoevaluación para preparar tu documentación previa al trámite municipal.
                     </p>
                 </div>
 
@@ -1521,8 +1521,7 @@ function SeccionModalidadTramite({
                             <div>
                                 <h4 className="text-xs font-bold text-emerald-950">Declaración Jurada ITSE (Anexo 4)</h4>
                                 <p className="mt-0.5 text-[11px] leading-tight text-emerald-800">
-                                    Formato oficial con valor legal para tramitar Licencia de Funcionamiento con inspección
-                                    técnica posterior.
+                                    Plantilla orientativa de trabajo basada en el Anexo 4 para orientar el trámite de Licencia de Funcionamiento con inspección técnica posterior.
                                 </p>
                             </div>
                             <a
@@ -1582,7 +1581,7 @@ function SeccionModalidadTramite({
                             <div>
                                 <h4 className="text-xs font-bold text-sky-950">Solicitud de ITSE Previa (Anexo 9)</h4>
                                 <p className="mt-0.5 text-[11px] leading-tight text-sky-800">
-                                    Formato oficial para programación de inspección técnica multidisciplinaria in situ.
+                                    Plantilla orientativa de trabajo basada en el formato de solicitud para la programación de inspección técnica multidisciplinaria.
                                 </p>
                             </div>
                             <a
@@ -1643,9 +1642,9 @@ function SeccionModalidadTramite({
                                         3
                                     </span>
                                     <span className="leading-snug">
-                                        <strong>Protocolo de puesta a tierra (≤ 25 Ω):</strong> Certificado de medición
+                                        <strong>Protocolo de puesta a tierra (≤ 25 Ω):</strong> Protocolo de medición
                                         vigente firmado por{' '}
-                                        <strong>Ingeniero Electricista/Mecánico-Electricista colegiado (CIP)</strong> con
+                                        <strong>Ingeniero Electricista/Mecánico-Electricista colegiado habilitado (CIP)</strong> con
                                         constancia de calibración del telurómetro.
                                     </span>
                                 </li>
@@ -1706,18 +1705,16 @@ function SeccionPronosticoDiligencia({ esApto, tipoTramite }: Readonly<SeccionPr
 
             {esApto ? (
                 <div className="space-y-1 rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 text-xs text-emerald-950">
-                    <strong className="block font-bold text-emerald-900">Pronóstico Favorable:</strong>
+                    <strong className="block font-bold text-emerald-900">Pronóstico Favorable según Autodeclaración:</strong>
                     <p>
-                        Acredita condiciones para la emisión formal del Certificado ITSE con vigencia de 2 años (D.S. N°
-                        002-2018-PCM).
+                        Las condiciones declaradas se alinean con los requisitos técnicos exigidos para el trámite de ITSE (D.S. N° 002-2018-PCM). Recuerda que este resultado no garantiza la aprobación oficial en la inspección física de la autoridad competente.
                     </p>
                 </div>
             ) : (
                 <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50/80 p-3 text-xs text-amber-950">
-                    <strong className="block font-bold text-amber-900">Diligencia con Suspensión por Acta:</strong>
+                    <strong className="block font-bold text-amber-900">Condiciones Observadas por Subsanar:</strong>
                     <p>
-                        Al presentarse observaciones, los inspectores levantarán un Acta de Diligencia otorgando plazo de subsanación
-                        de hasta {tipoTramite === 'EX_POST' ? '3 días' : '20 días'} hábiles.
+                        En una diligencia municipal presencial, las observaciones no subsanadas dan lugar a un Acta de Diligencia con plazo de subsanación de hasta {tipoTramite === 'EX_POST' ? '3 días' : '20 días'} hábiles. Te recomendamos corregirlas preventivamente antes de tu trámite.
                     </p>
                 </div>
             )}
@@ -1834,6 +1831,7 @@ interface PieSelloValidezCivicaProps {
     esRegistrada: boolean;
     tieneUsuario: boolean;
     onConfirmarClick: (triggerElement: HTMLButtonElement) => void;
+    resumen?: ResumenProps['resumen'];
 }
 
 function PieSelloValidezCivica({
@@ -1841,6 +1839,7 @@ function PieSelloValidezCivica({
     esRegistrada,
     tieneUsuario,
     onConfirmarClick,
+    resumen,
 }: Readonly<PieSelloValidezCivicaProps>) {
     return (
         <footer
@@ -1853,7 +1852,7 @@ function PieSelloValidezCivica({
                         <div className="mb-1.5 flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
                             <ShieldCheck className="h-6 w-6 stroke-[2]" />
                         </div>
-                        <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400 uppercase">CÓDIGO OFICIAL</span>
+                        <span className="font-mono text-[9px] font-bold tracking-widest text-slate-400 uppercase">CÓDIGO DE REGISTRO</span>
                         <span className="mt-0.5 font-mono text-xs font-black tracking-wider text-emerald-400">
                             {autoevaluacion.codigo_acceso || 'CHK-ITSE'}
                         </span>
@@ -1892,13 +1891,25 @@ function PieSelloValidezCivica({
                             <ArrowRight className="h-4 w-4" />
                         </button>
                     ) : (
-                        <Link
-                            href={route('autoevaluacion.informe', { uuid: autoevaluacion.uuid })}
-                            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-md transition hover:bg-emerald-600"
-                        >
-                            <FileText className="h-4 w-4" />
-                            <span>Ver Informe Preventivo</span>
-                        </Link>
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            <Link
+                                href={route('autoevaluacion.informe', { uuid: autoevaluacion.uuid })}
+                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-md transition hover:bg-emerald-600"
+                            >
+                                <FileText className="h-4 w-4" />
+                                <span>Ver Informe Preventivo</span>
+                            </Link>
+
+                            {(resumen?.total_pendiente_atender ?? 0) > 0 && (
+                                <Link
+                                    href={route('autoevaluacion.subsanar_items', { uuid: autoevaluacion.uuid })}
+                                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-sm font-bold text-slate-950 shadow-md transition hover:bg-amber-600 active:scale-95"
+                                >
+                                    <Wrench className="h-4 w-4" />
+                                    <span>Subsanar Observaciones ({resumen?.total_pendiente_atender})</span>
+                                </Link>
+                            )}
+                        </div>
                     )}
 
                     <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1911,13 +1922,23 @@ function PieSelloValidezCivica({
                         </Link>
 
                         {tieneUsuario && (
-                            <Link
-                                href={route('mis-autoevaluaciones')}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
-                            >
-                                <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                                <span>Mis Autoevaluaciones</span>
-                            </Link>
+                            <>
+                                <Link
+                                    href={route('mis-autoevaluaciones')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                                >
+                                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>Mis Autoevaluaciones</span>
+                                </Link>
+
+                                <Link
+                                    href={route('mis-autoevaluaciones.expediente', { uuid: autoevaluacion.uuid })}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                                >
+                                    <FileCheck className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>Ver Expediente</span>
+                                </Link>
+                            </>
                         )}
 
                         {esRegistrada && (
@@ -1941,6 +1962,9 @@ function PieSelloValidezCivica({
                         fecha={autoevaluacion.registrada_at ? `Sellado: ${new Date(autoevaluacion.registrada_at).toLocaleString('es-PE')}` : undefined}
                         esInmutable={true}
                     />
+                    <div className="rounded-xl border border-slate-700/60 bg-slate-800/50 px-3 py-1.5 text-[11px] text-slate-300">
+                        <strong className="text-emerald-400">Diagnóstico Inicial Inmutable:</strong> Este registro base está protegido criptográficamente. Las subsanaciones posteriores se administran en su propio espacio operativo sin modificar el snapshot inicial.
+                    </div>
                 </div>
             )}
         </footer>
@@ -2422,6 +2446,7 @@ export default function Resumen({
                         autoevaluacion={autoevaluacion}
                         esRegistrada={esRegistrada}
                         tieneUsuario={Boolean(auth?.user)}
+                        resumen={resumen}
                         onConfirmarClick={(triggerElement) => {
                             triggerRef.current = triggerElement;
                             setErrorFinalizar(null);

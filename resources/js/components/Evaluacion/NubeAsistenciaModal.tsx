@@ -56,9 +56,9 @@ export interface CriterioAsistencia {
 }
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  criterio: CriterioAsistencia | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly criterio: CriterioAsistencia | null;
 }
 
 type PestanaId = 'autoayuda' | 'directorio' | 'costo';
@@ -95,7 +95,7 @@ function enlaceWhatsApp(numero: string | null | undefined, mensaje: string): str
 
 function guiaComoLista(valor: string | string[] | null | undefined): string[] {
   if (!valor) return [];
-  if (Array.isArray(valor)) return valor.filter((paso): paso is string => Boolean(paso && paso.trim()));
+  if (Array.isArray(valor)) return valor.filter((paso): paso is string => Boolean(paso?.trim()));
 
   return valor
     .split('\n')
@@ -117,7 +117,29 @@ function rangoComoTexto(valor: string | RangoCostoReferencial | null | undefined
   return typeof referencia === 'number' ? FORMATO_SOLES.format(referencia) : null;
 }
 
-export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio }) => {
+function renderInsigniaAliado(aliado: AliadoAsistencia) {
+  if (aliado.acreditacion) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-900">
+        <ShieldCheck className="h-3 w-3 text-sky-600" />
+        {aliado.acreditacion}
+      </span>
+    );
+  }
+
+  if (aliado.verificado) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+        <ShieldCheck className="h-3 w-3 text-emerald-600" />
+        {ETIQUETA_VERIFICACION}
+      </span>
+    );
+  }
+
+  return null;
+}
+
+export const NubeAsistenciaModal: React.FC<Readonly<Props>> = ({ isOpen, onClose, criterio }: Readonly<Props>) => {
   const [pestanaActiva, setPestanaActiva] = useState<PestanaId>('autoayuda');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -157,7 +179,9 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
       if (enfocables.length === 0) return;
 
       const primero = enfocables[0];
-      const ultimo = enfocables[enfocables.length - 1];
+      const ultimo = enfocables.at(-1);
+
+      if (!primero || !ultimo) return;
 
       if (event.shiftKey && document.activeElement === primero) {
         event.preventDefault();
@@ -200,17 +224,21 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="nube-asistencia-titulo"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity cursor-default"
+      />
       <div
         ref={panelRef}
-        className="bg-white w-full max-w-3xl max-h-[85vh] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 shadow-2xl text-left"
-        onClick={(event) => event.stopPropagation()}
+        className="relative z-10 bg-white w-full max-w-3xl max-h-[85vh] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 shadow-2xl text-left"
       >
         {/* Encabezado institucional */}
         <header className="flex items-start justify-between gap-4 bg-slate-900 px-5 py-4 sm:px-6 sm:py-5 rounded-t-2xl">
@@ -382,17 +410,7 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
                             <p className="mt-0.5 text-[11px] text-slate-500">{aliado.contacto_nombre}</p>
                           )}
                         </div>
-                        {aliado.acreditacion ? (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-900">
-                            <ShieldCheck className="h-3 w-3 text-sky-600" />
-                            {aliado.acreditacion}
-                          </span>
-                        ) : aliado.verificado ? (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-                            <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                            {ETIQUETA_VERIFICACION}
-                          </span>
-                        ) : null}
+                        {renderInsigniaAliado(aliado)}
                       </div>
 
                       {aliado.especialidad_texto && (
@@ -412,7 +430,7 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
                         <div className="mt-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-[11px] text-emerald-950">
                           <div className="flex items-center gap-1 font-bold text-emerald-900">
                             <FileCheck className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
-                            <span>Entregable Oficial (MPH):</span>
+                            <span>Documentación Técnica para Trámite (Formato Normativo):</span>
                           </div>
                           <p className="mt-0.5 leading-relaxed text-emerald-900 font-medium">
                             {aliado.entregable_oficial}
@@ -538,6 +556,6 @@ export const NubeAsistenciaModal: React.FC<Props> = ({ isOpen, onClose, criterio
           </button>
         </footer>
       </div>
-    </div>
+    </dialog>
   );
 };

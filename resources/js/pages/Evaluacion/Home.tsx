@@ -1,6 +1,13 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { GuiaModal } from '@/components/GuiaModal';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
 import {
   AlertTriangle,
   ArrowRight,
@@ -51,7 +58,7 @@ const GIROS_DISPONIBLES = [
 
 const AREA_MAXIMA_EX_POST = 750;
 const AFORO_MAXIMO_GIRO_ESPECIAL = 100;
-const GIROS_ESPECIALES = ['Hospedaje', 'Salud'];
+const GIROS_ESPECIALES = new Set<string>(['Hospedaje', 'Salud']);
 
 /**
  * Estimación orientativa y exclusivamente local para la landing pública.
@@ -70,7 +77,7 @@ function estimarRiesgoOrientativo(giro: string, area: number | null, aforo: numb
     factores.push(`Área techada de ${area} m², superior al máximo de ${AREA_MAXIMA_EX_POST} m²`);
   }
 
-  const esGiroEspecial = GIROS_ESPECIALES.includes(giro);
+  const esGiroEspecial = GIROS_ESPECIALES.has(giro);
   const excedeAforoEspecial = esGiroEspecial && aforo !== null && aforo > AFORO_MAXIMO_GIRO_ESPECIAL;
   if (excedeAforoEspecial) {
     factores.push(`Aforo de ${aforo} personas en giro de ${giro.toLowerCase()}, sobre el límite de ${AFORO_MAXIMO_GIRO_ESPECIAL}`);
@@ -140,10 +147,10 @@ const MODALIDADES_RESUMEN: { etiqueta: string; descripcion: string; tono: string
 ];
 
 const SEMAFORO_CONFIG: Record<string, { fondo: string; texto: string; borde: string }> = {
-  Bajo: { fondo: 'bg-emerald-50', texto: 'text-emerald-900', borde: 'border-emerald-200' },
-  Medio: { fondo: 'bg-amber-50', texto: 'text-amber-900', borde: 'border-amber-200' },
-  Alto: { fondo: 'bg-rose-50', texto: 'text-rose-900', borde: 'border-rose-200' },
-  'Muy Alto': { fondo: 'bg-rose-100', texto: 'text-rose-950', borde: 'border-rose-300' },
+  Bajo: { fondo: 'bg-[#34C759]/10', texto: 'text-[#1B7931]', borde: 'border-[#34C759]/30' },
+  Medio: { fondo: 'bg-[#FF9500]/10', texto: 'text-[#A05D00]', borde: 'border-[#FF9500]/30' },
+  Alto: { fondo: 'bg-[#FF3B30]/10', texto: 'text-[#C9251D]', borde: 'border-[#FF3B30]/30' },
+  'Muy Alto': { fondo: 'bg-[#FF3B30]/15', texto: 'text-[#C9251D]', borde: 'border-[#FF3B30]/40' },
 };
 
 const PASOS = [
@@ -261,8 +268,6 @@ export default function Home() {
   const [aforo, setAforo] = useState<string>('');
   const [estimacion, setEstimacion] = useState<EstimacionOrientativa | null>(null);
   const [errorEstimacion, setErrorEstimacion] = useState<string | null>(null);
-  const [tabActiva, setTabActiva] = useState<'ex_post' | 'ex_ante'>('ex_post');
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const calcularRiesgo = (e: FormEvent) => {
     e.preventDefault();
@@ -286,16 +291,6 @@ export default function Home() {
     setEstimacion(estimarRiesgoOrientativo(giro, areaNum, aforoNum));
   };
 
-  const manejarTeclaTabs = (e: KeyboardEvent, destino: 'ex_post' | 'ex_ante') => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') {
-      return;
-    }
-
-    e.preventDefault();
-    setTabActiva(destino);
-    tabRefs.current[destino]?.focus();
-  };
-
   return (
     <>
       <Head title="CheckITSE Huancayo - Simulador preventivo de Inspección Técnica de Seguridad" />
@@ -305,8 +300,9 @@ export default function Home() {
       {/* HERO ASIMÉTRICO — columna de mensaje + consola de diagnóstico  */}
       {/* ============================================================ */}
       <section
+        id="que-es"
         aria-labelledby="hero-titulo"
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-slate-50 via-white to-slate-50 py-16 sm:py-24"
+        className="relative scroll-mt-24 overflow-hidden rounded-2xl bg-gradient-to-b from-slate-50 via-white to-slate-50 py-16 sm:py-24"
       >
         <div
           className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl"
@@ -322,15 +318,15 @@ export default function Home() {
           <div>
             <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               <span className="h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-              Simulación Preventiva ITSE Huancayo 2026
+              <span>Simulación Preventiva ITSE Huancayo 2026</span>
             </span>
 
             <h1
               id="hero-titulo"
               className="text-4xl font-black tracking-tight leading-[1.15] text-slate-900 sm:text-5xl lg:text-6xl"
             >
-              Diagnóstico ITSE preciso para tu local,{' '}
-              <span className="text-emerald-600">antes de la inspección.</span>
+              Seguridad preventiva en tu negocio,{' '}
+              <span className="text-emerald-600">identificando observaciones antes de tu trámite ITSE.</span>
             </h1>
 
             <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">
@@ -356,7 +352,7 @@ export default function Home() {
             </div>
 
             <p className="mt-4 max-w-md text-xs leading-relaxed text-slate-500">
-              Puedes comenzar de forma anónima y sin registrarte. Herramienta cívica gratuita y orientativa.
+              Puedes autoevaluarte como invitado sin registrarte de inmediato; tus datos se guardan en tu sesión y podrás vincularlos a tu cuenta cuando lo desees.
             </p>
 
             <dl className="mt-10 grid grid-cols-3 gap-4 border-t border-slate-200/70 pt-8">
@@ -392,7 +388,7 @@ export default function Home() {
 
                 <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
-                  Diagnóstico tipo
+                  <span>Diagnóstico tipo</span>
                 </span>
               </div>
 
@@ -740,155 +736,125 @@ export default function Home() {
       </section>
 
       {/* ============================================================ */}
-      {/* MINI-GUÍA INTERACTIVA (TABS)                                */}
+      {/* MINI-GUÍA INTERACTIVA (SHADCN TABS)                         */}
       {/* ============================================================ */}
-      <section id="normativa" aria-labelledby="normativa-titulo" className="mt-12 scroll-mt-24">
+      <section id="normativa" aria-labelledby="normativa-titulo" className="mt-16 scroll-mt-24">
         <div className="max-w-2xl">
-          <span className="text-[11px] font-bold tracking-wider text-emerald-700">Cumplimiento normativo</span>
-          <h2 id="normativa-titulo" className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+          <span className="text-[11px] font-bold tracking-wider text-[#34C759] uppercase">Cumplimiento normativo</span>
+          <h2 id="normativa-titulo" className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
             ¿Ex-Post o Ex-Ante? Así se define tu trámite
           </h2>
-          <p className="mt-2 text-sm text-slate-600 sm:text-base">
+          <p className="mt-2 text-base text-slate-600">
             La modalidad de la Inspección Técnica de Seguridad en Edificaciones depende de tu función y escala física.
           </p>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
-          <div role="tablist" aria-label="Modalidad de la Inspección Técnica de Seguridad" className="flex flex-col gap-2 rounded-xl bg-slate-100 p-1.5 sm:flex-row">
-            <button
-              ref={el => {
-                tabRefs.current.ex_post = el;
-              }}
-              type="button"
-              role="tab"
-              id="tab-ex-post"
-              aria-selected={tabActiva === 'ex_post'}
-              aria-controls="panel-ex-post"
-              tabIndex={tabActiva === 'ex_post' ? 0 : -1}
-              onClick={() => setTabActiva('ex_post')}
-              onKeyDown={e => manejarTeclaTabs(e, 'ex_ante')}
-              className={`flex-1 cursor-pointer rounded-lg px-4 py-3 text-left text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:text-center ${
-                tabActiva === 'ex_post' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Riesgo Bajo / Medio · Ex-Post
-            </button>
-            <button
-              ref={el => {
-                tabRefs.current.ex_ante = el;
-              }}
-              type="button"
-              role="tab"
-              id="tab-ex-ante"
-              aria-selected={tabActiva === 'ex_ante'}
-              aria-controls="panel-ex-ante"
-              tabIndex={tabActiva === 'ex_ante' ? 0 : -1}
-              onClick={() => setTabActiva('ex_ante')}
-              onKeyDown={e => manejarTeclaTabs(e, 'ex_post')}
-              className={`flex-1 cursor-pointer rounded-lg px-4 py-3 text-left text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 sm:text-center ${
-                tabActiva === 'ex_ante' ? 'bg-white text-rose-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Riesgo Alto / Muy Alto · Ex-Ante
-            </button>
-          </div>
+        <div className="mt-8 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_4px_24px_rgba(0,0,0,0.03)] sm:p-10">
+          <Tabs defaultValue="ex_post" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 rounded-2xl p-1 bg-slate-100">
+              <TabsTrigger
+                value="ex_post"
+                className="rounded-xl py-3 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-[#1B7931] data-[state=active]:shadow-sm"
+              >
+                Riesgo Bajo / Medio · Ex-Post
+              </TabsTrigger>
+              <TabsTrigger
+                value="ex_ante"
+                className="rounded-xl py-3 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-[#C9251D] data-[state=active]:shadow-sm"
+              >
+                Riesgo Alto / Muy Alto · Ex-Ante
+              </TabsTrigger>
+            </TabsList>
 
-          {tabActiva === 'ex_post' && (
-            <div
-              role="tabpanel"
-              id="panel-ex-post"
-              aria-labelledby="tab-ex-post"
-              tabIndex={0}
-              className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-5 sm:p-6"
-            >
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-extrabold tracking-wider text-emerald-800 uppercase">
-                  Riesgo Bajo / Medio
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-900">
-                  <Clock className="h-3 w-3" />
-                  ITSE Posterior (Ex-Post)
-                </span>
+            <TabsContent value="ex_post" className="mt-6">
+              <div className="rounded-2xl border border-[#34C759]/30 bg-[#34C759]/5 p-6 sm:p-8">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#34C759]/20 px-3 py-1 text-[11px] font-extrabold tracking-wider text-[#1B7931] uppercase">
+                    Riesgo Bajo / Medio
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#34C759]/30 bg-white px-3 py-1 text-[11px] font-bold text-[#1B7931]">
+                    <Clock className="h-3 w-3" />
+                    ITSE Posterior (Ex-Post)
+                  </span>
+                </div>
+
+                <h3 className="mt-4 text-xl font-black text-slate-900">
+                  Tu licencia se tramita antes de la verificación
+                </h3>
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700">
+                  Aplica a comercios con área techada de hasta 750 m² y hasta 3 pisos, sin factores agravantes. La Licencia de
+                  Funcionamiento se tramita previamente y la verificación técnica se realiza con posterioridad.
+                </p>
+
+                <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {[
+                    'Área techada igual o menor a 750 m².',
+                    'Hasta 3 pisos de altura.',
+                    'Sin factores agravantes (calderos, GLP, giros especiales).',
+                    'Licencia tramita antes; la ITSE se verifica después.',
+                  ].map(item => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2.5 rounded-2xl border border-slate-200/80 bg-white/90 p-4 text-xs font-medium leading-relaxed text-slate-800 shadow-xs"
+                    >
+                      <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#34C759]" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+
+                <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                  Los plazos concretos dependen de la entidad municipal y de la demanda de solicitudes vigente.
+                </p>
               </div>
+            </TabsContent>
 
-              <h3 className="mt-3.5 text-base font-extrabold text-emerald-950">Tu licencia se tramita antes de la verificación</h3>
-              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-emerald-900/90">
-                Aplica a comercios con área techada de hasta 750 m² y hasta 3 pisos, sin factores agravantes. La Licencia de
-                Funcionamiento se tramita previamente y la verificación técnica se realiza con posterioridad.
-              </p>
+            <TabsContent value="ex_ante" className="mt-6">
+              <div className="rounded-2xl border border-[#FF3B30]/30 bg-[#FF3B30]/5 p-6 sm:p-8">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FF3B30]/20 px-3 py-1 text-[11px] font-extrabold tracking-wider text-[#C9251D] uppercase">
+                    Riesgo Alto / Muy Alto
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FF3B30]/30 bg-white px-3 py-1 text-[11px] font-bold text-[#C9251D]">
+                    <AlertTriangle className="h-3 w-3" />
+                    ITSE Previa (Ex-Ante)
+                  </span>
+                </div>
 
-              <ul className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {[
-                  'Área techada igual o menor a 750 m².',
-                  'Hasta 3 pisos de altura.',
-                  'Sin factores agravantes (calderos, GLP, giros especiales).',
-                  'Licencia tramita antes; la ITSE se verifica después.',
-                ].map(item => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-white/70 px-3 py-2.5 text-xs leading-relaxed text-emerald-900"
-                  >
-                    <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+                <h3 className="mt-4 text-xl font-black text-slate-900">
+                  Necesitas inspección técnica favorable previa
+                </h3>
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700">
+                  Aplica cuando el área supera los 750 m², cuando hay más de 3 pisos, en giros especiales (hospedaje o salud
+                  con más de 100 personas), o cuando existen calderos o GLP por encima de 118.18 galones. Exige inspección
+                  técnica favorable previa a la licencia.
+                </p>
 
-              <p className="mt-4 text-[11px] leading-relaxed text-emerald-900/70">
-                Los plazos concretos dependen de la entidad municipal y de la demanda de solicitudes vigente.
-              </p>
-            </div>
-          )}
+                <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {[
+                    'Área techada superior a 750 m².',
+                    'Más de 3 pisos de altura.',
+                    'Giros de hospedaje o salud con aforo mayor a 100 personas.',
+                    'Presencia de calderos o GLP por encima de 118.18 galones.',
+                  ].map(item => (
+                    <li
+                      key={item}
+                      className="flex items-start gap-2.5 rounded-2xl border border-slate-200/80 bg-white/90 p-4 text-xs font-medium leading-relaxed text-slate-800 shadow-xs"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FF3B30]" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
 
-          {tabActiva === 'ex_ante' && (
-            <div
-              role="tabpanel"
-              id="panel-ex-ante"
-              aria-labelledby="tab-ex-ante"
-              tabIndex={0}
-              className="mt-6 rounded-xl border border-rose-200 bg-rose-50/60 p-5 sm:p-6"
-            >
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-extrabold tracking-wider text-rose-900 uppercase">
-                  Riesgo Alto / Muy Alto
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-bold text-rose-900">
-                  <AlertTriangle className="h-3 w-3" />
-                  ITSE Previa (Ex-Ante)
-                </span>
+                <p className="mt-4 text-xs leading-relaxed text-slate-500">
+                  Prepararte con tiempo en esta modalidad reduce la posibilidad de postergar el inicio de tus actividades.
+                </p>
               </div>
+            </TabsContent>
+          </Tabs>
 
-              <h3 className="mt-3.5 text-base font-extrabold text-rose-950">Necesitas inspección técnica favorable previa</h3>
-              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-rose-950/90">
-                Aplica cuando el área supera los 750 m², cuando hay más de 3 pisos, en giros especiales (hospedaje o salud
-                con más de 100 personas), o cuando existen calderos o GLP por encima de 118.18 galones. Exige inspección
-                técnica favorable previa a la licencia.
-              </p>
-
-              <ul className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {[
-                  'Área techada superior a 750 m².',
-                  'Más de 3 pisos de altura.',
-                  'Giros de hospedaje o salud con aforo mayor a 100 personas.',
-                  'Presencia de calderos o GLP por encima de 118.18 galones.',
-                ].map(item => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-2 rounded-xl border border-rose-100 bg-white/70 px-3 py-2.5 text-xs leading-relaxed text-rose-950"
-                  >
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-600" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-
-              <p className="mt-4 text-[11px] leading-relaxed text-rose-900/70">
-                Prepararte con tiempo en esta modalidad reduce la posibilidad de postergar el inicio de tus actividades.
-              </p>
-            </div>
-          )}
-
-          <p className="mt-5 text-[11px] leading-relaxed text-slate-500">
+          <p className="mt-6 text-[11px] leading-relaxed text-slate-500">
             Compendio normativo de referencia:{' '}
             <strong className="font-semibold text-slate-700">D.S. N° 002-2018-PCM</strong> y{' '}
             <strong className="font-semibold text-slate-700">R.J. N° 016-2018-CENEPRED/J</strong>. Esta clasificación es
@@ -900,35 +866,35 @@ export default function Home() {
       {/* ============================================================ */}
       {/* 5 ÁREAS NORMATIVAS                                          */}
       {/* ============================================================ */}
-      <section aria-labelledby="areas-titulo" className="mt-12">
+      <section aria-labelledby="areas-titulo" className="mt-16">
         <div className="max-w-2xl">
-          <span className="text-[11px] font-bold tracking-wider text-emerald-700">Criterios técnicos normativos</span>
-          <h2 id="areas-titulo" className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+          <span className="text-[11px] font-bold tracking-wider text-[#34C759] uppercase">Criterios técnicos normativos</span>
+          <h2 id="areas-titulo" className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
             5 áreas de seguridad evaluadas en tu local
           </h2>
-          <p className="mt-2 text-sm text-slate-600 sm:text-base">
+          <p className="mt-2 text-base text-slate-600">
             El sistema evalúa criterios técnicos basados en el Manual de Ejecución de ITSE y el RNE, adaptados a lo que
             realmente tiene tu comercio:
           </p>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {AREAS_NORMATIVAS.map(area => {
             const Icono = area.icono;
             return (
               <article
                 key={area.titulo}
-                className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:shadow-md"
+                className="flex flex-col justify-between rounded-3xl border border-slate-200/80 bg-white p-7 shadow-[0_4px_20px_rgba(0,0,0,0.02)] transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.05)]"
               >
                 <div>
-                  <span className={`w-fit rounded-xl border p-2.5 ${area.tono}`}>
+                  <span className={`w-fit rounded-2xl border p-3 inline-flex ${area.tono}`}>
                     <Icono className="h-5 w-5" />
                   </span>
-                  <h3 className="mt-4 text-base font-bold text-slate-900">{area.titulo}</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600 sm:text-sm">{area.descripcion}</p>
+                  <h3 className="mt-5 text-lg font-black text-slate-900">{area.titulo}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{area.descripcion}</p>
                 </div>
-                <p className="mt-4 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500">
-                  <CircleCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                <p className="mt-6 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-500">
+                  <CircleCheck className="h-4 w-4 shrink-0 text-[#34C759]" />
                   <span>{area.etiqueta}</span>
                 </p>
               </article>
@@ -938,25 +904,31 @@ export default function Home() {
       </section>
 
       {/* ============================================================ */}
-      {/* PREGUNTAS FRECUENTES                                       */}
+      {/* PREGUNTAS FRECUENTES (SHADCN ACCORDION)                     */}
       {/* ============================================================ */}
-      <section aria-labelledby="faq-titulo" className="mt-12">
-        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
+      <section aria-labelledby="faq-titulo" className="mt-16">
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_4px_24px_rgba(0,0,0,0.03)] sm:p-10">
           <div className="mb-2 flex items-center gap-2">
-            <CircleHelp className="h-5 w-5 text-emerald-600" />
-            <span className="text-[11px] font-bold tracking-wider text-emerald-700">Dudas habituales</span>
+            <CircleHelp className="h-5 w-5 text-[#34C759]" />
+            <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">Dudas habituales</span>
           </div>
-          <h2 id="faq-titulo" className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
+          <h2 id="faq-titulo" className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
             Preguntas frecuentes sobre CheckITSE Huancayo
           </h2>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            {PREGUNTAS_FRECUENTES.map(pregunta => (
-              <div key={pregunta.titulo} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h3 className="text-sm font-bold text-slate-900">{pregunta.titulo}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-600 sm:text-sm">{pregunta.respuesta}</p>
-              </div>
-            ))}
+          <div className="mt-6">
+            <Accordion type="single" collapsible className="w-full divide-y divide-slate-100">
+              {PREGUNTAS_FRECUENTES.map((pregunta, idx) => (
+                <AccordionItem key={pregunta.titulo} value={`faq-${idx}`} className="border-b border-slate-100 py-2">
+                  <AccordionTrigger className="text-left font-bold text-slate-900 text-sm hover:no-underline hover:text-[#1B7931] transition-colors py-4">
+                    {pregunta.titulo}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-slate-600 text-sm leading-relaxed pb-4">
+                    {pregunta.respuesta}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </div>
         </div>
       </section>
@@ -1001,11 +973,10 @@ export default function Home() {
         <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm md:flex-row md:items-center sm:p-8">
           <div>
             <h2 id="puente-proveedores-titulo" className="text-2xl leading-tight font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-              ¿Necesitas corregir algo? Proveedores locales de confianza
+              ¿Necesitas corregir algo? Directorio técnico y recursos locales
             </h2>
             <p className="mt-3 max-w-2xl text-sm text-slate-600 sm:text-base">
-              Electricistas certificados, recarga de extintores y señalética de evacuación, todos de Huancayo y con
-              respaldo.
+              Servicios técnicos independientes de electricidad, recarga de extintores y señalética en Huancayo para orientar tus mejoras preventivas.
             </p>
           </div>
 

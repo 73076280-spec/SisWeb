@@ -5,10 +5,20 @@ namespace App\Services;
 use App\Models\Autoevaluacion;
 use App\Models\CriterioNormativo;
 use App\Models\RespuestaAutoevaluacion;
+use App\Services\Evaluacion\IntegridadEvaluacionService;
+use App\Services\Traits\ApplicabilityEvaluationHelpersTrait;
 use Illuminate\Support\Collection;
 
 class ApplicabilityEngineService
 {
+    use ApplicabilityEvaluationHelpersTrait;
+
+    public function __construct(
+        protected ?IntegridadEvaluacionService $integridadService = null
+    ) {
+        $this->integridadService ??= app(IntegridadEvaluacionService::class);
+    }
+
     /**
      * Estados canónicos de respuesta autorizados por el modelo cerrado de CheckITSE.
      */
@@ -64,6 +74,38 @@ class ApplicabilityEngineService
         'CRIT-15',
         'CRIT-16',
         'CRIT-17',
+    ];
+
+    /**
+     * Reglas declarativas para criterios condicionales gobernados por variables booleanas.
+     *
+     * @var array<string, array{campo: string, motivo_false: string, motivo_true: string, motivo_null: string}>
+     */
+    private const REGLAS_CRITERIOS_CONDICIONALES = [
+        'CRIT-10' => [
+            'campo' => 'usa_glp',
+            'motivo_false' => 'El establecimiento declaró expresamente no utilizar GLP (usa_glp = false).',
+            'motivo_true' => 'Aplica por declaración expresa de uso de GLP (usa_glp = true).',
+            'motivo_null' => 'Información sobre GLP pendiente de declaración (usa_glp = null). NULL ≠ false y NULL ≠ NO_APLICA; se requiere información para determinar aplicabilidad.',
+        ],
+        'CRIT-02A' => [
+            'campo' => 'tiene_equipos_fritura',
+            'motivo_false' => 'El establecimiento declaró expresamente no contar con equipos de fritura ni cocción con aceites/grasas (tiene_equipos_fritura = false).',
+            'motivo_true' => 'Aplica por declaración expresa de uso de equipos de fritura o cocción con aceites/grasas (tiene_equipos_fritura = true).',
+            'motivo_null' => 'Información sobre equipos de fritura o cocción pendiente de declaración (tiene_equipos_fritura = null). NULL ≠ false y NULL ≠ NO_APLICA; se requiere información para determinar aplicabilidad.',
+        ],
+        'CRIT-11' => [
+            'campo' => 'tiene_escaleras',
+            'motivo_false' => 'El establecimiento declaró expresamente no contar con escaleras de circulación (tiene_escaleras = false).',
+            'motivo_true' => 'Aplica por declaración expresa de existencia física de escaleras de circulación en el establecimiento (tiene_escaleras = true).',
+            'motivo_null' => 'Información sobre existencia de escaleras de circulación pendiente de declaración (tiene_escaleras = null). NULL ≠ false y NULL ≠ NO_APLICA; no se infiere de pisos ni se asume aplicable automáticamente.',
+        ],
+        'CRIT-13' => [
+            'campo' => 'tiene_estanterias_altas',
+            'motivo_false' => 'El establecimiento declaró expresamente no contar con estanterías altas ni mobiliario con riesgo de volteo (tiene_estanterias_altas = false).',
+            'motivo_true' => 'Aplica por declaración expresa de uso de estanterías, anaqueles o mobiliario alto con riesgo de volteo (tiene_estanterias_altas = true).',
+            'motivo_null' => 'Información sobre estanterías o mobiliario alto pendiente de declaración (tiene_estanterias_altas = null). NULL ≠ false y NULL ≠ NO_APLICA; sin regla de altura métrica arbitraria ni aplicabilidad universal automática.',
+        ],
     ];
 
     /**
@@ -200,214 +242,30 @@ class ApplicabilityEngineService
 
         $params = $this->normalizarContexto($contexto);
 
-        // 1. CRIT-10: Instalación segura de GLP (usa_glp)
-        if ($codigo === 'CRIT-10') {
-            $usaGlp = $params['usa_glp'];
+        if (isset(self::REGLAS_CRITERIOS_CONDICIONALES[$codigo])) {
+            $regla = self::REGLAS_CRITERIOS_CONDICIONALES[$codigo];
 
-            if ($usaGlp === false) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => false,
-                    'estado_sugerido' => self::ESTADO_NO_APLICA,
-                    'requiere_informacion' => false,
-                    'motivo' => 'El establecimiento declaró expresamente no utilizar GLP (usa_glp = false).',
-                ];
-            }
-
-            if ($usaGlp === true) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => true,
-                    'estado_sugerido' => null,
-                    'requiere_informacion' => false,
-                    'motivo' => 'Aplica por declaración expresa de uso de GLP (usa_glp = true).',
-                ];
-            }
-
-            // usaGlp === null: NULL ≠ false ≠ NO_APLICA. Información insuficiente.
-            return [
-                'codigo' => $codigo,
-                'criterio_id' => $criterio->id,
-                'titulo' => $criterio->titulo,
-                'tipo_criterio' => $criterio->tipo_criterio,
-                'activo' => true,
-                'aplicable' => null,
-                'estado_sugerido' => null,
-                'requiere_informacion' => true,
-                'motivo' => 'Información sobre GLP pendiente de declaración (usa_glp = null). NULL ≠ false y NULL ≠ NO_APLICA; se requiere información para determinar aplicabilidad.',
-            ];
+            return $this->evaluarCriterioCondicional($criterio, $params[$regla['campo']], $regla);
         }
 
-        // 2. CRIT-02A: Extintor especializado Clase K (tiene_equipos_fritura)
-        if ($codigo === 'CRIT-02A') {
-            $tieneEquiposFritura = $params['tiene_equipos_fritura'];
-
-            if ($tieneEquiposFritura === false) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => false,
-                    'estado_sugerido' => self::ESTADO_NO_APLICA,
-                    'requiere_informacion' => false,
-                    'motivo' => 'El establecimiento declaró expresamente no contar con equipos de fritura ni cocción con aceites/grasas (tiene_equipos_fritura = false).',
-                ];
-            }
-
-            if ($tieneEquiposFritura === true) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => true,
-                    'estado_sugerido' => null,
-                    'requiere_informacion' => false,
-                    'motivo' => 'Aplica por declaración expresa de uso de equipos de fritura o cocción con aceites/grasas (tiene_equipos_fritura = true).',
-                ];
-            }
-
-            return [
-                'codigo' => $codigo,
-                'criterio_id' => $criterio->id,
-                'titulo' => $criterio->titulo,
-                'tipo_criterio' => $criterio->tipo_criterio,
-                'activo' => true,
-                'aplicable' => null,
-                'estado_sugerido' => null,
-                'requiere_informacion' => true,
-                'motivo' => 'Información sobre equipos de fritura o cocción pendiente de declaración (tiene_equipos_fritura = null). NULL ≠ false y NULL ≠ NO_APLICA; se requiere información para determinar aplicabilidad.',
-            ];
-        }
-
-        // 3. CRIT-11: Escaleras con pasamanos y peldaños antideslizantes (tiene_escaleras)
-        if ($codigo === 'CRIT-11') {
-            $tieneEscaleras = $params['tiene_escaleras'];
-
-            if ($tieneEscaleras === false) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => false,
-                    'estado_sugerido' => self::ESTADO_NO_APLICA,
-                    'requiere_informacion' => false,
-                    'motivo' => 'El establecimiento declaró expresamente no contar con escaleras de circulación (tiene_escaleras = false).',
-                ];
-            }
-
-            if ($tieneEscaleras === true) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => true,
-                    'estado_sugerido' => null,
-                    'requiere_informacion' => false,
-                    'motivo' => 'Aplica por declaración expresa de existencia física de escaleras de circulación en el establecimiento (tiene_escaleras = true).',
-                ];
-            }
-
-            return [
-                'codigo' => $codigo,
-                'criterio_id' => $criterio->id,
-                'titulo' => $criterio->titulo,
-                'tipo_criterio' => $criterio->tipo_criterio,
-                'activo' => true,
-                'aplicable' => null,
-                'estado_sugerido' => null,
-                'requiere_informacion' => true,
-                'motivo' => 'Información sobre existencia de escaleras de circulación pendiente de declaración (tiene_escaleras = null). NULL ≠ false y NULL ≠ NO_APLICA; no se infiere de pisos ni se asume aplicable automáticamente.',
-            ];
-        }
-
-        // 4. CRIT-13: Mobiliario alto y estanterías con arriostramiento antisísmico (tiene_estanterias_altas)
-        if ($codigo === 'CRIT-13') {
-            $tieneEstanteriasAltas = $params['tiene_estanterias_altas'];
-
-            if ($tieneEstanteriasAltas === false) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => false,
-                    'estado_sugerido' => self::ESTADO_NO_APLICA,
-                    'requiere_informacion' => false,
-                    'motivo' => 'El establecimiento declaró expresamente no contar con estanterías altas ni mobiliario con riesgo de volteo (tiene_estanterias_altas = false).',
-                ];
-            }
-
-            if ($tieneEstanteriasAltas === true) {
-                return [
-                    'codigo' => $codigo,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'activo' => true,
-                    'aplicable' => true,
-                    'estado_sugerido' => null,
-                    'requiere_informacion' => false,
-                    'motivo' => 'Aplica por declaración expresa de uso de estanterías, anaqueles o mobiliario alto con riesgo de volteo (tiene_estanterias_altas = true).',
-                ];
-            }
-
-            return [
-                'codigo' => $codigo,
-                'criterio_id' => $criterio->id,
-                'titulo' => $criterio->titulo,
-                'tipo_criterio' => $criterio->tipo_criterio,
-                'activo' => true,
-                'aplicable' => null,
-                'estado_sugerido' => null,
-                'requiere_informacion' => true,
-                'motivo' => 'Información sobre estanterías o mobiliario alto pendiente de declaración (tiene_estanterias_altas = null). NULL ≠ false y NULL ≠ NO_APLICA; sin regla de altura métrica arbitraria ni aplicabilidad universal automática.',
-            ];
-        }
-
-        // 5. CRIT-05: Puesta a tierra con constancia documental ≤25 Ω (Tipo C)
         if ($codigo === 'CRIT-05') {
-            return [
-                'codigo' => $codigo,
-                'criterio_id' => $criterio->id,
-                'titulo' => $criterio->titulo,
-                'tipo_criterio' => 'TIPO_C',
-                'activo' => true,
-                'aplicable' => true,
-                'estado_sugerido' => null,
-                'requiere_informacion' => false,
-                'motivo' => 'Aplica universalmente a establecimientos con suministro eléctrico (Tipo C: declaración de constancia ≤25 Ω, sin medición física ni validación técnica por el sistema).',
-            ];
+            return $this->construirResultadoEvaluacion(
+                $criterio,
+                true,
+                null,
+                false,
+                'Aplica universalmente a establecimientos con suministro eléctrico (Tipo C: declaración de constancia ≤25 Ω, sin medición física ni validación técnica por el sistema).',
+                'TIPO_C'
+            );
         }
 
-        // 6. Criterios universales activos (CRIT-01, CRIT-02B, CRIT-03, CRIT-04, CRIT-06, CRIT-07, CRIT-08, CRIT-14A)
-        return [
-            'codigo' => $codigo,
-            'criterio_id' => $criterio->id,
-            'titulo' => $criterio->titulo,
-            'tipo_criterio' => $criterio->tipo_criterio,
-            'activo' => true,
-            'aplicable' => true,
-            'estado_sugerido' => null,
-            'requiere_informacion' => false,
-            'motivo' => 'Criterio de aplicación universal para establecimientos comerciales.',
-        ];
+        return $this->construirResultadoEvaluacion(
+            $criterio,
+            true,
+            null,
+            false,
+            'Criterio de aplicación universal para establecimientos comerciales.'
+        );
     }
 
     /**
@@ -477,17 +335,11 @@ class ApplicabilityEngineService
     {
         $evaluaciones = $this->evaluarAplicabilidad($contexto);
         $criteriosActivos = $this->getCriteriosActivos()->keyBy('codigo_criterio');
+        $respuestasPrevias = $this->obtenerRespuestasIndexadas($contexto);
 
         $criteriosEvaluables = [];
         $noAplican = [];
         $informacionPendiente = [];
-
-        // Respuestas previas si el contexto es una Autoevaluación persistida
-        $respuestasPrevias = collect();
-        if ($contexto instanceof Autoevaluacion && $contexto->exists) {
-            $respuestasPrevias = ($contexto->relationLoaded('respuestas') ? $contexto->respuestas : $contexto->respuestas()->get())
-                ->keyBy('criterio_id');
-        }
 
         foreach ($evaluaciones as $codigo => $eval) {
             /** @var CriterioNormativo|null $criterio */
@@ -497,73 +349,13 @@ class ApplicabilityEngineService
             }
 
             $respuestaPrevia = $respuestasPrevias->get($criterio->id);
-            $estadoActual = $respuestaPrevia?->estado_respuesta;
 
-            // Caso A: aplicable === true -> Mostrar criterio al ciudadano
             if ($eval['aplicable'] === true) {
-                $criteriosEvaluables[] = [
-                    'codigo' => $criterio->codigo_criterio,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'descripcion' => $criterio->que_observar ?? $criterio->titulo,
-                    'categoria' => $criterio->categoria,
-                    'pregunta_ciudadana' => $criterio->pregunta_ciudadana,
-                    'que_observar' => $criterio->que_observar,
-                    'accion_mejora_orientativa' => $criterio->accion_mejora_orientativa,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'norma_base' => $criterio->norma_base,
-                    'articulo_referencia' => $criterio->articulo_referencia,
-                    'orden' => $criterio->orden,
-                    'aplicable' => true,
-                    'requiere_informacion' => false,
-                    'estado' => $estadoActual,
-                    'notas' => $respuestaPrevia?->notas_ciudadano,
-                    'opciones_respuesta' => self::RESPUESTAS_CIUDADANAS_PERMITIDAS,
-                ];
-            }
-            // Caso B: aplicable === false -> No preguntar y registrar/representar NO_APLICA
-            elseif ($eval['aplicable'] === false) {
-                $noAplican[] = [
-                    'codigo' => $criterio->codigo_criterio,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'categoria' => $criterio->categoria,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'norma_base' => $criterio->norma_base,
-                    'articulo_referencia' => $criterio->articulo_referencia,
-                    'orden' => $criterio->orden,
-                    'aplicable' => false,
-                    'requiere_informacion' => false,
-                    'estado' => self::ESTADO_NO_APLICA,
-                    'motivo' => $eval['motivo'],
-                ];
-            }
-            // Caso C: aplicable === null -> Falta información física para determinar aplicabilidad
-            else {
-                $variableFaltante = match ($criterio->codigo_criterio) {
-                    'CRIT-02A' => 'tiene_equipos_fritura',
-                    'CRIT-03', 'CRIT-10' => 'usa_glp',
-                    'CRIT-11' => 'tiene_escaleras',
-                    'CRIT-13' => 'tiene_estanterias_altas',
-                    default => null,
-                };
-
-                $informacionPendiente[] = [
-                    'codigo' => $criterio->codigo_criterio,
-                    'criterio_id' => $criterio->id,
-                    'titulo' => $criterio->titulo,
-                    'categoria' => $criterio->categoria,
-                    'tipo_criterio' => $criterio->tipo_criterio,
-                    'norma_base' => $criterio->norma_base,
-                    'articulo_referencia' => $criterio->articulo_referencia,
-                    'orden' => $criterio->orden,
-                    'aplicable' => null,
-                    'requiere_informacion' => true,
-                    'variable_faltante' => $variableFaltante,
-                    'mensaje' => $eval['motivo'],
-                    'estado' => $estadoActual ?? null,
-                    'motivo' => $eval['motivo'],
-                ];
+                $criteriosEvaluables[] = $this->construirItemCriterioEvaluable($criterio, $respuestaPrevia);
+            } elseif ($eval['aplicable'] === false) {
+                $noAplican[] = $this->construirItemCriterioNoAplica($criterio, $eval['motivo']);
+            } else {
+                $informacionPendiente[] = $this->construirItemInformacionPendiente($criterio, $eval['motivo'], $respuestaPrevia?->estado_respuesta);
             }
         }
 
@@ -722,69 +514,6 @@ class ApplicabilityEngineService
     }
 
     /**
-     * Normaliza los parámetros de contexto utilizando los campos canónicos del Paso 1 y Paso 2:
-     * - usa_glp (?bool)
-     * - tiene_equipos_fritura (?bool)
-     * - tiene_escaleras (?bool)
-     * - tiene_estanterias_altas (?bool)
-     * Respetando rigurosamente que NULL ≠ false ≠ NO_APLICA.
-     *
-     * @param  Autoevaluacion|array<string, mixed>  $contexto
-     * @return array<string, mixed>
-     */
-    private function normalizarContexto(Autoevaluacion|array $contexto): array
-    {
-        if ($contexto instanceof Autoevaluacion) {
-            return [
-                'area_m2' => $contexto->area_m2,
-                'pisos' => $contexto->pisos,
-                'aforo' => $contexto->aforo,
-                'usa_glp' => $contexto->usa_glp,
-                'usa_caldero' => $contexto->usa_caldero,
-                'usa_liquidos_inflamables' => $contexto->usa_liquidos_inflamables,
-                'tiene_equipos_fritura' => $contexto->tiene_equipos_fritura,
-                'tiene_escaleras' => $contexto->tiene_escaleras,
-                'tiene_estanterias_altas' => $contexto->tiene_estanterias_altas,
-            ];
-        }
-
-        return [
-            'area_m2' => isset($contexto['area_m2']) && $contexto['area_m2'] !== null ? (float) $contexto['area_m2'] : null,
-            'pisos' => isset($contexto['pisos']) && $contexto['pisos'] !== null ? (int) $contexto['pisos'] : null,
-            'aforo' => isset($contexto['aforo']) && $contexto['aforo'] !== null ? (int) $contexto['aforo'] : null,
-            'usa_glp' => $this->extraerBooleanoNullable($contexto, 'usa_glp'),
-            'usa_caldero' => $this->extraerBooleanoNullable($contexto, 'usa_caldero'),
-            'usa_liquidos_inflamables' => $this->extraerBooleanoNullable($contexto, 'usa_liquidos_inflamables'),
-            'tiene_equipos_fritura' => $this->extraerBooleanoNullable($contexto, 'tiene_equipos_fritura'),
-            'tiene_escaleras' => $this->extraerBooleanoNullable($contexto, 'tiene_escaleras'),
-            'tiene_estanterias_altas' => $this->extraerBooleanoNullable($contexto, 'tiene_estanterias_altas'),
-        ];
-    }
-
-    /**
-     * Extrae de forma segura un valor booleano o null desde un array de contexto,
-     * examinando tanto la raíz como la clave interna 'caracteristicas_declaradas'.
-     *
-     * @param  array<string, mixed>  $contexto
-     */
-    private function extraerBooleanoNullable(array $contexto, string $clave): ?bool
-    {
-        if (array_key_exists($clave, $contexto)) {
-            $val = $contexto[$clave];
-
-            return $val !== null ? (bool) $val : null;
-        }
-
-        if (isset($contexto['caracteristicas_declaradas']) && is_array($contexto['caracteristicas_declaradas']) && array_key_exists($clave, $contexto['caracteristicas_declaradas'])) {
-            $val = $contexto['caracteristicas_declaradas'][$clave];
-
-            return $val !== null ? (bool) $val : null;
-        }
-
-        return null;
-    }
-
-    /**
      * Construye el contenido canónico estructurado y determinístico de una autoevaluación.
      * Excluye expresamente user_id, tokens de sesión y timestamps volátiles.
      *
@@ -794,79 +523,15 @@ class ApplicabilityEngineService
     {
         // Si la autoevaluación ya está registrada y posee snapshot histórico persistido,
         // este snapshot es la única fuente de verdad inmutable para el payload canónico.
-        if ($autoevaluacion->estaRegistrada() && ! empty($autoevaluacion->payload_canonico)) {
-            $snapshot = is_array($autoevaluacion->payload_canonico)
-                ? $autoevaluacion->payload_canonico
-                : (array) json_decode((string) $autoevaluacion->payload_canonico, true);
-
-            $this->normalizarArrayDeterminista($snapshot);
-
+        $snapshot = $this->obtenerSnapshotRegistrado($autoevaluacion);
+        if ($snapshot !== null) {
             return $snapshot;
         }
 
-        $evaluaciones = $this->evaluarAplicabilidad($autoevaluacion);
-        $criteriosActivos = $this->getCriteriosActivos()->keyBy('codigo_criterio');
-        $respuestasGuardadas = ($autoevaluacion->relationLoaded('respuestas') ? $autoevaluacion->respuestas : $autoevaluacion->respuestas()->get())
-            ->keyBy('criterio_id');
-
-        $criteriosList = [];
-
-        foreach ($evaluaciones as $codigo => $eval) {
-            $criterio = $criteriosActivos->get($codigo);
-            if (! $criterio) {
-                continue;
-            }
-
-            $respuesta = $respuestasGuardadas->get($criterio->id);
-
-            if ($eval['aplicable'] === true) {
-                $criteriosList[] = [
-                    'codigo' => $codigo,
-                    'aplicabilidad' => 'APLICA',
-                    'estado_declarado' => $respuesta?->estado_respuesta ?? 'SIN_RESPUESTA',
-                    'notas' => filled($respuesta?->notas_ciudadano) ? trim((string) $respuesta->notas_ciudadano) : null,
-                ];
-            } elseif ($eval['aplicable'] === false) {
-                $criteriosList[] = [
-                    'codigo' => $codigo,
-                    'aplicabilidad' => 'NO_APLICA',
-                    'estado_declarado' => self::ESTADO_NO_APLICA,
-                    'notas' => null,
-                ];
-            } else {
-                $criteriosList[] = [
-                    'codigo' => $codigo,
-                    'aplicabilidad' => 'REQUIERE_INFORMACION',
-                    'estado_declarado' => 'SIN_INFORMACION',
-                    'notas' => null,
-                ];
-            }
-        }
-
-        // Ordenamiento estricto de criterios por código alfabético
-        usort($criteriosList, fn ($a, $b) => strcmp($a['codigo'], $b['codigo']));
-
         $payload = [
-            'establecimiento' => [
-                'nombre_comercio' => trim((string) $autoevaluacion->nombre_comercio),
-                'ruc' => filled($autoevaluacion->ruc) ? trim((string) $autoevaluacion->ruc) : null,
-                'funcion_economica' => trim((string) $autoevaluacion->funcion_economica),
-                'direccion' => filled($autoevaluacion->direccion) ? trim((string) $autoevaluacion->direccion) : null,
-                'referencia' => filled($autoevaluacion->referencia) ? trim((string) $autoevaluacion->referencia) : null,
-            ],
-            'caracteristicas' => [
-                'aforo' => $autoevaluacion->aforo !== null ? (int) $autoevaluacion->aforo : null,
-                'area_m2' => $autoevaluacion->area_m2 !== null ? round((float) $autoevaluacion->area_m2, 2) : null,
-                'galones_glp' => $autoevaluacion->galones_glp !== null ? round((float) $autoevaluacion->galones_glp, 2) : null,
-                'pisos' => $autoevaluacion->pisos !== null ? (int) $autoevaluacion->pisos : null,
-                'tiene_equipos_fritura' => $autoevaluacion->tiene_equipos_fritura !== null ? (bool) $autoevaluacion->tiene_equipos_fritura : null,
-                'tiene_escaleras' => $autoevaluacion->tiene_escaleras !== null ? (bool) $autoevaluacion->tiene_escaleras : null,
-                'tiene_estanterias_altas' => $autoevaluacion->tiene_estanterias_altas !== null ? (bool) $autoevaluacion->tiene_estanterias_altas : null,
-                'usa_caldero' => $autoevaluacion->usa_caldero !== null ? (bool) $autoevaluacion->usa_caldero : null,
-                'usa_glp' => $autoevaluacion->usa_glp !== null ? (bool) $autoevaluacion->usa_glp : null,
-                'usa_liquidos_inflamables' => $autoevaluacion->usa_liquidos_inflamables !== null ? (bool) $autoevaluacion->usa_liquidos_inflamables : null,
-            ],
-            'criterios' => $criteriosList,
+            'establecimiento' => $this->construirDatosEstablecimientoCanonico($autoevaluacion),
+            'caracteristicas' => $this->construirCaracteristicasCanonicas($autoevaluacion),
+            'criterios' => $this->construirListaCriteriosCanonicos($autoevaluacion),
         ];
 
         $this->normalizarArrayDeterminista($payload);
@@ -880,9 +545,8 @@ class ApplicabilityEngineService
     public function generarJsonCanonico(Autoevaluacion $autoevaluacion): string
     {
         $payload = $this->generarPayloadCanonico($autoevaluacion);
-        $this->normalizarArrayDeterminista($payload);
 
-        return (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $this->integridadService->generarJsonCanonico($payload);
     }
 
     /**
@@ -890,9 +554,9 @@ class ApplicabilityEngineService
      */
     public function calcularHashIntegridad(Autoevaluacion $autoevaluacion): string
     {
-        $jsonCanonico = $this->generarJsonCanonico($autoevaluacion);
+        $payload = $this->generarPayloadCanonico($autoevaluacion);
 
-        return hash('sha256', $jsonCanonico);
+        return $this->integridadService->calcularHashIntegridad($payload);
     }
 
     /**
@@ -900,14 +564,6 @@ class ApplicabilityEngineService
      */
     public function normalizarArrayDeterminista(array &$data): void
     {
-        if (! array_is_list($data)) {
-            ksort($data);
-        }
-
-        foreach ($data as &$value) {
-            if (is_array($value)) {
-                $this->normalizarArrayDeterminista($value);
-            }
-        }
+        $this->integridadService->normalizarArrayDeterminista($data);
     }
 }

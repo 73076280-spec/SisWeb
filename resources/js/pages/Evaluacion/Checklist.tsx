@@ -21,7 +21,7 @@ import {
     Lock,
     BookOpen,
     Flame,
-    Footprints,
+    Compass,
     Zap,
     Shield,
     Lightbulb,
@@ -29,7 +29,12 @@ import {
     Ruler,
     Users,
 } from 'lucide-react';
-import type { ChecklistProps, CriterioEvaluable } from '@/types/contrato';
+import type {
+    ChecklistProps,
+    CriterioEvaluable,
+    CriterioInformacionPendiente,
+    CriterioNoAplica,
+} from '@/types/contrato';
 
 interface OpcionConfig {
     label: string;
@@ -37,10 +42,9 @@ interface OpcionConfig {
     icono: React.ComponentType<{ className?: string }>;
     borderSelected: string;
     bgSelected: string;
-    ringSelected: string;
     textSelected: string;
     iconSelected: string;
-    radioAccent: string;
+    dotSelected: string;
 }
 
 /**
@@ -54,34 +58,31 @@ const OPCIONES_ETIQUETAS: Record<string, OpcionConfig> = {
         label: 'Cumple',
         descripcion: 'La condición existe en tu local según lo que declaras.',
         icono: CheckCircle2,
-        borderSelected: 'border-emerald-500',
-        bgSelected: 'bg-emerald-50/70',
-        ringSelected: 'ring-2 ring-emerald-500/20',
-        textSelected: 'text-emerald-950 font-bold',
-        iconSelected: 'text-emerald-600',
-        radioAccent: 'text-emerald-600 focus:ring-emerald-500',
+        borderSelected: 'border-[#34C759]',
+        bgSelected: 'bg-emerald-50/30',
+        textSelected: 'text-emerald-900',
+        iconSelected: 'text-[#34C759]',
+        dotSelected: 'bg-[#34C759]',
     },
     PENDIENTE_ATENDER: {
         label: 'Por subsanar',
         descripcion: 'Falta corregir, adquirir o mantener antes de una inspección.',
         icono: AlertTriangle,
-        borderSelected: 'border-amber-500',
-        bgSelected: 'bg-amber-50/70',
-        ringSelected: 'ring-2 ring-amber-500/20',
-        textSelected: 'text-amber-950 font-bold',
-        iconSelected: 'text-amber-600',
-        radioAccent: 'text-amber-600 focus:ring-amber-500',
+        borderSelected: 'border-[#FF3B30]',
+        bgSelected: 'bg-rose-50/30',
+        textSelected: 'text-rose-900',
+        iconSelected: 'text-[#FF3B30]',
+        dotSelected: 'bg-[#FF3B30]',
     },
     POR_REVISAR: {
         label: 'Por revisar',
         descripcion: 'No puedes confirmarlo todavía: consulta con un técnico.',
         icono: HelpCircle,
-        borderSelected: 'border-slate-900',
-        bgSelected: 'bg-slate-100',
-        ringSelected: 'ring-2 ring-slate-900/10',
-        textSelected: 'text-slate-900 font-bold',
-        iconSelected: 'text-slate-900',
-        radioAccent: 'text-slate-900 focus:ring-slate-500',
+        borderSelected: 'border-[#FF9500]',
+        bgSelected: 'bg-amber-50/30',
+        textSelected: 'text-amber-950',
+        iconSelected: 'text-[#FF9500]',
+        dotSelected: 'bg-[#FF9500]',
     },
 };
 
@@ -129,7 +130,7 @@ function agruparCriteriosPorArea(criterios: CriterioEvaluable[]): AreaNormativa[
             id: 'evacuacion',
             nombre: 'Arquitectura y Evacuación',
             nombreCorto: 'Evacuación',
-            icono: Footprints,
+            icono: Compass,
             match: (cat: string) =>
                 (cat.toLowerCase().includes('evacuación') || cat.toLowerCase().includes('señalización')) &&
                 !cat.toLowerCase().includes('eléctric'),
@@ -260,7 +261,7 @@ interface GuiaComparativa {
 const COMPARATIVA_CORRECTO_INCORRECTO: Record<string, GuiaComparativa> = {
     'CRIT-01': {
         explicacionCotidiana:
-            'El extintor es tu primera línea de defensa ante un conato de incendio. Debe estar a la mano, con carga presurizada y revisión técnica anual garantizada por una empresa autorizada.',
+            'El extintor es tu primera línea de defensa ante un conato de incendio. Debe estar a la mano, con carga presurizada y revisión técnica anual realizada conforme a la norma NTP 350.043-1.',
         correcto: [
             'Extintor colgado en pared o pedestal visible, accesible y sin mercadería ni cajas delante.',
             'Aguja del manómetro dentro de la franja verde operable (presión correcta).',
@@ -422,7 +423,7 @@ const COMPARATIVA_CORRECTO_INCORRECTO: Record<string, GuiaComparativa> = {
     },
     'CRIT-11': {
         explicacionCotidiana:
-            'Las caídas en escaleras son el siniestro físico más común en comercios de varios niveles. Los pasamanos continuos y bordes no resbalosos garantizan un descenso seguro.',
+            'Las caídas en escaleras son el siniestro físico más común en comercios de varios niveles. Los pasamanos continuos y bordes no resbalosos facilitan un tránsito seguro y reducen el riesgo de caídas.',
         correcto: [
             'Pasamanos continuo instalado a una altura ergonómica reglamentaria (0.90 m a 1.00 m).',
             'Fijación sólida al muro o baranda que soporte el peso y empuje de las personas.',
@@ -502,8 +503,1505 @@ const PASOS_FLUJO = [
     { numero: '3', titulo: 'Veredicto', estado: 'pendiente' },
 ] as const;
 
-export default function Checklist({ autoevaluacion, checklist }: ChecklistProps) {
-    const { auth } = usePage().props as { auth?: { user: unknown | null } };
+interface RespuestaEnvioItem {
+    codigo: string;
+    estado: string;
+    notas: string | null;
+}
+
+interface ProgresoAreaItem {
+    id: string;
+    respondidos: number;
+    total: number;
+    pendientes: number;
+    completo: boolean;
+}
+
+interface ContextoParametricoLocal {
+    areaM2Declarada: number | null;
+    mostrarDotacionExtintores: boolean;
+    extintoresSugeridos: number;
+    areaM2Num: number;
+    extintoresMinimos: number;
+    extintoresPorPisos: number | null;
+    tieneEquiposFritura: boolean | null;
+    mostrarExigenciasAforo: boolean;
+    aforoNum: number;
+    mostrarAlertaAforo50: boolean;
+    mostrarAlertaAforo100: boolean;
+}
+
+interface DatosGuiaPedagogicaModal {
+    codigo?: string;
+    titulo?: string;
+    explicacionCotidiana?: string;
+    queObservar?: string;
+    correcto?: string[];
+    incorrecto?: string[];
+    normaBase?: string | null;
+    articuloReferencia?: string | null;
+}
+
+interface DatosRecursoModal {
+    recursos: RecursoEducativoData[];
+    codigo?: string;
+    titulo?: string;
+}
+
+const BORDES_TARJETA_POR_ESTADO: Record<string, string> = {
+    CUMPLE_DECLARADO: 'border-[#34C759]/60 ring-1 ring-[#34C759]/20 bg-emerald-50/10',
+    PENDIENTE_ATENDER: 'border-[#FF3B30]/60 ring-1 ring-[#FF3B30]/20 bg-rose-50/10',
+    POR_REVISAR: 'border-[#FF9500]/60 ring-1 ring-[#FF9500]/20 bg-amber-50/10',
+};
+
+function inicializarRespuestas(criterios: CriterioEvaluable[]): Record<string, string> {
+    const inicial: Record<string, string> = {};
+    for (const c of criterios) {
+        if (c.estado && c.estado !== 'NO_APLICA') {
+            inicial[c.codigo] = c.estado;
+        }
+    }
+    return inicial;
+}
+
+function inicializarNotas(criterios: CriterioEvaluable[]): Record<string, string> {
+    const inicial: Record<string, string> = {};
+    for (const c of criterios) {
+        if (c.notas) {
+            inicial[c.codigo] = c.notas;
+        }
+    }
+    return inicial;
+}
+
+function inicializarCriteriosGuardados(criterios: CriterioEvaluable[]): Record<string, boolean> {
+    const inicial: Record<string, boolean> = {};
+    for (const c of criterios) {
+        if (c.estado && c.estado !== 'NO_APLICA') {
+            inicial[c.codigo] = true;
+        }
+    }
+    return inicial;
+}
+
+function obtenerTieneEquiposFritura(
+    autoevaluacion?: ChecklistProps['autoevaluacion'],
+): boolean | null {
+    const caracteristicas = autoevaluacion?.caracteristicas_declaradas as
+        | { tiene_equipos_fritura?: boolean | null }
+        | null
+        | undefined;
+    return autoevaluacion?.tiene_equipos_fritura ?? caracteristicas?.tiene_equipos_fritura ?? null;
+}
+
+function calcularContextoParametrico(
+    autoevaluacion?: ChecklistProps['autoevaluacion'],
+): ContextoParametricoLocal {
+    const areaM2Declarada = magnitudDeclarada(autoevaluacion?.area_m2);
+    const pisosDeclarados = magnitudDeclarada(autoevaluacion?.pisos);
+    const aforoDeclarado = magnitudDeclarada(autoevaluacion?.aforo);
+    const areaM2Num = areaM2Declarada ?? 0;
+    const aforoNum = aforoDeclarado ?? 0;
+
+    const extintoresMinimos = areaM2Declarada !== null ? Math.ceil(areaM2Declarada / 60) : 0;
+    const extintoresPorPisos = pisosDeclarados;
+    const extintoresSugeridos = Math.max(1, Math.max(extintoresMinimos, extintoresPorPisos ?? 0));
+
+    return {
+        areaM2Declarada,
+        mostrarDotacionExtintores: areaM2Declarada !== null,
+        extintoresSugeridos,
+        areaM2Num,
+        extintoresMinimos,
+        extintoresPorPisos,
+        tieneEquiposFritura: obtenerTieneEquiposFritura(autoevaluacion),
+        mostrarExigenciasAforo: aforoDeclarado !== null,
+        aforoNum,
+        mostrarAlertaAforo50: aforoNum > 50,
+        mostrarAlertaAforo100: aforoNum > 100,
+    };
+}
+
+function filtrarHallazgos(
+    criterios: CriterioEvaluable[],
+    respuestas: Record<string, string>,
+): CriterioEvaluable[] {
+    return criterios.filter((c) => {
+        const estado = respuestas[c.codigo];
+        return estado === 'PENDIENTE_ATENDER' || estado === 'POR_REVISAR';
+    });
+}
+
+function calcularProgresoPorArea(
+    areas: AreaNormativa[],
+    respuestas: Record<string, string>,
+): ProgresoAreaItem[] {
+    return areas.map((area) => {
+        const respondidos = area.criterios.filter((c) => Boolean(respuestas[c.codigo])).length;
+        return {
+            id: area.id,
+            respondidos,
+            total: area.criterios.length,
+            pendientes: area.criterios.length - respondidos,
+            completo: respondidos === area.criterios.length,
+        };
+    });
+}
+
+function desplazarElementoAlCentro(idElemento: string): void {
+    document.getElementById(idElemento)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function desplazarAPrimerPendiente(
+    especialidadVisible: AreaNormativa | null,
+    respuestas: Record<string, string>,
+): void {
+    const primerPendiente = especialidadVisible?.criterios.find((c) => !respuestas[c.codigo]);
+    if (!primerPendiente) {
+        return;
+    }
+    desplazarElementoAlCentro(`criterio-${primerPendiente.codigo}`);
+}
+
+function programarDesplazamientoSiguiente(
+    especialidadVisible: AreaNormativa | null,
+    codigoActual: string,
+    respuestas: Record<string, string>,
+): void {
+    if (!especialidadVisible) {
+        return;
+    }
+
+    const indexActual = especialidadVisible.criterios.findIndex((c) => c.codigo === codigoActual);
+    if (indexActual < 0) {
+        return;
+    }
+
+    const siguienteSinResponder = especialidadVisible.criterios
+        .slice(indexActual + 1)
+        .find((c) => !respuestas[c.codigo] && c.codigo !== codigoActual);
+
+    if (!siguienteSinResponder) {
+        return;
+    }
+
+    setTimeout(() => {
+        desplazarElementoAlCentro(`criterio-${siguienteSinResponder.codigo}`);
+    }, 350);
+}
+
+function normalizarNotaCriterio(nota?: string): string | null {
+    const limpia = (nota || '').trim();
+    return limpia || null;
+}
+
+function construirRespuestasAvance(
+    respuestas: Record<string, string>,
+    notas: Record<string, string>,
+): RespuestaEnvioItem[] {
+    return Object.entries(respuestas)
+        .filter(([, estado]) => Boolean(estado))
+        .map(([codigo, estado]) => ({
+            codigo,
+            estado,
+            notas: normalizarNotaCriterio(notas[codigo]),
+        }));
+}
+
+function construirRespuestasCompletas(
+    criterios: CriterioEvaluable[],
+    respuestas: Record<string, string>,
+    notas: Record<string, string>,
+): RespuestaEnvioItem[] {
+    return criterios.map((c) => ({
+        codigo: c.codigo,
+        estado: respuestas[c.codigo],
+        notas: normalizarNotaCriterio(notas[c.codigo]),
+    }));
+}
+
+function marcarComoGuardados(
+    previos: Record<string, boolean>,
+    enviados: RespuestaEnvioItem[],
+): Record<string, boolean> {
+    const nuevosGuardados = { ...previos };
+    for (const item of enviados) {
+        nuevosGuardados[item.codigo] = true;
+    }
+    return nuevosGuardados;
+}
+
+function resolverMensajeErrorGuardado(
+    status: number,
+    data: { errors?: Record<string, unknown>; message?: string; mensaje?: string },
+): string {
+    if (status === 422) {
+        if (data.errors && typeof data.errors === 'object') {
+            return Object.values(data.errors).flat().join(' ');
+        }
+        return data.message || 'Algunas declaraciones no son válidas.';
+    }
+    return data.mensaje || 'No fue posible guardar su avance. Intente nuevamente.';
+}
+
+async function enviarRespuestasChecklist(
+    uuid: string,
+    respuestasAEnviar: RespuestaEnvioItem[],
+): Promise<Response> {
+    const csrfToken =
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    return fetch(`/autoevaluacion/${uuid}/checklist`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+        },
+        body: JSON.stringify({ respuestas: respuestasAEnviar }),
+    });
+}
+
+function determinarTieneRecursos(criterio: CriterioEvaluable): boolean {
+    return Boolean(criterio.recursos_educativos && criterio.recursos_educativos.length > 0);
+}
+
+function determinarTieneGuiaPedagogica(
+    criterio: CriterioEvaluable,
+    comparativa?: GuiaComparativa,
+): boolean {
+    return Boolean(
+        criterio.que_observar ||
+            criterio.accion_mejora_orientativa ||
+            criterio.norma_base ||
+            criterio.articulo_referencia ||
+            comparativa,
+    );
+}
+
+function obtenerReferenciaNormativa(criterio: CriterioEvaluable): string | null | undefined {
+    return criterio.norma_base || criterio.articulo_referencia;
+}
+
+function obtenerBordeTarjeta(esRegistrada: boolean, valorSeleccionado?: string): string {
+    if (esRegistrada) {
+        return 'border-slate-200 bg-white';
+    }
+    if (valorSeleccionado && BORDES_TARJETA_POR_ESTADO[valorSeleccionado]) {
+        return BORDES_TARJETA_POR_ESTADO[valorSeleccionado];
+    }
+    return 'border-slate-200/80 bg-white hover:border-slate-300';
+}
+
+function obtenerConfigOpcion(opcionKey: string): OpcionConfig {
+    return (
+        OPCIONES_ETIQUETAS[opcionKey] || {
+            label: opcionKey,
+            descripcion: '',
+            icono: HelpCircle,
+            borderSelected: 'border-slate-900',
+            bgSelected: 'bg-slate-100',
+            textSelected: 'text-slate-900',
+            iconSelected: 'text-slate-900',
+            dotSelected: 'bg-slate-900',
+        }
+    );
+}
+
+function obtenerOpcionesRespuesta(criterio: CriterioEvaluable): string[] {
+    return (criterio.opciones_respuesta || OPCIONES_FALLBACK).filter((op) => op !== 'NO_APLICA');
+}
+
+function obtenerTextoFrituraExtintores(tieneEquiposFritura: boolean | null): string {
+    if (tieneEquiposFritura === true) {
+        return 'Con freidoras o cocina comercial declaradas se requiere extintor Tipo K (acetato de potasio).';
+    }
+    if (tieneEquiposFritura === false) {
+        return 'Tipo K no requerido con la declaración actual.';
+    }
+    return 'Equipamiento de fritura no declarado: el Tipo K no puede descartarse.';
+}
+
+interface BadgeEstadoCriterioProps {
+    estaGuardado?: boolean;
+    estaRespondido: boolean;
+    estadoActual?: string;
+}
+
+function BadgeEstadoCriterio({
+    estaGuardado,
+    estaRespondido,
+    estadoActual,
+}: Readonly<BadgeEstadoCriterioProps>) {
+    if (estadoActual === 'PENDIENTE_ATENDER') {
+        return (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">
+                <ShieldAlert className="w-4 h-4 text-[#FF9500]" aria-hidden="true" />
+                <span>Por subsanar</span>
+            </span>
+        );
+    }
+
+    if (estadoActual === 'POR_REVISAR') {
+        return (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+                <HelpCircle className="w-4 h-4 text-[#FF9500]" aria-hidden="true" />
+                <span>Por revisar</span>
+            </span>
+        );
+    }
+
+    if (estaGuardado) {
+        return (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                <Check className="h-3 w-3 text-[#34C759]" aria-hidden="true" /> Guardado
+            </span>
+        );
+    }
+
+    if (estaRespondido) {
+        return (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                <CheckCircle2 className="h-3 w-3 text-[#34C759]" aria-hidden="true" /> Conforme
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
+            Sin responder
+        </span>
+    );
+}
+
+interface OpcionRespuestaCriterioProps {
+    readonly criterioCodigo: string;
+    readonly opcionKey: string;
+    readonly esSeleccionado: boolean;
+    readonly esRegistrada: boolean;
+    readonly deshabilitado: boolean;
+    readonly bloqueadoSubsanacion?: boolean;
+    readonly onSelect: (codigo: string, estado: string) => void;
+}
+
+function OpcionRespuestaCriterio({
+    criterioCodigo,
+    opcionKey,
+    esSeleccionado,
+    esRegistrada,
+    deshabilitado,
+    bloqueadoSubsanacion = false,
+    onSelect,
+}: Readonly<OpcionRespuestaCriterioProps>) {
+    const conf = obtenerConfigOpcion(opcionKey);
+    const IconoOpcion = conf.icono;
+    
+    let claseCursor = 'cursor-pointer';
+    if (deshabilitado) {
+        claseCursor = 'cursor-not-allowed opacity-50';
+    } else if (esRegistrada) {
+        claseCursor = 'cursor-default opacity-90';
+    }
+
+    let claseSeleccion = 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60';
+    if (esSeleccionado) {
+        claseSeleccion = `${conf.borderSelected} ${conf.bgSelected} shadow-xs ring-1 ring-black/5`;
+    } else if (bloqueadoSubsanacion) {
+        claseSeleccion = 'border-slate-200 bg-slate-100/70 opacity-60';
+    }
+
+    const handleClick = (e: React.MouseEvent<HTMLLabelElement>) => {
+        if (deshabilitado) {
+            e.preventDefault();
+        }
+    };
+
+    return (
+        <label
+            htmlFor={`${criterioCodigo}-${opcionKey}`}
+            aria-label={`Opción ${conf.label} para criterio ${criterioCodigo}${bloqueadoSubsanacion ? ' (bloqueada por observaciones)' : ''}`}
+            title={bloqueadoSubsanacion ? 'Opción bloqueada: este ítem tiene observaciones técnicas y requiere subsanación previa' : undefined}
+            onClick={handleClick}
+            className={`group relative flex flex-col justify-between rounded-2xl border-2 p-4 text-left transition-all duration-150 active:scale-[0.99] select-none ${claseCursor} ${claseSeleccion}`}
+        >
+            <input
+                type="radio"
+                id={`${criterioCodigo}-${opcionKey}`}
+                name={`criterio-${criterioCodigo}`}
+                value={opcionKey}
+                checked={esSeleccionado}
+                disabled={deshabilitado}
+                onChange={() => {
+                    if (!deshabilitado) {
+                        onSelect(criterioCodigo, opcionKey);
+                    }
+                }}
+                className="sr-only"
+            />
+            <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="flex items-center gap-2">
+                        <IconoOpcion
+                            className={`h-4 w-4 shrink-0 transition-colors ${
+                                esSeleccionado ? conf.iconSelected : 'text-slate-400 group-hover:text-slate-600'
+                            }`}
+                            aria-hidden="true"
+                        />
+                        <span
+                            className={`text-sm font-bold tracking-tight ${
+                                esSeleccionado ? conf.textSelected : 'text-slate-800'
+                            }`}
+                        >
+                            {conf.label}
+                        </span>
+                    </span>
+                    <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-all ${
+                            esSeleccionado
+                                ? `${conf.borderSelected} bg-white`
+                                : 'border-slate-300 bg-transparent group-hover:border-slate-400'
+                        }`}
+                        aria-hidden="true"
+                    >
+                        {esSeleccionado && (
+                            <span className={`h-2 w-2 rounded-full ${conf.dotSelected}`} />
+                        )}
+                    </span>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-500">
+                    {conf.descripcion}
+                </p>
+                {bloqueadoSubsanacion && (
+                    <span className="mt-2 inline-block text-[11px] font-bold text-amber-700">
+                        Bloqueado por observación técnica
+                    </span>
+                )}
+            </div>
+        </label>
+    );
+}
+
+interface BloqueParametricoProps {
+    contexto: ContextoParametricoLocal;
+}
+
+function BloqueParametricoExtintores({ contexto }: Readonly<BloqueParametricoProps>) {
+    const {
+        extintoresSugeridos,
+        areaM2Num,
+        extintoresMinimos,
+        extintoresPorPisos,
+        tieneEquiposFritura,
+    } = contexto;
+
+    return (
+        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-xs text-emerald-900">
+            <div className="flex items-center gap-1.5 font-black">
+                <Ruler className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>Contexto declarado: dotación de extintores</span>
+            </div>
+            <p className="mt-1.5 text-sm font-black">
+                {extintoresSugeridos} {extintoresSugeridos === 1 ? 'extintor' : 'extintores'} como
+                mínimo sugerido
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-emerald-900/80">
+                Cálculo orientativo: ceil({areaM2Num.toFixed(2)} m² / 60) = {extintoresMinimos}
+                {extintoresPorPisos !== null && `; por pisos = ${extintoresPorPisos}`}. Recorrido
+                máximo ≤ 15 m horizontales y altura máxima 1.50 m al soporte (RNE A.130).
+            </p>
+            <p
+                className={`mt-1.5 text-[11px] leading-relaxed ${
+                    tieneEquiposFritura ? 'font-semibold text-amber-800' : 'text-emerald-900/80'
+                }`}
+            >
+                {obtenerTextoFrituraExtintores(tieneEquiposFritura)}
+            </p>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-emerald-900/60">
+                Orientativo: no sustituye la verificación de carga y riesgo por el especialista.
+            </p>
+        </div>
+    );
+}
+
+function BloqueParametricoAforo({ contexto }: Readonly<BloqueParametricoProps>) {
+    const { aforoNum, mostrarAlertaAforo50, mostrarAlertaAforo100 } = contexto;
+
+    return (
+        <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-xs text-emerald-900">
+            <div className="flex items-center gap-1.5 font-black">
+                <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>Contexto declarado: exigencias por aforo</span>
+            </div>
+            <p className="mt-1.5 text-sm font-black">
+                {aforoNum} {aforoNum === 1 ? 'persona' : 'personas'} declaradas
+            </p>
+
+            {mostrarAlertaAforo50 && (
+                <p className="mt-1.5 text-[11px] leading-relaxed">
+                    Por superar las 50 personas, la puerta de salida debe abrir obligatoriamente
+                    hacia el exterior como flujo de evacuación (RNE A.010 Art. 35.d / RNE A.130
+                    Art. 8).
+                </p>
+            )}
+            {mostrarAlertaAforo100 && (
+                <p className="mt-1.5 text-[11px] leading-relaxed font-semibold text-rose-800">
+                    Por superar las 100 personas es obligatoria la barra antipánico (RNE A.010 /
+                    RNE A.130).
+                </p>
+            )}
+            {!mostrarAlertaAforo50 && (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-emerald-900/80">
+                    Con aforo ≤ 50 personas no se activa la exigencia paramétrica señalada;
+                    igualmente debe garantizarse la salida expedita y sin trabas.
+                </p>
+            )}
+        </div>
+    );
+}
+
+interface AccionesApoyoCriterioProps {
+    criterio: CriterioEvaluable;
+    comparativa?: GuiaComparativa;
+    tieneGuiaPedagogica: boolean;
+    tieneRecursos: boolean;
+    onOpenGuiaPedagogica: (datos: DatosGuiaPedagogicaModal) => void;
+    onOpenRecurso: (datos: DatosRecursoModal) => void;
+}
+
+function AccionesApoyoCriterio({
+    criterio,
+    comparativa,
+    tieneGuiaPedagogica,
+    tieneRecursos,
+    onOpenGuiaPedagogica,
+    onOpenRecurso,
+}: Readonly<AccionesApoyoCriterioProps>) {
+    const recursos = criterio.recursos_educativos || [];
+    const sufijoRecursos = recursos.length > 1 ? `(${recursos.length})` : '';
+
+    return (
+        <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-slate-100">
+            {tieneGuiaPedagogica && (
+                <button
+                    type="button"
+                    onClick={() =>
+                        onOpenGuiaPedagogica({
+                            codigo: criterio.codigo,
+                            titulo: criterio.titulo,
+                            explicacionCotidiana: comparativa?.explicacionCotidiana,
+                            queObservar: criterio.que_observar || undefined,
+                            correcto: comparativa?.correcto,
+                            incorrecto: comparativa?.incorrecto,
+                            normaBase: criterio.norma_base,
+                            articuloReferencia: criterio.articulo_referencia,
+                        })
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50/80 px-3.5 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer active:scale-[0.98] shadow-2xs"
+                >
+                    <Lightbulb className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
+                    <span>Ayuda visual: ¿Cómo revisar esto?</span>
+                </button>
+            )}
+
+            {tieneRecursos && (
+                <button
+                    type="button"
+                    onClick={() =>
+                        onOpenRecurso({
+                            recursos,
+                            codigo: criterio.codigo,
+                            titulo: criterio.titulo,
+                        })
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer active:scale-[0.98]"
+                >
+                    <BookOpen className="h-4 w-4 text-slate-500 shrink-0" aria-hidden="true" />
+                    <span>Material orientativo {sufijoRecursos}</span>
+                </button>
+            )}
+        </div>
+    );
+}
+
+interface DisciplinaVisual {
+    nombre: string;
+    icono: React.ComponentType<{ className?: string }>;
+    gradientBg: string;
+    borderColor: string;
+    chipBg: string;
+}
+
+function resolverDisciplinaCriterio(criterio: CriterioEvaluable): DisciplinaVisual {
+    const cat = (criterio.categoria || '').toLowerCase();
+    const cod = (criterio.codigo || '').toUpperCase();
+
+    if (
+        cat.includes('eléctric') ||
+        cod === 'CRIT-05' ||
+        cod === 'CRIT-06' ||
+        cod === 'CRIT-07' ||
+        cod === 'CRIT-14A'
+    ) {
+        return {
+            nombre: 'Instalaciones Eléctricas',
+            icono: Zap,
+            gradientBg: 'bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent',
+            borderColor: 'border-amber-200/80',
+            chipBg: 'bg-amber-100 text-amber-900 border border-amber-300/80',
+        };
+    }
+
+    if (
+        cat.includes('incendio') ||
+        cat.includes('fuego') ||
+        cod === 'CRIT-01' ||
+        cod === 'CRIT-02' ||
+        cod === 'CRIT-02A'
+    ) {
+        return {
+            nombre: 'Seguridad y Contra Incendios',
+            icono: Flame,
+            gradientBg: 'bg-gradient-to-r from-rose-500/15 via-rose-500/5 to-transparent',
+            borderColor: 'border-rose-200/80',
+            chipBg: 'bg-rose-100 text-rose-900 border border-rose-300/80',
+        };
+    }
+
+    if (
+        cat.includes('evacuación') ||
+        cat.includes('señalización') ||
+        cat.includes('arquitectura') ||
+        cod === 'CRIT-02B' ||
+        cod === 'CRIT-03' ||
+        cod === 'CRIT-04' ||
+        cod === 'CRIT-08'
+    ) {
+        return {
+            nombre: 'Arquitectura y Evacuación',
+            icono: Compass,
+            gradientBg: 'bg-gradient-to-r from-blue-500/15 via-blue-500/5 to-transparent',
+            borderColor: 'border-blue-200/80',
+            chipBg: 'bg-blue-100 text-blue-900 border border-blue-300/80',
+        };
+    }
+
+    if (cat.includes('gas') || cat.includes('glp') || cod === 'CRIT-10') {
+        return {
+            nombre: 'Instalaciones de Gas',
+            icono: Flame,
+            gradientBg: 'bg-gradient-to-r from-orange-500/15 via-orange-500/5 to-transparent',
+            borderColor: 'border-orange-200/80',
+            chipBg: 'bg-orange-100 text-orange-900 border border-orange-300/80',
+        };
+    }
+
+    return {
+        nombre: 'Estructuras y Almacenamiento',
+        icono: Shield,
+        gradientBg: 'bg-gradient-to-r from-slate-500/15 via-slate-500/5 to-transparent',
+        borderColor: 'border-slate-200/80',
+        chipBg: 'bg-slate-100 text-slate-800 border border-slate-300/80',
+    };
+}
+
+interface TarjetaCriterioProps {
+    readonly criterio: CriterioEvaluable;
+    readonly index: number;
+    readonly valorSeleccionado?: string;
+    readonly estaGuardado?: boolean;
+    readonly esRegistrada: boolean;
+    readonly deshabilitado: boolean;
+    readonly contextoParametrico: ContextoParametricoLocal;
+    readonly autoevaluacionUuid?: string;
+    readonly onSelectRespuesta: (codigo: string, estado: string) => void;
+    readonly onOpenGuiaPedagogica: (datos: DatosGuiaPedagogicaModal) => void;
+    readonly onOpenRecurso: (datos: DatosRecursoModal) => void;
+}
+
+function TarjetaCriterio({
+    criterio,
+    index,
+    valorSeleccionado,
+    estaGuardado,
+    esRegistrada,
+    deshabilitado,
+    contextoParametrico,
+    autoevaluacionUuid,
+    onSelectRespuesta,
+    onOpenGuiaPedagogica,
+    onOpenRecurso,
+}: Readonly<TarjetaCriterioProps>) {
+    const estaRespondido = Boolean(valorSeleccionado);
+    const estaObservado =
+        valorSeleccionado === 'PENDIENTE_ATENDER' ||
+        valorSeleccionado === 'OBSERVADO' ||
+        criterio.estado === 'PENDIENTE_ATENDER' ||
+        criterio.estado === 'OBSERVADO';
+    const tieneRecursos = determinarTieneRecursos(criterio);
+    const comparativa = COMPARATIVA_CORRECTO_INCORRECTO[criterio.codigo];
+    const tieneGuiaPedagogica = determinarTieneGuiaPedagogica(criterio, comparativa);
+    const referenciaNormativa = obtenerReferenciaNormativa(criterio);
+    const bordeTarjeta = obtenerBordeTarjeta(esRegistrada, valorSeleccionado);
+    const opciones = obtenerOpcionesRespuesta(criterio);
+    const disciplina = resolverDisciplinaCriterio(criterio);
+    const IconoDisciplina = disciplina.icono;
+
+    return (
+        <article
+            id={`criterio-${criterio.codigo}`}
+            className={`mb-6 scroll-mt-28 overflow-hidden rounded-3xl border-2 shadow-xs transition-all duration-300 ${bordeTarjeta}`}
+        >
+            {/* Micro-banner decorativo de especialidad */}
+            <div
+                className={`flex items-center justify-between border-b px-5 py-2.5 transition-colors ${disciplina.gradientBg} ${disciplina.borderColor}`}
+            >
+                <div className="flex items-center gap-2">
+                    <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${disciplina.chipBg}`}
+                    >
+                        <IconoDisciplina className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{disciplina.nombre}</span>
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">
+                        #{criterio.orden ?? index + 1}
+                    </span>
+                </div>
+
+                <BadgeEstadoCriterio
+                    estaGuardado={estaGuardado}
+                    estaRespondido={estaRespondido}
+                    estadoActual={valorSeleccionado}
+                />
+            </div>
+
+            <div className="p-5 sm:p-6">
+                <fieldset className="space-y-4">
+                    {/* El legend debe ser el primer hijo del fieldset; el título visible va aparte para conservar el orden visual */}
+                    <legend className="sr-only">{criterio.titulo}</legend>
+
+                    {/* Cabecera técnica de código + base normativa */}
+                    <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+                        <span className="rounded-lg bg-slate-900 px-2.5 py-1 font-mono text-xs font-bold tracking-tight text-white shadow-2xs">
+                            {criterio.codigo}
+                        </span>
+                        {referenciaNormativa && (
+                            <span
+                                className="inline-flex min-w-0 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                                title={referenciaNormativa}
+                            >
+                                <Scale className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+                                <span className="truncate">{referenciaNormativa}</span>
+                            </span>
+                        )}
+                        {criterio.categoria && (
+                            <span className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                {criterio.categoria}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Enunciado y pregunta técnica al comerciante */}
+                    <div>
+                        <p className="text-base leading-snug font-extrabold text-slate-900">
+                            {criterio.titulo}
+                        </p>
+                        <p className="mt-2.5 rounded-2xl border border-slate-100 bg-slate-50 p-3.5 text-sm leading-relaxed font-semibold text-slate-800">
+                            {criterio.pregunta_ciudadana}
+                        </p>
+                    </div>
+
+                    {/* Selector segmentado de las tres declaraciones ciudadanas
+                        autorizadas. `NO_APLICA` se sigue filtrando aquí y en
+                        el payload: es una determinación exclusiva del motor. */}
+                    <div
+                        role="radiogroup"
+                        aria-label={`Opciones de respuesta para ${criterio.codigo}`}
+                        className="grid gap-3 pt-1 sm:grid-cols-3"
+                    >
+                        {opciones.map((opcionKey) => {
+                            const esCumpleBloqueado = estaObservado && opcionKey === 'CUMPLE_DECLARADO';
+                            return (
+                                <OpcionRespuestaCriterio
+                                    key={opcionKey}
+                                    criterioCodigo={criterio.codigo}
+                                    opcionKey={opcionKey}
+                                    esSeleccionado={valorSeleccionado === opcionKey}
+                                    esRegistrada={esRegistrada}
+                                    deshabilitado={deshabilitado || esCumpleBloqueado}
+                                    bloqueadoSubsanacion={esCumpleBloqueado}
+                                    onSelect={onSelectRespuesta}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    {/* Candado de Subsanación en Frontend */}
+                    {estaObservado && (
+                        <div
+                            role="alert"
+                            className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-xs text-amber-950 shadow-2xs sm:flex-row sm:items-center"
+                        >
+                            <div className="flex items-start gap-2.5">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                                <p className="leading-relaxed font-medium">
+                                    Este ítem tiene observaciones técnicas. Para declararlo conforme, debe registrar la acción correctiva y evidencia en la Hoja de Subsanación.
+                                </p>
+                            </div>
+                            {autoevaluacionUuid && (
+                                <Link
+                                    href={route('autoevaluacion.subsanar_items', { uuid: autoevaluacionUuid })}
+                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-400 bg-amber-100 px-3.5 py-2 font-bold text-amber-950 transition-colors hover:bg-amber-200/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 active:scale-95 cursor-pointer shadow-2xs"
+                                >
+                                    <span>Ir a Subsanar</span>
+                                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                </Link>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Contexto paramétrico: se muestra solo cuando el dato del
+                        paso 1 realmente existe. Sin dato declarado el bloque no se
+                        renderiza, porque calcular sobre 0 afirmaría una dotación que
+                        nadie declaró. */}
+                    {criterio.codigo === 'CRIT-01' && contextoParametrico.mostrarDotacionExtintores && (
+                        <BloqueParametricoExtintores contexto={contextoParametrico} />
+                    )}
+
+                    {criterio.codigo === 'CRIT-04' && contextoParametrico.mostrarExigenciasAforo && (
+                        <BloqueParametricoAforo contexto={contextoParametrico} />
+                    )}
+
+                    {/* Botones de apoyo pedagógico y material orientativo */}
+                    {(tieneGuiaPedagogica || tieneRecursos) && (
+                        <AccionesApoyoCriterio
+                            criterio={criterio}
+                            comparativa={comparativa}
+                            tieneGuiaPedagogica={tieneGuiaPedagogica}
+                            tieneRecursos={tieneRecursos}
+                            onOpenGuiaPedagogica={onOpenGuiaPedagogica}
+                            onOpenRecurso={onOpenRecurso}
+                        />
+                    )}
+                </fieldset>
+            </div>
+        </article>
+    );
+}
+
+interface PasoFlujoItemProps {
+    paso: (typeof PASOS_FLUJO)[number];
+    esUltimo: boolean;
+}
+
+function PasoFlujoItem({ paso, esUltimo }: Readonly<PasoFlujoItemProps>) {
+    const activo = paso.estado === 'activo';
+    const completado = paso.estado === 'completado';
+    let clasePildora = 'border border-slate-200 bg-white text-slate-400';
+    if (activo) {
+        clasePildora = 'bg-slate-900 text-white shadow-sm shadow-slate-900/20';
+    } else if (completado) {
+        clasePildora = 'border border-emerald-200 bg-emerald-50 text-emerald-800';
+    }
+
+    return (
+        <li className="flex items-center gap-2 sm:gap-3">
+            <div
+                aria-current={activo ? 'step' : undefined}
+                className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition ${clasePildora}`}
+            >
+                {completado ? (
+                    <Check className="h-3 w-3" />
+                ) : (
+                    <span className={`font-mono text-[10px] ${activo ? 'text-white' : 'text-slate-300'}`}>
+                        {paso.numero}
+                    </span>
+                )}
+                <span>{paso.titulo}</span>
+            </div>
+            {!esUltimo && (
+                <span className="hidden text-slate-300 sm:block" aria-hidden="true">
+                    ›
+                </span>
+            )}
+        </li>
+    );
+}
+
+interface CabeceraChecklistProps {
+    nombreComercio?: string | null;
+    areaM2Declarada: number | null;
+    mostrarBotonGuardar: boolean;
+    onAbrirModalGuardar: () => void;
+}
+
+function CabeceraChecklist({
+    nombreComercio,
+    areaM2Declarada,
+    mostrarBotonGuardar,
+    onAbrirModalGuardar,
+}: Readonly<CabeceraChecklistProps>) {
+    return (
+        <header className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
+            <ol
+                aria-label="Flujo de autoevaluación: 1. Calcular riesgo, 2. Simulacro en vivo, 3. Veredicto"
+                className="mb-5 flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3"
+            >
+                {PASOS_FLUJO.map((paso, indice) => (
+                    <PasoFlujoItem
+                        key={paso.numero}
+                        paso={paso}
+                        esUltimo={indice === PASOS_FLUJO.length - 1}
+                    />
+                ))}
+            </ol>
+
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                    <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+                        Lista de Verificación Técnica de Seguridad (ITSE)
+                    </h1>
+                    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+                        <span className="inline-flex min-w-0 items-center gap-1.5">
+                            <Building2 className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                            <span className="truncate font-semibold text-slate-800">
+                                {nombreComercio || 'Establecimiento'}
+                            </span>
+                        </span>
+                        <span className="text-slate-300" aria-hidden="true">
+                            ·
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                            <Ruler className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                            {areaM2Declarada !== null ? (
+                                <span>{areaM2Declarada} m² de área declarada</span>
+                            ) : (
+                                <span className="text-slate-500">Área no declarada</span>
+                            )}
+                        </span>
+                    </p>
+                    <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
+                        Declara la situación real de cada condición de tu establecimiento. El simulacro es
+                        orientativo y no reemplaza una inspección técnica oficial.
+                    </p>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {mostrarBotonGuardar && (
+                        <button
+                            type="button"
+                            onClick={onAbrirModalGuardar}
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-xs transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        >
+                            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Guardar progreso</span>
+                        </button>
+                    )}
+                    <Link
+                        href="/"
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    >
+                        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                        Volver al inicio
+                    </Link>
+                </div>
+            </div>
+        </header>
+    );
+}
+
+interface PestanasEspecialidadesProps {
+    areas: AreaNormativa[];
+    progresoPorArea: ProgresoAreaItem[];
+    especialidadActivaId?: string;
+    onSelectEspecialidad: (id: string) => void;
+}
+
+function PestanasEspecialidades({
+    areas,
+    progresoPorArea,
+    especialidadActivaId,
+    onSelectEspecialidad,
+}: Readonly<PestanasEspecialidadesProps>) {
+    if (areas.length <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="border-b border-slate-200">
+            <nav
+                aria-label="Especialidades normadas de la verificación"
+                className="-mb-px flex gap-2 overflow-x-auto pb-px"
+            >
+                {areas.map((area) => {
+                    const avance = progresoPorArea.find((p) => p.id === area.id);
+                    const IconoEspecialidad = area.icono;
+                    const activa = especialidadActivaId === area.id;
+
+                    const getIconClass = () => {
+                        if (area.id === 'electricas') return 'text-amber-500';
+                        if (area.id === 'incendios') return 'text-rose-500';
+                        if (area.id === 'evacuacion') return 'text-blue-500';
+                        return activa ? 'text-emerald-600' : 'text-slate-400';
+                    };
+
+                    return (
+                        <button
+                            key={area.id}
+                            type="button"
+                            onClick={() => onSelectEspecialidad(area.id)}
+                            aria-current={activa ? 'true' : undefined}
+                            className={`inline-flex shrink-0 items-center gap-2 rounded-t-2xl border border-b-0 px-4 py-3 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                                activa
+                                    ? 'border-slate-300 bg-white text-slate-900 shadow-xs'
+                                    : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-800'
+                            }`}
+                        >
+                            <IconoEspecialidad
+                                className={`h-4 w-4 shrink-0 ${getIconClass()}`}
+                                aria-hidden="true"
+                            />
+                            <span className="hidden sm:inline">{area.nombre}</span>
+                            <span className="sm:hidden">{area.nombreCorto}</span>
+
+                            {avance?.completo ? (
+                                <span
+                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-700"
+                                    aria-label="Especialidad completada"
+                                >
+                                    <Check className="h-3 w-3" aria-hidden="true" />
+                                </span>
+                            ) : (
+                                <span
+                                    className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800"
+                                    aria-label={`${avance?.pendientes ?? 0} criterios pendientes`}
+                                >
+                                    {avance?.pendientes ?? 0}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </nav>
+        </div>
+    );
+}
+
+interface SeccionCriteriosPendientesProps {
+    criteriosPendientes: CriterioInformacionPendiente[];
+    mostrarPendientes: boolean;
+    onTogglePendientes: () => void;
+}
+
+function SeccionCriteriosPendientes({
+    criteriosPendientes,
+    mostrarPendientes,
+    onTogglePendientes,
+}: Readonly<SeccionCriteriosPendientesProps>) {
+    if (criteriosPendientes.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-5">
+            <button
+                type="button"
+                onClick={onTogglePendientes}
+                aria-expanded={mostrarPendientes}
+                className="flex w-full items-center justify-between gap-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-xl"
+            >
+                <div className="flex items-center gap-2.5">
+                    <Info className="h-5 w-5 text-amber-600 shrink-0" />
+                    <h2 className="text-base font-bold text-amber-900">
+                        Información pendiente para determinar aplicabilidad ({criteriosPendientes.length})
+                    </h2>
+                </div>
+                {mostrarPendientes ? (
+                    <ChevronUp className="h-4 w-4 text-amber-700 shrink-0" />
+                ) : (
+                    <ChevronDown className="h-4 w-4 text-amber-700 shrink-0" />
+                )}
+            </button>
+
+            {mostrarPendientes && (
+                <div className="mt-3 space-y-3 border-t border-amber-200 pt-3">
+                    <p className="text-xs text-amber-800">
+                        Los siguientes criterios requieren datos adicionales sobre las condiciones físicas del
+                        local para determinar si corresponden a tu autoevaluación. No requieren respuesta en
+                        este momento.
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        {criteriosPendientes.map((cp) => (
+                            <div
+                                key={cp.codigo}
+                                className="rounded-2xl border border-amber-200 bg-white p-3.5 shadow-2xs"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-xs font-bold text-amber-900">
+                                        {cp.codigo}
+                                    </span>
+                                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                                        Pendiente de dato
+                                    </span>
+                                </div>
+                                <p className="mt-1.5 text-xs font-bold text-slate-800">{cp.titulo}</p>
+                                <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                                    {cp.mensaje || cp.motivo}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
+
+interface CabeceraEspecialidadActivaProps {
+    especialidad: AreaNormativa;
+    estilo: EstiloArea;
+    avance?: ProgresoAreaItem;
+    esRegistrada: boolean;
+    onEnfocarPrimerPendiente: () => void;
+}
+
+function CabeceraEspecialidadActiva({
+    especialidad,
+    estilo,
+    avance,
+    esRegistrada,
+    onEnfocarPrimerPendiente,
+}: Readonly<CabeceraEspecialidadActivaProps>) {
+    const tienePendientes = (avance?.pendientes ?? 0) > 0 && !esRegistrada;
+
+    const renderIconoArea = () => {
+        if (especialidad.id === 'electricas') {
+            return <Zap className="w-5 h-5 text-amber-500" aria-hidden="true" />;
+        }
+        if (especialidad.id === 'incendios') {
+            return <Flame className="w-5 h-5 text-rose-500" aria-hidden="true" />;
+        }
+        if (especialidad.id === 'evacuacion') {
+            return <Compass className="w-5 h-5 text-blue-500" aria-hidden="true" />;
+        }
+        const IconoAreaActivo = especialidad.icono ?? ClipboardList;
+        return <IconoAreaActivo className="w-5 h-5" aria-hidden="true" />;
+    };
+
+    return (
+        <div
+            className={`flex flex-col gap-3 rounded-3xl border p-5 sm:flex-row sm:items-center sm:justify-between ${estilo.banner}`}
+        >
+            <div className="flex items-center gap-3.5">
+                <span
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${estilo.chipIcono} ${estilo.acento} shadow-2xs`}
+                >
+                    {renderIconoArea()}
+                </span>
+                <div className="min-w-0">
+                    <h2
+                        id={`area-titulo-${especialidad.id}`}
+                        className={`text-base font-black tracking-tight sm:text-lg ${estilo.acento}`}
+                    >
+                        {especialidad.nombre}
+                    </h2>
+                    {estilo.badgeNorma && (
+                        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-600 uppercase">
+                            <Scale className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span>Base normativa: {estilo.badgeNorma}</span>
+                        </p>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+                <span className="whitespace-nowrap rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-bold text-slate-700 shadow-2xs">
+                    {avance?.respondidos ?? 0} de {especialidad.criterios.length}
+                </span>
+                {tienePendientes && (
+                    <button
+                        type="button"
+                        onClick={onEnfocarPrimerPendiente}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white/90 px-3 py-1 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 shadow-2xs"
+                    >
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        Primer pendiente
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+interface SeccionCriteriosNoAplicanProps {
+    criteriosNoAplican: CriterioNoAplica[];
+    mostrarNoAplican: boolean;
+    onToggleNoAplican: () => void;
+}
+
+function SeccionCriteriosNoAplican({
+    criteriosNoAplican,
+    mostrarNoAplican,
+    onToggleNoAplican,
+}: Readonly<SeccionCriteriosNoAplicanProps>) {
+    if (criteriosNoAplican.length === 0) {
+        return null;
+    }
+
+    return (
+        <section className="rounded-3xl border border-slate-200 bg-slate-50/60 p-5">
+            <button
+                type="button"
+                onClick={onToggleNoAplican}
+                aria-expanded={mostrarNoAplican}
+                className="flex w-full items-center justify-between gap-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-xl"
+            >
+                <div className="flex items-center gap-2.5">
+                    <ShieldAlert className="h-5 w-5 text-slate-400 shrink-0" />
+                    <h2 className="text-base font-bold text-slate-800">
+                        Condiciones que el sistema determinó como no aplicables (
+                        {criteriosNoAplican.length})
+                    </h2>
+                </div>
+                {mostrarNoAplican ? (
+                    <ChevronUp className="h-4 w-4 text-slate-500 shrink-0" />
+                ) : (
+                    <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />
+                )}
+            </button>
+
+            {mostrarNoAplican && (
+                <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
+                    <p className="text-xs text-slate-500">
+                        El motor de aplicabilidad descartó estas condiciones a partir de lo que
+                        declaraste en el paso 1. La decisión es del sistema, no tuya: no son
+                        seleccionables ni requieren acción ciudadana.
+                    </p>
+                    <div className="space-y-2">
+                        {criteriosNoAplican.map((cna) => (
+                            <div
+                                key={cna.codigo}
+                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-xs font-bold text-slate-800">
+                                        {cna.codigo}
+                                    </span>
+                                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200">
+                                        No aplica
+                                    </span>
+                                </div>
+                                <p className="mt-1.5 text-sm font-bold text-slate-800">
+                                    {cna.titulo}
+                                </p>
+                                <p className="mt-1.5 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
+                                    <strong className="text-slate-700">Motivo del sistema: </strong>
+                                    {cna.motivo}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
+
+interface PanelHallazgosEnVivoProps {
+    hallazgos: CriterioEvaluable[];
+    respondidosCount: number;
+    totalCriterios: number;
+    porcentajeAvance: number;
+}
+
+function PanelHallazgosEnVivo({
+    hallazgos,
+    respondidosCount,
+    totalCriterios,
+    porcentajeAvance,
+}: Readonly<PanelHallazgosEnVivoProps>) {
+    const faltasDetectadas = hallazgos.length;
+
+    return (
+        <aside aria-label="Resumen de hallazgos en vivo" className="hidden lg:col-span-4 lg:block">
+            <div className="sticky top-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                        <ShieldAlert className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                        Resumen de hallazgos en vivo
+                    </h2>
+                </div>
+
+                <div>
+                    <p className="flex items-baseline gap-2">
+                        <span
+                            className={`text-4xl font-black tracking-tight ${
+                                faltasDetectadas > 0 ? 'text-rose-700' : 'text-emerald-700'
+                            }`}
+                        >
+                            {faltasDetectadas}
+                        </span>
+                        <span className="text-sm font-bold text-slate-700">
+                            {faltasDetectadas === 1 ? 'falta detectada' : 'faltas detectadas'}
+                        </span>
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                        Se actualiza con cada declaración que marques, sin guardar nada.
+                    </p>
+                </div>
+
+                <div>
+                    <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                        <span className="font-bold uppercase tracking-wider text-slate-500">Avance</span>
+                        <span className="font-black text-slate-900">
+                            {respondidosCount} de {totalCriterios}
+                        </span>
+                    </div>
+                    <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                            className={`h-full rounded-full ${porcentajeAvance === 100 ? 'bg-emerald-600' : 'bg-amber-500'}`}
+                            style={{ width: `${porcentajeAvance}%` }}
+                        />
+                    </div>
+                </div>
+
+                {faltasDetectadas === 0 ? (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
+                        <p className="flex items-start gap-2 text-xs font-medium leading-relaxed text-emerald-900">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                            <span>
+                                Aún no hay faltas registradas. Tu local cumple lo declarado hasta el
+                                momento.
+                            </span>
+                        </p>
+                    </div>
+                ) : (
+                    <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
+                        {hallazgos.map((hallazgo) => (
+                            <li
+                                key={hallazgo.codigo}
+                                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700"
+                            >
+                                <span className="font-mono text-[10px] font-bold text-rose-500">
+                                    {hallazgo.codigo}
+                                </span>
+                                <span className="mt-0.5 block text-xs font-semibold leading-snug">
+                                    {hallazgo.titulo}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+
+                {/* El panel lateral es solo informativo: las acciones de
+                    guardado y cierre viven una sola vez en la barra inferior. */}
+                <p className="border-t border-slate-100 pt-4 text-[11px] leading-relaxed text-slate-500">
+                    Cuando termines las {totalCriterios} condiciones, podrás pausar y guardar tu
+                    avance o pasar al resumen con el diagnóstico final.
+                </p>
+            </div>
+        </aside>
+    );
+}
+
+interface BarraInferiorAccionesProps {
+    uuid: string;
+    respondidosCount: number;
+    totalCriterios: number;
+    todosRespondidos: boolean;
+    esRegistrada: boolean;
+    guardandoAvance: boolean;
+    guardandoContinuar: boolean;
+    onGuardarAvance: () => void;
+    onContinuarAlResumen: () => void;
+}
+
+function BarraInferiorAcciones({
+    uuid,
+    respondidosCount,
+    totalCriterios,
+    todosRespondidos,
+    esRegistrada,
+    guardandoAvance,
+    guardandoContinuar,
+    onGuardarAvance,
+    onContinuarAlResumen,
+}: Readonly<BarraInferiorAccionesProps>) {
+    const claseBotonContinuar = todosRespondidos
+        ? 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-500'
+        : 'cursor-not-allowed bg-slate-100 text-slate-400';
+
+    return (
+        <div className="sticky bottom-0 z-30 mt-6 border-t border-slate-200 bg-white/95 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm">
+            <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                    <ClipboardList className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                    <span className="font-bold text-slate-900">
+                        {respondidosCount} de {totalCriterios} verificaciones realizadas
+                    </span>
+                    {!todosRespondidos && !esRegistrada && (
+                        <span className="text-amber-700">
+                            (faltan {totalCriterios - respondidosCount})
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center">
+                    {!esRegistrada && (
+                        <button
+                            type="button"
+                            onClick={onGuardarAvance}
+                            disabled={guardandoAvance || guardandoContinuar || respondidosCount === 0}
+                            className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
+                        >
+                            {guardandoAvance ? (
+                                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                            ) : (
+                                <Save className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                            )}
+                            <span>Pausar y guardar progreso</span>
+                        </button>
+                    )}
+
+                    {esRegistrada ? (
+                        <Link
+                            href={`/autoevaluacion/${uuid}/resumen`}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-xs transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        >
+                            <span>Ver Resumen y Diagnóstico Final</span>
+                            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </Link>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={onContinuarAlResumen}
+                            disabled={guardandoAvance || guardandoContinuar || !todosRespondidos}
+                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${claseBotonContinuar}`}
+                        >
+                            {guardandoContinuar ? (
+                                <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
+                                    <span>Generando diagnóstico...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>Ver Resumen y Diagnóstico Final</span>
+                                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                                </>
+                            )}
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function Checklist({
+    autoevaluacion,
+    checklist,
+}: Readonly<ChecklistProps>) {
+    const { auth } = usePage().props as { auth?: { user?: unknown } };
     const [mostrarModalGuardar, setMostrarModalGuardar] = useState<boolean>(false);
     const [modalRecurso, setModalRecurso] = useState<{
         isOpen: boolean;
@@ -527,51 +2025,25 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
     const [especialidadActiva, setEspecialidadActiva] = useState<string>('');
 
     // Inicializar respuestas locales a partir de los estados previos que el backend entregue
-    const [respuestas, setRespuestas] = useState<Record<string, string>>(() => {
-        const inicial: Record<string, string> = {};
-        for (const c of criteriosAplicables) {
-            if (c.estado && c.estado !== 'NO_APLICA') {
-                inicial[c.codigo] = c.estado;
-            }
-        }
-        return inicial;
-    });
+    const [respuestas, setRespuestas] = useState<Record<string, string>>(() =>
+        inicializarRespuestas(criteriosAplicables),
+    );
 
     // Inicializar notas privadas del ciudadano
-    const [notas] = useState<Record<string, string>>(() => {
-        const inicial: Record<string, string> = {};
-        for (const c of criteriosAplicables) {
-            if (c.notas) {
-                inicial[c.codigo] = c.notas;
-            }
-        }
-        return inicial;
-    });
+    const [notas] = useState<Record<string, string>>(() =>
+        inicializarNotas(criteriosAplicables),
+    );
 
     // Estado de la Guía Visual Pedagógica interactiva (Modal / Drawer ágil)
-    const [modalGuiaPedagogica, setModalGuiaPedagogica] = useState<{
-        isOpen: boolean;
-        codigo?: string;
-        titulo?: string;
-        explicacionCotidiana?: string;
-        queObservar?: string;
-        correcto?: string[];
-        incorrecto?: string[];
-        normaBase?: string | null;
-        articuloReferencia?: string | null;
-    }>({
+    const [modalGuiaPedagogica, setModalGuiaPedagogica] = useState<
+        DatosGuiaPedagogicaModal & { isOpen: boolean }
+    >({
         isOpen: false,
     });
 
-    const [criteriosGuardados, setCriteriosGuardados] = useState<Record<string, boolean>>(() => {
-        const inicial: Record<string, boolean> = {};
-        for (const c of criteriosAplicables) {
-            if (c.estado && c.estado !== 'NO_APLICA') {
-                inicial[c.codigo] = true;
-            }
-        }
-        return inicial;
-    });
+    const [criteriosGuardados, setCriteriosGuardados] = useState<Record<string, boolean>>(() =>
+        inicializarCriteriosGuardados(criteriosAplicables),
+    );
 
     const [guardandoAvance, setGuardandoAvance] = useState<boolean>(false);
     const [guardandoContinuar, setGuardandoContinuar] = useState<boolean>(false);
@@ -581,104 +2053,59 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
     const [mostrarPendientes, setMostrarPendientes] = useState<boolean>(true);
 
     // Cantidad de criterios aplicables con respuesta seleccionada
-    const respondidosCount = useMemo(() => {
-        return criteriosAplicables.filter((c) => Boolean(respuestas[c.codigo])).length;
-    }, [criteriosAplicables, respuestas]);
+    const respondidosCount = useMemo(
+        () => criteriosAplicables.filter((c) => Boolean(respuestas[c.codigo])).length,
+        [criteriosAplicables, respuestas],
+    );
 
     const esRegistrada = autoevaluacion?.estado === 'REGISTRADA';
-    const todosRespondidos = respondidosCount === criteriosAplicables.length && criteriosAplicables.length > 0;
+    const todosRespondidos =
+        respondidosCount === criteriosAplicables.length && criteriosAplicables.length > 0;
     const puedeVerResumen = todosRespondidos || esRegistrada;
-    const porcentajeAvance = criteriosAplicables.length > 0 ? Math.round((respondidosCount / criteriosAplicables.length) * 100) : 0;
+    const porcentajeAvance =
+        criteriosAplicables.length > 0
+            ? Math.round((respondidosCount / criteriosAplicables.length) * 100)
+            : 0;
 
-    /**
-     * Contexto paramétrico del establecimiento.
-     *
-     * Estos valores salen del paso 1 y son idénticos para todos los criterios, así
-     * que se derivan una sola vez a nivel de página. `magnitudDeclarada` se aplica
-     * sin excepciones: un dato no declarado llega como `null` y entonces el bloque
-     * orientativo no se renderiza, en vez de calcular sobre cero.
-     */
-    const areaM2Declarada = magnitudDeclarada(autoevaluacion?.area_m2);
-    const pisosDeclarados = magnitudDeclarada(autoevaluacion?.pisos);
-    const aforoDeclarado = magnitudDeclarada(autoevaluacion?.aforo);
-    const areaM2Num = areaM2Declarada ?? 0;
-    const aforoNum = aforoDeclarado ?? 0;
+    const contextoParametrico = calcularContextoParametrico(autoevaluacion);
 
-    const extintoresMinimos = areaM2Declarada !== null ? Math.ceil(areaM2Declarada / 60) : 0;
-    const extintoresPorPisos = pisosDeclarados;
-    const extintoresSugeridos = Math.max(1, Math.max(extintoresMinimos, extintoresPorPisos ?? 0));
-
-    /** Los bloques paramétricos solo se muestran si existe el dato que los sustenta. */
-    const mostrarDotacionExtintores = areaM2Declarada !== null;
-    const mostrarExigenciasAforo = aforoDeclarado !== null;
-
-    const mostrarAlertaAforo50 = aforoNum > 50;
-    const mostrarAlertaAforo100 = aforoNum > 100;
-    const tieneEquiposFritura =
-        autoevaluacion?.tiene_equipos_fritura ??
-        (autoevaluacion?.caracteristicas_declaradas as
-            | { tiene_equipos_fritura?: boolean | null }
-            | null
-            | undefined)?.tiene_equipos_fritura ??
-        null;
-
-    // Hallazgos en vivo: se derivan de `respuestas` y no mantienen estado propio, así que
-    // el panel lateral no introduce ninguna mutación extra. Un criterio cuenta como falta
-    // cuando el ciudadano lo declara pendiente de atender o por revisar: son exactamente
-    // los dos estados que el backend suma como `alertas` en `desglose_especialidades`.
     const hallazgos = useMemo(
-        () =>
-            criteriosAplicables.filter((c) => {
-                const estado = respuestas[c.codigo];
-                return estado === 'PENDIENTE_ATENDER' || estado === 'POR_REVISAR';
-            }),
-        [criteriosAplicables, respuestas]
+        () => filtrarHallazgos(criteriosAplicables, respuestas),
+        [criteriosAplicables, respuestas],
     );
-    const faltasDetectadas = hallazgos.length;
 
-    /**
-     * Progreso por especialidad para las pestañas. Se deriva de `respuestas`, igual
-     * que el total, así que el contador de cada píldora y la barra global nunca
-     * pueden discrepar.
-     */
     const progresoPorArea = useMemo(
-        () =>
-            areas.map((area) => {
-                const respondidos = area.criterios.filter((c) => Boolean(respuestas[c.codigo])).length;
-                return {
-                    id: area.id,
-                    respondidos,
-                    total: area.criterios.length,
-                    pendientes: area.criterios.length - respondidos,
-                    completo: respondidos === area.criterios.length,
-                };
-            }),
-        [areas, respuestas]
+        () => calcularProgresoPorArea(areas, respuestas),
+        [areas, respuestas],
     );
 
-    // Si el catálogo no trae criterios (o la pestaña activa desaparece), la vista
-    // cae en la primera especialidad disponible sin dejar la sección vacía.
-    const especialidadVisible = areas.find((area) => area.id === especialidadActiva) ?? areas[0] ?? null;
+    const especialidadVisible =
+        areas.find((area) => area.id === especialidadActiva) ?? areas[0] ?? null;
     const estiloEspecialidad = especialidadVisible
         ? (CONFIG_AREA[especialidadVisible.id] ?? CONFIG_AREA_POR_DEFECTO)
         : null;
-    const IconoAreaActivo = especialidadVisible?.icono ?? ClipboardList;
     const avanceEspecialidad = especialidadVisible
         ? progresoPorArea.find((p) => p.id === especialidadVisible.id)
         : undefined;
 
-    /** Lleva al ciudadano al primer criterio sin responder de la especialidad abierta. */
     const enfocarPrimerPendiente = () => {
-        const primerPendiente = especialidadVisible?.criterios.find((c) => !respuestas[c.codigo]);
-        if (!primerPendiente) return;
-
-        document
-            .getElementById(`criterio-${primerPendiente.codigo}`)
-            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        desplazarAPrimerPendiente(especialidadVisible, respuestas);
     };
 
     const seleccionarRespuesta = (codigo: string, estado: string) => {
         if (esRegistrada) {
+            return;
+        }
+
+        const estadoActual = respuestas[codigo];
+        const crit = criteriosAplicables.find((c) => c.codigo === codigo);
+        const estaObservado =
+            estadoActual === 'PENDIENTE_ATENDER' ||
+            estadoActual === 'OBSERVADO' ||
+            crit?.estado === 'PENDIENTE_ATENDER' ||
+            crit?.estado === 'OBSERVADO';
+
+        if (estaObservado && estado === 'CUMPLE_DECLARADO') {
             return;
         }
 
@@ -697,37 +2124,16 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
         setMensajeError(null);
 
         // Desplazamiento suave guiado hacia la siguiente pregunta sin responder tras 350ms
-        if (especialidadVisible) {
-            const indexActual = especialidadVisible.criterios.findIndex((c) => c.codigo === codigo);
-            if (indexActual >= 0) {
-                const siguienteSinResponder = especialidadVisible.criterios
-                    .slice(indexActual + 1)
-                    .find((c) => !respuestas[c.codigo] && c.codigo !== codigo);
-
-                if (siguienteSinResponder) {
-                    setTimeout(() => {
-                        const el = document.getElementById(`criterio-${siguienteSinResponder.codigo}`);
-                        if (el) {
-                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    }, 350);
-                }
-            }
-        }
+        programarDesplazamientoSiguiente(especialidadVisible, codigo, respuestas);
     };
 
     // Acción Secundaria: Guardar Avance (persiste desde 1 respuesta, mantiene INICIADA)
     const handleGuardarAvance = async () => {
-        if (esRegistrada) return;
+        if (esRegistrada) {
+            return;
+        }
 
-        const respuestasAEnviar = Object.entries(respuestas)
-            .filter(([, estado]) => Boolean(estado))
-            .map(([codigo, estado]) => ({
-                codigo,
-                estado,
-                notas: (notas[codigo] || '').trim() || null,
-            }));
-
+        const respuestasAEnviar = construirRespuestasAvance(respuestas, notas);
         if (respuestasAEnviar.length === 0) {
             setMensajeError('Seleccione al menos una declaración para guardar avance.');
             return;
@@ -738,39 +2144,24 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
         setMensajeExito(null);
 
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch(`/autoevaluacion/${autoevaluacion.uuid}/checklist`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify({ respuestas: respuestasAEnviar }),
-            });
-
+            const response = await enviarRespuestasChecklist(
+                autoevaluacion.uuid,
+                respuestasAEnviar,
+            );
             const data = await response.json();
 
             if (response.ok) {
                 setMensajeExito(
-                    `Avance guardado correctamente (${respuestasAEnviar.length} de ${criteriosAplicables.length} respondidos). Puede continuar en cualquier momento.`
+                    `Avance guardado correctamente (${respuestasAEnviar.length} de ${criteriosAplicables.length} respondidos). Puede continuar en cualquier momento.`,
                 );
-                const nuevosGuardados = { ...criteriosGuardados };
-                for (const item of respuestasAEnviar) {
-                    nuevosGuardados[item.codigo] = true;
-                }
-                setCriteriosGuardados(nuevosGuardados);
-            } else if (response.status === 422) {
-                const errorMsg =
-                    data.errors && typeof data.errors === 'object'
-                        ? Object.values(data.errors).flat().join(' ')
-                        : data.message || 'Algunas declaraciones no son válidas.';
-                setMensajeError(errorMsg);
+                setCriteriosGuardados((prev) => marcarComoGuardados(prev, respuestasAEnviar));
             } else {
-                setMensajeError(data.mensaje || 'No fue posible guardar su avance. Intente nuevamente.');
+                setMensajeError(resolverMensajeErrorGuardado(response.status, data));
             }
         } catch {
-            setMensajeError('No fue posible guardar su avance. Verifique su conexión e intente nuevamente.');
+            setMensajeError(
+                'No fue posible guardar su avance. Verifique su conexión e intente nuevamente.',
+            );
         } finally {
             setGuardandoAvance(false);
         }
@@ -779,19 +2170,20 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
     // Acción Principal: Continuar al Resumen (comprueba 100%, persiste y redirige a /resumen)
     const handleContinuarAlResumen = async () => {
         if (esRegistrada) {
-            router.visit(`/autoevaluacion/${autoevaluacion.uuid}/resumen`);
+            router.visit(`/autoevaluacion/${autoevaluacion.uuid}/resumen`, {
+                replace: true,
+                preserveScroll: false,
+                preserveState: false,
+            });
             return;
         }
 
         const faltantes = criteriosAplicables.filter((c) => !respuestas[c.codigo]);
         if (faltantes.length > 0) {
             setMensajeError(
-                `Tiene ${faltantes.length} criterio(s) sin responder. Por favor, declare la situación de todas las condiciones aplicables para continuar al resumen.`
+                `Tiene ${faltantes.length} criterio(s) sin responder. Por favor, declare la situación de todas las condiciones aplicables para continuar al resumen.`,
             );
-            const primerFaltanteElem = document.getElementById(`criterio-${faltantes[0].codigo}`);
-            if (primerFaltanteElem) {
-                primerFaltanteElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            desplazarElementoAlCentro(`criterio-${faltantes[0].codigo}`);
             return;
         }
 
@@ -799,29 +2191,30 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
         setMensajeError(null);
         setMensajeExito(null);
 
-        const respuestasAEnviar = criteriosAplicables.map((c) => ({
-            codigo: c.codigo,
-            estado: respuestas[c.codigo],
-            notas: (notas[c.codigo] || '').trim() || null,
-        }));
+        const respuestasAEnviar = construirRespuestasCompletas(
+            criteriosAplicables,
+            respuestas,
+            notas,
+        );
 
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch(`/autoevaluacion/${autoevaluacion.uuid}/checklist`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                },
-                body: JSON.stringify({ respuestas: respuestasAEnviar }),
-            });
+            const response = await enviarRespuestasChecklist(
+                autoevaluacion.uuid,
+                respuestasAEnviar,
+            );
 
             if (response.ok) {
-                router.visit(`/autoevaluacion/${autoevaluacion.uuid}/resumen`);
+                router.visit(`/autoevaluacion/${autoevaluacion.uuid}/resumen`, {
+                    replace: true,
+                    preserveScroll: false,
+                    preserveState: false,
+                });
             } else {
                 const data = await response.json();
-                setMensajeError(data.mensaje || 'No fue posible guardar las declaraciones para continuar. Intente nuevamente.');
+                setMensajeError(
+                    data.mensaje ||
+                        'No fue posible guardar las declaraciones para continuar. Intente nuevamente.',
+                );
                 setGuardandoContinuar(false);
             }
         } catch {
@@ -830,114 +2223,30 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
         }
     };
 
+    const deshabilitarOpciones = esRegistrada || guardandoAvance || guardandoContinuar;
+    const sufijoRegistradaAt = autoevaluacion.registrada_at
+        ? ` el ${autoevaluacion.registrada_at}`
+        : '';
+
     return (
         <>
             <Head title="Paso 2 de 3: Checklist de Autoevaluación - CheckITSE Huancayo" />
 
-            {/* Escritorio: retícula de 12 columnas con el formulario a la izquierda y el
-                panel de hallazgos a la derecha. Por debajo de `lg` esto es un bloque normal,
-                así que la experiencia móvil queda idéntica. */}
             <div className="relative mx-auto max-w-4xl lg:max-w-6xl lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
-                {/* Capa de patrón grid sutil, acotada a la columna de contenido */}
                 <div
                     aria-hidden="true"
                     className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,var(--color-slate-200)_1px,transparent_1px),linear-gradient(to_bottom,var(--color-slate-200)_1px,transparent_1px)] bg-[size:28px_28px] opacity-45 [mask-image:radial-gradient(ellipse_75%_60%_at_50%_0%,#000_10%,transparent_100%)]"
                 />
 
                 <div className="space-y-7 pb-32 lg:col-span-8">
-                    {/* ============================================== */}
-                    {/* Cabecera: título de la lista, contexto y       */}
-                    {/* acciones discretas de guardado/regreso         */}
-                    {/* ============================================== */}
-                    <header className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6">
-                        <ol
-                            aria-label="Flujo de autoevaluación: 1. Calcular riesgo, 2. Simulacro en vivo, 3. Veredicto"
-                            className="mb-5 flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3"
-                        >
-                            {PASOS_FLUJO.map((paso, indice) => {
-                                const activo = paso.estado === 'activo';
-                                const completado = paso.estado === 'completado';
-                                return (
-                                    <li key={paso.numero} className="flex items-center gap-2 sm:gap-3">
-                                        <div
-                                            aria-current={activo ? 'step' : undefined}
-                                            className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition ${
-                                                activo
-                                                    ? 'bg-slate-900 text-white shadow-sm shadow-slate-900/20'
-                                                    : completado
-                                                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-                                                      : 'border border-slate-200 bg-white text-slate-400'
-                                            }`}
-                                        >
-                                            {completado ? (
-                                                <Check className="h-3 w-3" />
-                                            ) : (
-                                                <span className={`font-mono text-[10px] ${activo ? 'text-slate-300' : 'text-slate-300'}`}>{paso.numero}</span>
-                                            )}
-                                            <span>{paso.titulo}</span>
-                                        </div>
-                                        {indice < PASOS_FLUJO.length - 1 && <span className="hidden text-slate-300 sm:block" aria-hidden="true">›</span>}
-                                    </li>
-                                );
-                            })}
-                        </ol>
+                    <CabeceraChecklist
+                        nombreComercio={autoevaluacion?.nombre_comercio}
+                        areaM2Declarada={contextoParametrico.areaM2Declarada}
+                        mostrarBotonGuardar={!auth?.user}
+                        onAbrirModalGuardar={() => setMostrarModalGuardar(true)}
+                    />
 
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                                <h1 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
-                                    Lista de Verificación Técnica de Seguridad (ITSE)
-                                </h1>
-                                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-                                    <span className="inline-flex min-w-0 items-center gap-1.5">
-                                        <Building2 className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                                        <span className="truncate font-semibold text-slate-800">
-                                            {autoevaluacion?.nombre_comercio || 'Establecimiento'}
-                                        </span>
-                                    </span>
-                                    <span className="text-slate-300" aria-hidden="true">·</span>
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <Ruler className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                                        {areaM2Declarada !== null ? (
-                                            <span>{areaM2Declarada} m² de área declarada</span>
-                                        ) : (
-                                            <span className="text-slate-500">Área no declarada</span>
-                                        )}
-                                    </span>
-                                </p>
-                                <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
-                                    Declara la situación real de cada condición de tu establecimiento. El simulacro es orientativo y no
-                                    reemplaza una inspección técnica oficial.
-                                </p>
-                            </div>
-
-                            <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                {!auth?.user && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setMostrarModalGuardar(true)}
-                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-xs transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                                    >
-                                        <Save className="h-3.5 w-3.5" aria-hidden="true" />
-                                        <span>Guardar progreso</span>
-                                    </button>
-                                )}
-                                <Link
-                                    href="/"
-                                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                                >
-                                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                                    Volver al inicio
-                                </Link>
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* ============================================== */}
-                    {/* Widget de progreso: barra moderna + contador   */}
-                    {/* «X de Y verificaciones realizadas». Se ancla  */}
-                    {/* para que el avance siga a la vista mientras    */}
-                    {/* el ciudadano recorre los criterios.            */}
-                    {/* ============================================== */}
+                    {/* Widget de progreso */}
                     <div className="sticky top-0 z-30 -mx-4 border-y border-slate-200 bg-white/85 px-4 py-3 shadow-xs backdrop-blur-md sm:-mx-6 sm:px-6">
                         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
                             <p className="text-[11px] font-black tracking-wider text-slate-500 uppercase">
@@ -952,53 +2261,48 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                         </div>
 
                         <div className="mt-2 flex items-center gap-3">
-                            <div
-                                role="progressbar"
-                                aria-valuenow={respondidosCount}
-                                aria-valuemin={0}
-                                aria-valuemax={criteriosAplicables.length}
-                                aria-valuetext={`${respondidosCount} de ${criteriosAplicables.length} verificaciones realizadas`}
+                            <progress
+                                value={respondidosCount}
+                                max={criteriosAplicables.length}
                                 aria-label="Verificaciones realizadas"
-                                className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"
+                                className="h-2 flex-1 w-full overflow-hidden rounded-full bg-slate-200 appearance-none border-0 [&::-webkit-progress-bar]:bg-slate-200 [&::-webkit-progress-value]:rounded-full [&::-moz-progress-bar]:rounded-full"
                             >
+                                {/* Fallback visual interno */}
                                 <div
                                     className={`h-full rounded-full transition-all duration-500 ${
                                         porcentajeAvance === 100 ? 'bg-emerald-500' : 'bg-slate-900'
                                     }`}
                                     style={{ width: `${porcentajeAvance}%` }}
                                 />
-                            </div>
+                            </progress>
                             <span className="w-12 shrink-0 text-right text-sm font-black tabular-nums text-slate-900">
                                 {porcentajeAvance}%
                             </span>
                         </div>
                     </div>
 
-                    {/* ============================================== */}
-                    {/* Banner de Autoevaluación Registrada            */}
-                    {/* ============================================== */}
+                    {/* Banner de Autoevaluación Registrada */}
                     {esRegistrada && (
-                        <div
-                            role="status"
-                            className="flex items-start gap-3 rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-950 shadow-xs"
+                        <output
+                            className="block flex items-start gap-3 rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-950 shadow-xs"
                         >
                             <Lock className="h-5 w-5 shrink-0 text-emerald-700 mt-0.5" />
                             <div className="text-sm leading-relaxed">
-                                <strong className="font-bold text-emerald-950">Autoevaluación registrada: </strong>
+                                <strong className="font-bold text-emerald-950">
+                                    Autoevaluación registrada:{' '}
+                                </strong>
                                 Esta autoevaluación está registrada y protegida contra modificaciones
-                                {autoevaluacion.registrada_at ? ` el ${autoevaluacion.registrada_at}` : ''}. Sus declaraciones permanecen inalterables. Se encuentra en modo de solo
-                                lectura. Para realizar modificaciones debe iniciar una reevaluación preventiva.
+                                {sufijoRegistradaAt}. Sus declaraciones permanecen inalterables. Se
+                                encuentra en modo de solo lectura. Para realizar modificaciones debe
+                                iniciar una reevaluación preventiva.
                             </div>
-                        </div>
+                        </output>
                     )}
 
-                    {/* ============================================== */}
-                    {/* Mensajes de estado                             */}
-                    {/* ============================================== */}
+                    {/* Mensajes de estado */}
                     {mensajeExito && (
-                        <div
-                            role="status"
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"
+                        <output
+                            className="block flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"
                         >
                             <div className="flex items-center gap-3">
                                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
@@ -1013,7 +2317,7 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                     <ArrowRight className="h-4 w-4" />
                                 </Link>
                             )}
-                        </div>
+                        </output>
                     )}
 
                     {mensajeError && (
@@ -1026,106 +2330,20 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                         </div>
                     )}
 
-                    {/* ============================================== */}
-                    {/* Pestañas de especialidad: una disciplina por     */}
-                    {/* píldora, con contador de pendientes o check de  */}
-                    {/* completado. Filtran la vista, no los datos.    */}
-                    {/* ============================================== */}
-                    {areas.length > 1 && (
-                        <div className="border-b border-slate-200">
-                            <nav aria-label="Especialidades normadas de la verificación" className="-mb-px flex gap-2 overflow-x-auto pb-px">
-                                {areas.map((area) => {
-                                    const avance = progresoPorArea.find((p) => p.id === area.id);
-                                    const IconoEspecialidad = area.icono;
-                                    const activa = especialidadVisible?.id === area.id;
+                    <PestanasEspecialidades
+                        areas={areas}
+                        progresoPorArea={progresoPorArea}
+                        especialidadActivaId={especialidadVisible?.id}
+                        onSelectEspecialidad={setEspecialidadActiva}
+                    />
 
-                                    return (
-                                        <button
-                                            key={area.id}
-                                            type="button"
-                                            onClick={() => setEspecialidadActiva(area.id)}
-                                            aria-current={activa ? 'true' : undefined}
-                                            className={`inline-flex shrink-0 items-center gap-2 rounded-t-xl border border-b-0 px-3.5 py-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
-                                                activa
-                                                    ? 'border-slate-300 bg-white text-slate-900 shadow-xs'
-                                                    : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-800'
-                                            }`}
-                                        >
-                                            <IconoEspecialidad
-                                                className={`h-4 w-4 shrink-0 ${activa ? 'text-emerald-600' : 'text-slate-400'}`}
-                                                aria-hidden="true"
-                                            />
-                                            <span className="hidden sm:inline">{area.nombre}</span>
-                                            <span className="sm:hidden">{area.nombreCorto}</span>
+                    <SeccionCriteriosPendientes
+                        criteriosPendientes={criteriosPendientes}
+                        mostrarPendientes={mostrarPendientes}
+                        onTogglePendientes={() => setMostrarPendientes(!mostrarPendientes)}
+                    />
 
-                                            {avance?.completo ? (
-                                                <span
-                                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-700"
-                                                    aria-label="Especialidad completada"
-                                                >
-                                                    <Check className="h-3 w-3" aria-hidden="true" />
-                                                </span>
-                                            ) : (
-                                                <span
-                                                    className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-black text-amber-800"
-                                                    aria-label={`${avance?.pendientes ?? 0} criterios pendientes`}
-                                                >
-                                                    {avance?.pendientes ?? 0}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </nav>
-                        </div>
-                    )}
-
-                    {/* ============================================== */}
-                    {/* Información pendiente de aplicabilidad         */}
-                    {/* ============================================== */}
-                    {criteriosPendientes.length > 0 && (
-                        <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-5">
-                            <button
-                                type="button"
-                                onClick={() => setMostrarPendientes(!mostrarPendientes)}
-                                aria-expanded={mostrarPendientes}
-                                className="flex w-full items-center justify-between gap-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded-xl"
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <Info className="h-5 w-5 text-amber-600 shrink-0" />
-                                    <h2 className="text-base font-bold text-amber-900">
-                                        Información pendiente para determinar aplicabilidad ({criteriosPendientes.length})
-                                    </h2>
-                                </div>
-                                {mostrarPendientes ? <ChevronUp className="h-4 w-4 text-amber-700 shrink-0" /> : <ChevronDown className="h-4 w-4 text-amber-700 shrink-0" />}
-                            </button>
-
-                            {mostrarPendientes && (
-                                <div className="mt-3 space-y-3 border-t border-amber-200 pt-3">
-                                    <p className="text-xs text-amber-800">
-                                        Los siguientes criterios requieren datos adicionales sobre las condiciones físicas del local para determinar si corresponden a tu
-                                        autoevaluación. No requieren respuesta en este momento.
-                                    </p>
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        {criteriosPendientes.map((cp) => (
-                                            <div key={cp.codigo} className="rounded-2xl border border-amber-200 bg-white p-3.5 shadow-2xs">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-mono text-xs font-bold text-amber-900">{cp.codigo}</span>
-                                                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Pendiente de dato</span>
-                                                </div>
-                                                <p className="mt-1.5 text-xs font-bold text-slate-800">{cp.titulo}</p>
-                                                <p className="mt-1 text-xs text-slate-600 leading-relaxed">{cp.mensaje || cp.motivo}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </section>
-                    )}
-
-                    {/* ============================================== */}
-                    {/* Criterios de la especialidad abierta            */}
-                    {/* ============================================== */}
+                    {/* Criterios de la especialidad abierta */}
                     <div className="space-y-6">
                         {especialidadVisible && estiloEspecialidad && (
                             <section
@@ -1133,532 +2351,72 @@ export default function Checklist({ autoevaluacion, checklist }: ChecklistProps)
                                 aria-labelledby={`area-titulo-${especialidadVisible.id}`}
                                 className="scroll-mt-28 space-y-4"
                             >
-                                <div
-                                    className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${estiloEspecialidad.banner}`}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span
-                                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${estiloEspecialidad.chipIcono} ${estiloEspecialidad.acento}`}
-                                        >
-                                            <IconoAreaActivo className="h-4 w-4" aria-hidden="true" />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <h2
-                                                id={`area-titulo-${especialidadVisible.id}`}
-                                                className={`text-base font-black tracking-tight sm:text-lg ${estiloEspecialidad.acento}`}
-                                            >
-                                                {especialidadVisible.nombre}
-                                            </h2>
-                                            {estiloEspecialidad.badgeNorma && (
-                                                <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-bold tracking-wider text-slate-600 uppercase">
-                                                    <Scale className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                                    <span>Base normativa: {estiloEspecialidad.badgeNorma}</span>
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex shrink-0 items-center gap-2">
-                                        <span className="whitespace-nowrap rounded-full border border-slate-200 bg-white/80 px-2.5 py-1 text-xs font-bold text-slate-700">
-                                            {avanceEspecialidad?.respondidos ?? 0} de {especialidadVisible.criterios.length}
-                                        </span>
-                                        {(avanceEspecialidad?.pendientes ?? 0) > 0 && !esRegistrada && (
-                                            <button
-                                                type="button"
-                                                onClick={enfocarPrimerPendiente}
-                                                className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white/80 px-2.5 py-1 text-[11px] font-bold text-slate-600 transition hover:border-slate-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                                            >
-                                                <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                                                Primer pendiente
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                <CabeceraEspecialidadActiva
+                                    especialidad={especialidadVisible}
+                                    estilo={estiloEspecialidad}
+                                    avance={avanceEspecialidad}
+                                    esRegistrada={esRegistrada}
+                                    onEnfocarPrimerPendiente={enfocarPrimerPendiente}
+                                />
 
                                 <div className="space-y-4">
-                                            {especialidadVisible.criterios.map((criterio, index) => {
-                                                const valorSeleccionado = respuestas[criterio.codigo];
-                                                const estaGuardado = criteriosGuardados[criterio.codigo];
-                                                const estaRespondido = Boolean(valorSeleccionado);
-                                                const tieneRecursos =
-                                                    criterio.recursos_educativos && criterio.recursos_educativos.length > 0;
-                                                const comparativa = COMPARATIVA_CORRECTO_INCORRECTO[criterio.codigo];
-                                                const tieneGuiaPedagogica = Boolean(
-                                                    criterio.que_observar ||
-                                                        criterio.accion_mejora_orientativa ||
-                                                        criterio.norma_base ||
-                                                        criterio.articulo_referencia ||
-                                                        comparativa
-                                                );
-                                                const referenciaNormativa = criterio.norma_base || criterio.articulo_referencia;
-
-                                                const bordeTarjeta = esRegistrada
-                                                    ? 'border-slate-200 bg-white'
-                                                    : valorSeleccionado === 'CUMPLE_DECLARADO'
-                                                      ? 'border-emerald-300 ring-2 ring-emerald-400/20 bg-emerald-50/5'
-                                                      : valorSeleccionado === 'PENDIENTE_ATENDER'
-                                                        ? 'border-amber-300 ring-2 ring-amber-400/20 bg-amber-50/5'
-                                                        : valorSeleccionado === 'POR_REVISAR'
-                                                          ? 'border-sky-300 ring-2 ring-sky-400/20 bg-sky-50/5'
-                                                          : 'border-slate-200/80 bg-white hover:border-slate-300';
-
-                                                return (
-                                                    <article
-                                                        key={criterio.codigo}
-                                                        id={`criterio-${criterio.codigo}`}
-                                                        className={`mb-4 scroll-mt-28 rounded-2xl border p-5 shadow-xs transition-all duration-300 ${bordeTarjeta}`}
-                                                    >
-                                                        <fieldset className="space-y-4">
-                                                            {/* El legend debe ser el primer hijo del fieldset; el título visible va aparte para conservar el orden visual */}
-                                                            <legend className="sr-only">{criterio.titulo}</legend>
-
-                                                            {/* Cabecera de la card: código técnico + base normativa + estado */}
-                                                            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
-                                                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                                                    <span className="text-xs font-mono text-slate-400">#{criterio.orden ?? index + 1}</span>
-                                                                    <span className="rounded-lg bg-slate-900 px-2 py-0.5 font-mono text-[11px] font-bold tracking-tight text-white">
-                                                                        {criterio.codigo}
-                                                                    </span>
-                                                                    {referenciaNormativa && (
-                                                                        <span
-                                                                            className="inline-flex min-w-0 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
-                                                                            title={referenciaNormativa}
-                                                                        >
-                                                                            <Scale className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
-                                                                            <span className="truncate">{referenciaNormativa}</span>
-                                                                        </span>
-                                                                    )}
-                                                                    {criterio.categoria && (
-                                                                        <span className="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                                                                            {criterio.categoria}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-
-                                                                {estaGuardado ? (
-                                                                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                                                                        <Check className="h-3 w-3" aria-hidden="true" /> Guardado
-                                                                    </span>
-                                                                ) : estaRespondido ? (
-                                                                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                                                                        <CheckCircle2 className="h-3 w-3 text-emerald-600" aria-hidden="true" /> Respondido
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-                                                                        Sin responder
-                                                                    </span>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Enunciado y pregunta técnica al comerciante */}
-                                                            <div>
-                                                                <p className="text-base leading-snug font-extrabold text-slate-900">{criterio.titulo}</p>
-                                                                <p className="mt-2.5 rounded-2xl border border-slate-100 bg-slate-50 p-3.5 text-sm leading-relaxed font-semibold text-slate-800">
-                                                                    {criterio.pregunta_ciudadana}
-                                                                </p>
-                                                            </div>
-
-                                                            {/* Selector segmentado de las tres declaraciones ciudadanas
-                                                                autorizadas. `NO_APLICA` se sigue filtrando aquí y en
-                                                                el payload: es una determinación exclusiva del motor. */}
-                                                            <div
-                                                                role="radiogroup"
-                                                                aria-label={`Opciones de respuesta para ${criterio.codigo}`}
-                                                                className="grid gap-2 pt-1 sm:grid-cols-3"
-                                                            >
-                                                                {(criterio.opciones_respuesta || OPCIONES_FALLBACK)
-                                                                    .filter((op) => op !== 'NO_APLICA')
-                                                                    .map((opcionKey) => {
-                                                                        const conf = OPCIONES_ETIQUETAS[opcionKey] || {
-                                                                            label: opcionKey,
-                                                                            descripcion: '',
-                                                                            icono: HelpCircle,
-                                                                            borderSelected: 'border-slate-900',
-                                                                            bgSelected: 'bg-slate-100',
-                                                                            ringSelected: 'ring-2 ring-slate-900/10',
-                                                                            textSelected: 'text-slate-900',
-                                                                            iconSelected: 'text-slate-900',
-                                                                            radioAccent: 'text-slate-900 focus:ring-slate-500',
-                                                                        };
-                                                                        const IconoOpcion = conf.icono;
-                                                                        const esSeleccionado = valorSeleccionado === opcionKey;
-
-                                                                        return (
-                                                                            <label
-                                                                                key={opcionKey}
-                                                                                htmlFor={`${criterio.codigo}-${opcionKey}`}
-                                                                                className={`flex items-start gap-2.5 rounded-xl border p-3 text-left transition-all duration-150 select-none ${
-                                                                                    esRegistrada ? 'cursor-default opacity-90' : 'cursor-pointer'
-                                                                                } ${
-                                                                                    esSeleccionado
-                                                                                        ? `${conf.borderSelected} ${conf.bgSelected} ${conf.ringSelected} shadow-xs scale-[1.01]`
-                                                                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
-                                                                                }`}
-                                                                            >
-                                                                                <input
-                                                                                    type="radio"
-                                                                                    id={`${criterio.codigo}-${opcionKey}`}
-                                                                                    name={`criterio-${criterio.codigo}`}
-                                                                                    value={opcionKey}
-                                                                                    checked={esSeleccionado}
-                                                                                    disabled={esRegistrada || guardandoAvance || guardandoContinuar}
-                                                                                    onChange={() => seleccionarRespuesta(criterio.codigo, opcionKey)}
-                                                                                    className={`mt-0.5 h-4 w-4 shrink-0 border-slate-300 ${conf.radioAccent} disabled:opacity-60`}
-                                                                                />
-                                                                                <span className="min-w-0">
-                                                                                    <span className="flex items-center gap-1.5">
-                                                                                        <span
-                                                                                            className={`text-xs font-bold ${esSeleccionado ? conf.textSelected : 'text-slate-700'}`}
-                                                                                        >
-                                                                                            {conf.label}
-                                                                                        </span>
-                                                                                        <IconoOpcion
-                                                                                            className={`h-3.5 w-3.5 shrink-0 ${esSeleccionado ? conf.iconSelected : 'text-slate-300'}`}
-                                                                                            aria-hidden="true"
-                                                                                        />
-                                                                                    </span>
-                                                                                    <span className="mt-1 block text-[11px] leading-tight text-slate-500">
-                                                                                        {conf.descripcion}
-                                                                                    </span>
-                                                                                </span>
-                                                                            </label>
-                                                                        );
-                                                                    })}
-                                                            </div>
-
-                                                            {/* Contexto paramétrico: se muestra solo cuando el dato del
-                                                                paso 1 realmente existe. Sin dato declarado el bloque no se
-                                                                renderiza, porque calcular sobre 0 afirmaría una dotación que
-                                                                nadie declaró. */}
-                                                            {criterio.codigo === 'CRIT-01' && mostrarDotacionExtintores && (
-                                                                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-xs text-emerald-900">
-                                                                    <div className="flex items-center gap-1.5 font-black">
-                                                                        <Ruler className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                                                                        <span>Contexto declarado: dotación de extintores</span>
-                                                                    </div>
-                                                                    <p className="mt-1.5 text-sm font-black">
-                                                                        {extintoresSugeridos}{' '}
-                                                                        {extintoresSugeridos === 1 ? 'extintor' : 'extintores'} como mínimo
-                                                                        sugerido
-                                                                    </p>
-                                                                    <p className="mt-1 text-[11px] leading-relaxed text-emerald-900/80">
-                                                                        Cálculo orientativo: ceil({areaM2Num.toFixed(2)} m² / 60) = {extintoresMinimos}
-                                                                        {extintoresPorPisos !== null && `; por pisos = ${extintoresPorPisos}`}. Recorrido máximo
-                                                                        ≤ 15 m horizontales y altura máxima 1.50 m al soporte (RNE A.130).
-                                                                    </p>
-                                                                    <p
-                                                                        className={`mt-1.5 text-[11px] leading-relaxed ${
-                                                                            tieneEquiposFritura ? 'font-semibold text-amber-800' : 'text-emerald-900/80'
-                                                                        }`}
-                                                                    >
-                                                                        {tieneEquiposFritura === true
-                                                                            ? 'Con freidoras o cocina comercial declaradas se requiere extintor Tipo K (acetato de potasio).'
-                                                                            : tieneEquiposFritura === false
-                                                                              ? 'Tipo K no requerido con la declaración actual.'
-                                                                              : 'Equipamiento de fritura no declarado: el Tipo K no puede descartarse.'}
-                                                                    </p>
-                                                                    <p className="mt-1.5 text-[10px] leading-relaxed text-emerald-900/60">
-                                                                        Orientativo: no sustituye la verificación de carga y riesgo por el especialista.
-                                                                    </p>
-                                                                </div>
-                                                            )}
-
-                                                            {criterio.codigo === 'CRIT-04' && mostrarExigenciasAforo && (
-                                                                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/70 p-3 text-xs text-emerald-900">
-                                                                    <div className="flex items-center gap-1.5 font-black">
-                                                                        <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                                                                        <span>Contexto declarado: exigencias por aforo</span>
-                                                                    </div>
-                                                                    <p className="mt-1.5 text-sm font-black">
-                                                                        {aforoNum} {aforoNum === 1 ? 'persona' : 'personas'} declaradas
-                                                                    </p>
-
-                                                                    {mostrarAlertaAforo50 && (
-                                                                        <p className="mt-1.5 text-[11px] leading-relaxed">
-                                                                            Por superar las 50 personas, la puerta de salida debe abrir
-                                                                            obligatoriamente hacia el exterior como flujo de evacuación (RNE A.010
-                                                                            Art. 35.d / RNE A.130 Art. 8).
-                                                                        </p>
-                                                                    )}
-                                                                    {mostrarAlertaAforo100 && (
-                                                                        <p className="mt-1.5 text-[11px] leading-relaxed font-semibold text-rose-800">
-                                                                            Por superar las 100 personas es obligatoria la barra antipánico
-                                                                            (RNE A.010 / RNE A.130).
-                                                                        </p>
-                                                                    )}
-                                                                    {!mostrarAlertaAforo50 && (
-                                                                        <p className="mt-1.5 text-[11px] leading-relaxed text-emerald-900/80">
-                                                                            Con aforo ≤ 50 personas no se activa la exigencia paramétrica
-                                                                            señalada; igualmente debe garantizarse la salida expedita y sin trabas.
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Botones de apoyo pedagógico y material orientativo */}
-                                                            {(tieneGuiaPedagogica || tieneRecursos) && (
-                                                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-                                                                    {tieneGuiaPedagogica && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                setModalGuiaPedagogica({
-                                                                                    isOpen: true,
-                                                                                    codigo: criterio.codigo,
-                                                                                    titulo: criterio.titulo,
-                                                                                    explicacionCotidiana: comparativa?.explicacionCotidiana,
-                                                                                    queObservar: criterio.que_observar || undefined,
-                                                                                    correcto: comparativa?.correcto,
-                                                                                    incorrecto: comparativa?.incorrecto,
-                                                                                    normaBase: criterio.norma_base,
-                                                                                    articuloReferencia: criterio.articulo_referencia,
-                                                                                })
-                                                                            }
-                                                                            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 hover:text-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
-                                                                        >
-                                                                            <Lightbulb className="h-3.5 w-3.5 text-emerald-600 shrink-0" aria-hidden="true" />
-                                                                            <span>💡 Ayuda visual: ¿Cómo revisar esto?</span>
-                                                                        </button>
-                                                                    )}
-
-                                                                    {tieneRecursos && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                setModalRecurso({
-                                                                                    isOpen: true,
-                                                                                    recursos: criterio.recursos_educativos || [],
-                                                                                    codigo: criterio.codigo,
-                                                                                    titulo: criterio.titulo,
-                                                                                })
-                                                                            }
-                                                                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
-                                                                        >
-                                                                            <BookOpen className="h-3.5 w-3.5 text-slate-500 shrink-0" aria-hidden="true" />
-                                                                            <span>
-                                                                                Material orientativo{' '}
-                                                                                {criterio.recursos_educativos && criterio.recursos_educativos.length > 1
-                                                                                    ? `(${criterio.recursos_educativos.length})`
-                                                                                    : ''}
-                                                                            </span>
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                    </fieldset>
-                                                </article>
-                                            );
-                                        })}
-                                    </div>
-                                </section>
-                            )}
+                                    {especialidadVisible.criterios.map((criterio, index) => (
+                                        <TarjetaCriterio
+                                            key={criterio.codigo ?? index}
+                                            criterio={criterio}
+                                            index={index}
+                                            valorSeleccionado={respuestas[criterio.codigo]}
+                                            estaGuardado={criteriosGuardados[criterio.codigo]}
+                                            esRegistrada={esRegistrada}
+                                            deshabilitado={deshabilitarOpciones}
+                                            contextoParametrico={contextoParametrico}
+                                            autoevaluacionUuid={autoevaluacion.uuid}
+                                            onSelectRespuesta={seleccionarRespuesta}
+                                            onOpenGuiaPedagogica={(datos) =>
+                                                setModalGuiaPedagogica({
+                                                    isOpen: true,
+                                                    ...datos,
+                                                })
+                                            }
+                                            onOpenRecurso={(datos) =>
+                                                setModalRecurso({
+                                                    isOpen: true,
+                                                    ...datos,
+                                                })
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                     </div>
 
-                    {/* ============================================== */}
-                    {/* Criterios no aplicables (decisión del sistema) */}
-                    {/* ============================================== */}
-                    {criteriosNoAplican.length > 0 && (
-                        <section className="rounded-3xl border border-slate-200 bg-slate-50/60 p-5">
-                            <button
-                                type="button"
-                                onClick={() => setMostrarNoAplican(!mostrarNoAplican)}
-                                aria-expanded={mostrarNoAplican}
-                                className="flex w-full items-center justify-between gap-3 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-xl"
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <ShieldAlert className="h-5 w-5 text-slate-400 shrink-0" />
-                                    <h2 className="text-base font-bold text-slate-800">
-                                        Condiciones que el sistema determinó como no aplicables ({criteriosNoAplican.length})
-                                    </h2>
-                                </div>
-                                {mostrarNoAplican ? <ChevronUp className="h-4 w-4 text-slate-500 shrink-0" /> : <ChevronDown className="h-4 w-4 text-slate-500 shrink-0" />}
-                            </button>
-
-                            {mostrarNoAplican && (
-                                <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-                                    <p className="text-xs text-slate-500">
-                                        El motor de aplicabilidad descartó estas condiciones a partir de lo que declaraste en el paso 1. La decisión es del sistema, no tuya: no son
-                                        seleccionables ni requieren acción ciudadana.
-                                    </p>
-                                    <div className="space-y-2">
-                                        {criteriosNoAplican.map((cna) => (
-                                            <div key={cna.codigo} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="font-mono text-xs font-bold text-slate-800">{cna.codigo}</span>
-                                                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 border border-slate-200">
-                                                        No aplica
-                                                    </span>
-                                                </div>
-                                                <p className="mt-1.5 text-sm font-bold text-slate-800">{cna.titulo}</p>
-                                                <p className="mt-1.5 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-                                                    <strong className="text-slate-700">Motivo del sistema: </strong>
-                                                    {cna.motivo}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </section>
-                    )}
+                    <SeccionCriteriosNoAplican
+                        criteriosNoAplican={criteriosNoAplican}
+                        mostrarNoAplican={mostrarNoAplican}
+                        onToggleNoAplican={() => setMostrarNoAplican(!mostrarNoAplican)}
+                    />
                 </div>
 
-                {/* ================================================== */}
-                {/* Panel lateral: resumen de hallazgos en vivo       */}
-                {/* Solo escritorio; en móvil la barra inferior hace */}
-                {/* exactamente el mismo trabajo.                      */}
-                {/* ================================================== */}
-                <aside aria-label="Resumen de hallazgos en vivo" className="hidden lg:col-span-4 lg:block">
-                    <div className="sticky top-24 space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
-                        <div className="flex items-center gap-2.5">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
-                                <ShieldAlert className="h-4 w-4" />
-                            </span>
-                            <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
-                                Resumen de hallazgos en vivo
-                            </h2>
-                        </div>
-
-                        <div>
-                            <p className="flex items-baseline gap-2">
-                                <span
-                                    className={`text-4xl font-black tracking-tight ${
-                                        faltasDetectadas > 0 ? 'text-rose-700' : 'text-emerald-700'
-                                    }`}
-                                >
-                                    {faltasDetectadas}
-                                </span>
-                                <span className="text-sm font-bold text-slate-700">
-                                    {faltasDetectadas === 1 ? 'falta detectada' : 'faltas detectadas'}
-                                </span>
-                            </p>
-                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-                                Se actualiza con cada declaración que marques, sin guardar nada.
-                            </p>
-                        </div>
-
-                        <div>
-                            <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                                <span className="font-bold uppercase tracking-wider text-slate-500">Avance</span>
-                                <span className="font-black text-slate-900">
-                                    {respondidosCount} de {criteriosAplicables.length}
-                                </span>
-                            </div>
-                            <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-slate-100">
-                                <div
-                                    className={`h-full rounded-full ${porcentajeAvance === 100 ? 'bg-emerald-600' : 'bg-amber-500'}`}
-                                    style={{ width: `${porcentajeAvance}%` }}
-                                />
-                            </div>
-                        </div>
-
-                        {faltasDetectadas === 0 ? (
-                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5">
-                                <p className="flex items-start gap-2 text-xs font-medium leading-relaxed text-emerald-900">
-                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                                    <span>
-                                        Aún no hay faltas registradas. Tu local cumple lo declarado hasta el momento.
-                                    </span>
-                                </p>
-                            </div>
-                        ) : (
-                            <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
-                                {hallazgos.map((hallazgo) => (
-                                    <li
-                                        key={hallazgo.codigo}
-                                        className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700"
-                                    >
-                                        <span className="font-mono text-[10px] font-bold text-rose-500">
-                                            {hallazgo.codigo}
-                                        </span>
-                                        <span className="mt-0.5 block text-xs font-semibold leading-snug">
-                                            {hallazgo.titulo}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-
-                        {/* El panel lateral es solo informativo: las acciones de
-                            guardado y cierre viven una sola vez en la barra inferior. */}
-                        <p className="border-t border-slate-100 pt-4 text-[11px] leading-relaxed text-slate-500">
-                            Cuando termines las {criteriosAplicables.length} condiciones, podrás pausar y guardar tu
-                            avance o pasar al resumen con el diagnóstico final.
-                        </p>
-                    </div>
-                </aside>
+                <PanelHallazgosEnVivo
+                    hallazgos={hallazgos}
+                    respondidosCount={respondidosCount}
+                    totalCriterios={criteriosAplicables.length}
+                    porcentajeAvance={porcentajeAvance}
+                />
             </div>
 
-            {/* ================================================== */}
-            {/* Cierre de flujo: pausa/guardado + avance al resumen */}
-            {/* Unica instancia de las acciones, visible en todos los tamaños. */}
-            {/* ================================================== */}
-            <div className="sticky bottom-0 z-30 mt-6 border-t border-slate-200 bg-white/95 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm">
-                <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <ClipboardList className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-                        <span className="font-bold text-slate-900">
-                            {respondidosCount} de {criteriosAplicables.length} verificaciones realizadas
-                        </span>
-                        {!todosRespondidos && !esRegistrada && (
-                            <span className="text-amber-700">
-                                (faltan {criteriosAplicables.length - respondidosCount})
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center">
-                        {!esRegistrada && (
-                            <button
-                                type="button"
-                                onClick={handleGuardarAvance}
-                                disabled={guardandoAvance || guardandoContinuar || respondidosCount === 0}
-                                className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
-                            >
-                                {guardandoAvance ? (
-                                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
-                                ) : (
-                                    <Save className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-                                )}
-                                <span>Pausar y guardar progreso</span>
-                            </button>
-                        )}
-
-                        {esRegistrada ? (
-                            <Link
-                                href={`/autoevaluacion/${autoevaluacion.uuid}/resumen`}
-                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-xs transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                            >
-                                <span>Ver Resumen y Diagnóstico Final</span>
-                                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                            </Link>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handleContinuarAlResumen}
-                                disabled={guardandoAvance || guardandoContinuar || !todosRespondidos}
-                                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold shadow-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 ${
-                                    todosRespondidos
-                                        ? 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-500'
-                                        : 'cursor-not-allowed bg-slate-100 text-slate-400'
-                                }`}
-                            >
-                                {guardandoContinuar ? (
-                                    <>
-                                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-transparent" />
-                                        <span>Generando diagnóstico...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>Ver Resumen y Diagnóstico Final</span>
-                                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                                    </>
-                                )}
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <BarraInferiorAcciones
+                uuid={autoevaluacion.uuid}
+                respondidosCount={respondidosCount}
+                totalCriterios={criteriosAplicables.length}
+                todosRespondidos={todosRespondidos}
+                esRegistrada={esRegistrada}
+                guardandoAvance={guardandoAvance}
+                guardandoContinuar={guardandoContinuar}
+                onGuardarAvance={handleGuardarAvance}
+                onContinuarAlResumen={handleContinuarAlResumen}
+            />
 
             <ModalGuardarProgreso
                 isOpen={mostrarModalGuardar}

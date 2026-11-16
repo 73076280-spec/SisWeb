@@ -258,6 +258,7 @@ it('solo el titular registrado puede descargar su evidencia declarada', function
 
     $evaluacion = crearAutoevaluacionEvidencias();
     $evaluacion->update(['user_id' => $titular->id]);
+    actingAs($titular);
     registrarSimulacionEvidencias($evaluacion);
 
     $subsanacion = registrarSubsanacionConEvidenciaEvidencias($evaluacion);
@@ -364,7 +365,7 @@ it('mantiene separadas las evidencias entre revisiones de una reevaluación', fu
     ]))->assertNotFound();
 });
 
-it('retira del almacenamiento privado la evidencia anterior al reemplazarla', function () {
+it('conserva en almacenamiento privado la evidencia anterior al reemplazarla para custodia histórica', function () {
     Storage::fake('local');
 
     $evaluacion = crearAutoevaluacionEvidencias();
@@ -391,6 +392,6 @@ it('retira del almacenamiento privado la evidencia anterior al reemplazarla', fu
     expect($actualizada->evidencia_url)->not->toBe($rutaAnterior)
         ->and($actualizada->evidencia_url)->toStartWith('evidencias/subsanaciones/');
 
-    Storage::disk('local')->assertMissing($rutaAnterior);
+    Storage::disk('local')->assertExists($rutaAnterior);
     Storage::disk('local')->assertExists($actualizada->evidencia_url);
 });

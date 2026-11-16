@@ -23,43 +23,61 @@ class StoreAutoevaluacionRequest extends FormRequest
     {
         $evaluacionOrigenUuid = $this->evaluacion_origen_uuid ?? $this->route('uuid');
 
-        $usaGlp = $this->has('usa_glp') && $this->usa_glp !== null && $this->usa_glp !== ''
-            ? filter_var($this->usa_glp, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)
-            : null;
-
-        // Evita combinaciones contradictorias: si no usa GLP o no respondió, galones_glp debe ser null.
-        $galonesGlp = ($usaGlp === true && filled($this->galones_glp))
-            ? (float) $this->galones_glp
-            : null;
-
-        $tieneEquiposFritura = $this->has('tiene_equipos_fritura')
-            ? $this->normalizarBooleanoOpcional($this->tiene_equipos_fritura)
-            : null;
-
-        $tieneEscaleras = $this->has('tiene_escaleras')
-            ? $this->normalizarBooleanoOpcional($this->tiene_escaleras)
-            : null;
-
-        $tieneEstanteriasAltas = $this->has('tiene_estanterias_altas')
-            ? $this->normalizarBooleanoOpcional($this->tiene_estanterias_altas)
-            : null;
+        [$usaGlp, $galonesGlp] = $this->sanitizarDatosGlp();
 
         $this->merge([
             'evaluacion_origen_uuid' => $evaluacionOrigenUuid,
-            'ruc' => filled($this->ruc) ? trim($this->ruc) : null,
-            'direccion' => filled($this->direccion) ? trim($this->direccion) : null,
-            'referencia' => filled($this->referencia) ? trim($this->referencia) : null,
-            'area_m2' => filled($this->area_m2) ? $this->area_m2 : null,
-            'pisos' => filled($this->pisos) ? $this->pisos : null,
-            'aforo' => filled($this->aforo) ? $this->aforo : null,
+            'ruc' => $this->sanitizarTexto('ruc'),
+            'distrito' => $this->sanitizarTexto('distrito'),
+            'direccion' => $this->sanitizarTexto('direccion'),
+            'referencia' => $this->sanitizarTexto('referencia'),
+            'area_m2' => $this->sanitizarValorOpcional('area_m2'),
+            'pisos' => $this->sanitizarValorOpcional('pisos'),
+            'aforo' => $this->sanitizarValorOpcional('aforo'),
             'usa_glp' => $usaGlp,
             'galones_glp' => $galonesGlp,
-            'usa_caldero' => $this->has('usa_caldero') && $this->usa_caldero !== null && $this->usa_caldero !== '' ? filter_var($this->usa_caldero, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) : null,
-            'usa_liquidos_inflamables' => $this->has('usa_liquidos_inflamables') && $this->usa_liquidos_inflamables !== null && $this->usa_liquidos_inflamables !== '' ? filter_var($this->usa_liquidos_inflamables, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) : null,
-            'tiene_equipos_fritura' => $tieneEquiposFritura,
-            'tiene_escaleras' => $tieneEscaleras,
-            'tiene_estanterias_altas' => $tieneEstanteriasAltas,
+            'usa_caldero' => $this->sanitizarBooleano('usa_caldero'),
+            'usa_liquidos_inflamables' => $this->sanitizarBooleano('usa_liquidos_inflamables'),
+            'tiene_equipos_fritura' => $this->sanitizarBooleanoOpcional('tiene_equipos_fritura'),
+            'tiene_escaleras' => $this->sanitizarBooleanoOpcional('tiene_escaleras'),
+            'tiene_estanterias_altas' => $this->sanitizarBooleanoOpcional('tiene_estanterias_altas'),
         ]);
+    }
+
+    private function sanitizarBooleano(string $campo): ?bool
+    {
+        if (! $this->has($campo) || $this->input($campo) === null || $this->input($campo) === '') {
+            return null;
+        }
+
+        return filter_var($this->input($campo), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    }
+
+    private function sanitizarDatosGlp(): array
+    {
+        $usaGlp = $this->sanitizarBooleano('usa_glp');
+        $galonesGlp = ($usaGlp === true && filled($this->input('galones_glp')))
+            ? (float) $this->input('galones_glp')
+            : null;
+
+        return [$usaGlp, $galonesGlp];
+    }
+
+    private function sanitizarBooleanoOpcional(string $campo): mixed
+    {
+        return $this->has($campo)
+            ? $this->normalizarBooleanoOpcional($this->input($campo))
+            : null;
+    }
+
+    private function sanitizarTexto(string $campo): ?string
+    {
+        return filled($this->input($campo)) ? trim((string) $this->input($campo)) : null;
+    }
+
+    private function sanitizarValorOpcional(string $campo): mixed
+    {
+        return filled($this->input($campo)) ? $this->input($campo) : null;
     }
 
     /**
@@ -76,19 +94,11 @@ class StoreAutoevaluacionRequest extends FormRequest
             return null;
         }
 
-        if ($valor === true || $valor === false) {
-            return $valor;
-        }
-
-        if ($valor === 'true' || $valor === '1' || $valor === 1) {
-            return true;
-        }
-
-        if ($valor === 'false' || $valor === '0' || $valor === 0) {
-            return false;
-        }
-
-        return $valor;
+        return match ($valor) {
+            true, 'true', '1', 1 => true,
+            false, 'false', '0', 0 => false,
+            default => $valor,
+        };
     }
 
     /**
@@ -103,6 +113,7 @@ class StoreAutoevaluacionRequest extends FormRequest
             'nombre_comercio' => 'required|string|max:255',
             'funcion_economica' => 'required|string|max:255',
             'ruc' => ['nullable', 'string', 'regex:/^(10|20)\d{9}$/'],
+            'distrito' => 'nullable|string|max:100',
             'direccion' => 'nullable|string|max:255',
             'referencia' => 'nullable|string|max:255',
             'area_m2' => 'nullable|numeric|min:0.1|max:100000',

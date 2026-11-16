@@ -28,13 +28,22 @@ export function FormatoAnexo03({
 
   return (
     <article className="mx-auto w-full max-w-[210mm] border border-slate-300 bg-white p-8 text-slate-900 shadow-md print:max-w-none print:border-none print:p-0 print:shadow-none print:text-black">
-      {/* Encabezado Oficial */}
+      {/* Banner de Borrador Orientativo de Trabajo */}
+      <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/90 p-2.5 text-center text-[10px] text-amber-900 print:border-black print:bg-slate-100 print:text-black">
+        <strong className="block uppercase tracking-wider">Plantilla Orientativa de Trabajo — Borrador No Oficial Generado por CheckITSE Huancayo</strong>
+        <p className="mt-0.5 text-[9px] leading-relaxed">
+          Estimación referencial de riesgo para autoevaluación preventiva basada en la Matriz CENEPRED (D.S. N° 002-2018-PCM).
+          No constituye calificación oficial, constancia de inspección ni resolución emitida por la Municipalidad Provincial de Huancayo.
+        </p>
+      </div>
+
+      {/* Encabezado Normativo de Referencia */}
       <header className="border-b-2 border-slate-800 pb-3 text-center">
         <div className="flex items-center justify-between text-left text-[11px] font-semibold text-slate-600 print:text-black">
           <div>
             <p className="font-black uppercase text-slate-900 print:text-black">MUNICIPALIDAD PROVINCIAL DE HUANCAYO</p>
             <p>Gerencia de Seguridad Ciudadana y Gestión del Riesgo</p>
-            <p className="text-[10px] text-slate-500 print:text-black">Subgerencia de Gestión del Riesgo de Desastres e ITSE</p>
+            <p className="text-[10px] text-slate-500 print:text-black">Subgerencia de Gestión del Riesgo de Desastres e ITSE · Modelo Normativo</p>
           </div>
           <div className="text-right">
             <span className="rounded border border-slate-400 px-2 py-0.5 font-mono text-[10px] font-bold">
@@ -121,10 +130,10 @@ export function FormatoAnexo03({
           </div>
         </section>
 
-        {/* III. Determinación Oficial del Nivel de Riesgo */}
+        {/* III. Determinación Referencial del Nivel de Riesgo */}
         <section className="rounded border-2 border-slate-800 p-3 print:border-black">
           <h2 className="border-b border-slate-200 pb-1 font-bold uppercase text-slate-900 print:text-black">
-            III. Calificación Oficial del Nivel de Riesgo
+            III. Estimación Referencial del Nivel de Riesgo (Matriz CENEPRED)
           </h2>
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
@@ -173,9 +182,9 @@ export function FormatoAnexo03({
             <div className="flex min-h-[120px] flex-col justify-between rounded border border-slate-400 p-3 text-center print:border-black">
               <div className="h-14 border-b border-dashed border-slate-300" />
               <div className="pt-1 text-[10px]">
-                <strong className="block">EVALUADOR TÉCNICO ITSE</strong>
+                <strong className="block">ESPACIO RESERVADO PARA LA AUTORIDAD COMPETENTE</strong>
                 <span className="text-slate-500 print:text-black">Municipalidad Provincial de Huancayo</span>
-                <span className="block font-medium text-slate-600 print:text-black">Inspector / Verificador Autorizado</span>
+                <span className="block font-medium text-slate-600 print:text-black">Para uso exclusivo en trámite oficial posterior</span>
               </div>
             </div>
           </div>

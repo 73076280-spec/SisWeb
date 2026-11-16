@@ -4,29 +4,27 @@ import { router } from '@inertiajs/react';
 import { RefreshCw, ArrowRight, X, ShieldCheck, CheckCircle2, Info } from 'lucide-react';
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  uuid: string;
-  nombreComercio?: string;
-  fechaAnterior?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly uuid: string;
+  readonly nombreComercio?: string;
+  readonly fechaAnterior?: string;
 }
 
-export const ModalConfirmarReevaluacion: React.FC<Props> = ({
+export const ModalConfirmarReevaluacion: React.FC<Readonly<Props>> = ({
   isOpen,
   onClose,
   uuid,
   nombreComercio = 'tu establecimiento',
   fechaAnterior,
-}) => {
+}: Readonly<Props>) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    if (triggerRef.current === null) {
-      triggerRef.current = document.activeElement as HTMLElement | null;
-    }
+    triggerRef.current ??= document.activeElement as HTMLElement | null;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -34,10 +32,10 @@ export const ModalConfirmarReevaluacion: React.FC<Props> = ({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
       if (triggerRef.current) {
         triggerRef.current.focus();
         triggerRef.current = null;
@@ -53,21 +51,22 @@ export const ModalConfirmarReevaluacion: React.FC<Props> = ({
   };
 
   const modalContent = (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      open
       aria-labelledby="modal-reevaluacion-title"
       aria-describedby="modal-reevaluacion-desc"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-xs animate-in fade-in duration-200"
-      onClick={e => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200 bg-transparent border-0 max-w-none max-h-none w-full h-full m-0"
     >
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        tabIndex={-1}
+        onClick={onClose}
+        className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs cursor-default"
+      />
       <div
         ref={modalRef}
-        className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-neutral-100 text-left relative overflow-hidden"
+        className="relative z-10 bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-neutral-100 text-left overflow-hidden"
       >
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-neutral-100">
           <div className="flex items-center gap-2.5">
@@ -148,7 +147,7 @@ export const ModalConfirmarReevaluacion: React.FC<Props> = ({
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
